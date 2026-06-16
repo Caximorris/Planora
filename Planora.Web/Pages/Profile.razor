@@ -1,0 +1,132 @@
+@page "/profile"
+@attribute [Authorize]
+
+<PageTitle>Profile — Planora</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="profile-root">
+            <div class="profile-header">
+                <div class="profile-avatar-lg">
+                    @(context.User.FindFirst("displayName")?.Value?.Length > 0
+                        ? context.User.FindFirst("displayName")!.Value[0].ToString().ToUpper()
+                        : "?")
+                </div>
+                <div>
+                    <h1>@(context.User.FindFirst("displayName")?.Value ?? "Account")</h1>
+                    <p>@(context.User.FindFirst("email")?.Value)</p>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2 class="profile-section-title">Account</h2>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Display name</div>
+                        <div class="profile-row-desc">The name other members see on your cards and boards</div>
+                    </div>
+                    <input class="form-control profile-row-input" value="@(context.User.FindFirst("displayName")?.Value)" disabled />
+                </div>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Email</div>
+                        <div class="profile-row-desc">Used to sign in</div>
+                    </div>
+                    <input class="form-control profile-row-input" value="@(context.User.FindFirst("email")?.Value)" disabled />
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2 class="profile-section-title">Appearance</h2>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Theme</div>
+                        <div class="profile-row-desc">Choose how Planora looks on your device</div>
+                    </div>
+                    <div class="profile-theme-options">
+                        <button type="button" class="profile-theme-btn @(_theme == "light" ? "profile-theme-btn--active" : "")" @onclick='() => SetTheme("light")'>☀️ Light</button>
+                        <button type="button" class="profile-theme-btn @(_theme == "dark" ? "profile-theme-btn--active" : "")" @onclick='() => SetTheme("dark")'>🌙 Dark</button>
+                    </div>
+                </div>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Default board view</div>
+                        <div class="profile-row-desc">Show boards as a list instead of a grid</div>
+                    </div>
+                    <span class="profile-soon-badge">Soon</span>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2 class="profile-section-title">Security</h2>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Password</div>
+                        <div class="profile-row-desc">Change your account password</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled>Change password <span class="profile-soon-badge">Soon</span></button>
+                </div>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Two-factor authentication</div>
+                        <div class="profile-row-desc">Add an extra layer of security to your account</div>
+                    </div>
+                    <span class="profile-soon-badge">Soon</span>
+                </div>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Active sessions</div>
+                        <div class="profile-row-desc">See and manage where you're signed in</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled>Manage <span class="profile-soon-badge">Soon</span></button>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2 class="profile-section-title">Notifications</h2>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Email notifications</div>
+                        <div class="profile-row-desc">Get notified about activity on your boards</div>
+                    </div>
+                    <span class="profile-soon-badge">Soon</span>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2 class="profile-section-title">Privacy</h2>
+                <div class="profile-row">
+                    <div>
+                        <div class="profile-row-label">Export your data</div>
+                        <div class="profile-row-desc">Download a copy of your workspaces and boards</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled>Export <span class="profile-soon-badge">Soon</span></button>
+                </div>
+                <div class="profile-row profile-row--danger">
+                    <div>
+                        <div class="profile-row-label">Delete account</div>
+                        <div class="profile-row-desc">Permanently delete your account and all of your data</div>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm" disabled>Delete account <span class="profile-soon-badge">Soon</span></button>
+                </div>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Inject] IJSRuntime JS { get; set; } = null!;
+
+    private string _theme = "light";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _theme = await JS.InvokeAsync<string>("planoraGetTheme");
+    }
+
+    private async Task SetTheme(string theme)
+    {
+        _theme = theme;
+        await JS.InvokeVoidAsync("planoraSetTheme", theme);
+    }
+}

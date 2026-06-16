@@ -1,0 +1,58 @@
+@page "/"
+@attribute [Authorize]
+
+<PageTitle>Home — Planora</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="home-root">
+            <div class="home-welcome">
+                <h1>Welcome back, @(context.User.FindFirst("displayName")?.Value ?? "there") 👋</h1>
+                <p>Pick up where you left off, or explore what's coming next.</p>
+            </div>
+
+            <div class="home-grid">
+                <a href="/workspaces" class="home-card home-card--active">
+                    <span class="home-card-icon">🗂️</span>
+                    <span class="home-card-title">Workspaces</span>
+                    <span class="home-card-desc">Browse your boards and projects</span>
+                </a>
+
+                <div class="home-card home-card--disabled" title="Coming soon">
+                    <span class="home-card-badge">Soon</span>
+                    <span class="home-card-icon">📅</span>
+                    <span class="home-card-title">Calendar</span>
+                    <span class="home-card-desc">See due dates across all your boards</span>
+                </div>
+
+                <div class="home-card home-card--disabled" title="Coming soon">
+                    <span class="home-card-badge">Soon</span>
+                    <span class="home-card-icon">📊</span>
+                    <span class="home-card-title">Reports</span>
+                    <span class="home-card-desc">Track progress and team velocity</span>
+                </div>
+
+                <div class="home-card home-card--disabled" title="Coming soon">
+                    <span class="home-card-badge">Soon</span>
+                    <span class="home-card-icon">👥</span>
+                    <span class="home-card-title">Team</span>
+                    <span class="home-card-desc">Manage members and roles</span>
+                </div>
+
+                <div class="home-card home-card--disabled" title="Coming soon">
+                    <span class="home-card-badge">Soon</span>
+                    <span class="home-card-icon">🔔</span>
+                    <span class="home-card-title">Notifications</span>
+                    <span class="home-card-desc">Stay on top of board activity</span>
+                </div>
+
+                <div class="home-card home-card--disabled" title="Coming soon">
+                    <span class="home-card-badge">Soon</span>
+                    <span class="home-card-icon">⚙️</span>
+                    <span class="home-card-title">Settings</span>
+                    <span class="home-card-desc">Account and workspace preferences</span>
+                </div>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>

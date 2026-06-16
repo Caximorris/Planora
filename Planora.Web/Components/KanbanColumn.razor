@@ -1,0 +1,188 @@
+@using Planora.Shared.DTOs.Column
+@using Planora.Shared.DTOs.Card
+@using Planora.Shared.Enums
+
+<div class="kanban-column"
+     style="@(Column.Color is not null ? $"background:{Column.Color};" : "")"
+     data-column-id="@Column.Id">
+
+    <div class="kanban-col-header" title="Drag to reorder">
+        <span class="kanban-col-title">@Column.Title</span>
+        <div class="kanban-col-actions">
+            <span class="kanban-col-count">@VisibleCards.Count</span>
+            <button type="button" class="settings-gear-btn settings-gear-btn--sm" title="Column settings" @onclick="ToggleSettings">⚙️</button>
+        </div>
+    </div>
+
+    <div class="kanban-cards-list" data-column-id="@Column.Id">
+        @foreach (var card in VisibleCards)
+        {
+            <KanbanCard Card="card" OnClick="() => OnCardClick.InvokeAsync(card)" />
+        }
+    </div>
+
+    <div class="add-card-area">
+        @if (_addingCard)
+        {
+            <textarea class="add-card-input"
+                      @bind="_cardTitle"
+                      placeholder="Card title…"
+                      @onkeydown="CardKeyDown"
+                      rows="2"></textarea>
+            <div class="add-card-actions">
+                <button class="btn btn-sm btn-primary" @onclick="Submit">Add card</button>
+                <button class="btn btn-sm btn-secondary" @onclick="Cancel">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <button class="add-card-btn" @onclick="() => _addingCard = true">+ Add a card</button>
+        }
+    </div>
+</div>
+
+@if (_showSettings)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseSettings"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Column settings</h5>
+                    <button class="btn-close" @onclick="CloseSettings"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input class="form-control" @bind="_titleDraft" @onkeydown="TitleKeyDown" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color"
+                                   value="@(Column.Color ?? "#f4f0e4")"
+                                   @onchange="OnColorPicked" />
+                            @if (Column.Color is not null)
+                            {
+                                <button type="button" class="btn btn-sm btn-secondary" @onclick="ResetColor">Reset color</button>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-danger btn-sm me-auto" @onclick="ConfirmDelete">Delete column</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseSettings">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveTitle">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete column confirmation *@
+@if (_confirmDelete)
+{
+    <div class="modal-backdrop fade show" @onclick="() => _confirmDelete = false"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete column?</h5>
+                    <button class="btn-close" @onclick="() => _confirmDelete = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">
+                        "<strong>@Column.Title</strong>" and all its cards will be permanently deleted.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _confirmDelete = false">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteColumnConfirmed">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ColumnDto Column { get; set; } = null!;
+    [Parameter] public CardPriority? Filter { get; set; }
+    [Parameter] public EventCallback<string> OnAddCard { get; set; }
+    [Parameter] public EventCallback OnDeleteColumn { get; set; }
+    [Parameter] public EventCallback<CardDto> OnCardClick { get; set; }
+    [Parameter] public EventCallback<string?> OnColorChange { get; set; }
+    [Parameter] public EventCallback<string> OnRename { get; set; }
+
+    private bool _addingCard;
+    private string _cardTitle = "";
+
+    private bool _showSettings;
+    private bool _confirmDelete;
+    private string _titleDraft = "";
+
+    // Column/card drag-and-drop reordering is handled by SortableJS (see wwwroot/js/board-sortable.js),
+    // which talks directly to Board.razor via JS interop — this component no longer needs any
+    // drag event wiring of its own.
+    private List<CardDto> VisibleCards =>
+        Filter is null
+            ? Column.Cards.OrderBy(c => c.Position).ToList()
+            : Column.Cards.Where(c => c.Priority == Filter).OrderBy(c => c.Position).ToList();
+
+    private async Task Submit()
+    {
+        if (!string.IsNullOrWhiteSpace(_cardTitle))
+            await OnAddCard.InvokeAsync(_cardTitle.Trim());
+        Cancel();
+    }
+
+    private void Cancel() { _cardTitle = ""; _addingCard = false; }
+
+    private void CardKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) _ = Submit();
+        if (e.Key == "Escape") Cancel();
+    }
+
+    private async Task OnColorPicked(ChangeEventArgs e)
+    {
+        var color = e.Value?.ToString();
+        if (!string.IsNullOrWhiteSpace(color))
+            await OnColorChange.InvokeAsync(color);
+    }
+
+    private async Task ResetColor() => await OnColorChange.InvokeAsync(null);
+
+    private void ToggleSettings()
+    {
+        if (!_showSettings) _titleDraft = Column.Title;
+        _showSettings = !_showSettings;
+    }
+
+    private void CloseSettings() => _showSettings = false;
+
+    private async Task SaveTitle()
+    {
+        var trimmed = _titleDraft.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed) && trimmed != Column.Title)
+            await OnRename.InvokeAsync(trimmed);
+        CloseSettings();
+    }
+
+    private void TitleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = SaveTitle();
+        if (e.Key == "Escape") CloseSettings();
+    }
+
+    private void ConfirmDelete()
+    {
+        CloseSettings();
+        _confirmDelete = true;
+    }
+
+    private async Task DeleteColumnConfirmed()
+    {
+        _confirmDelete = false;
+        await OnDeleteColumn.InvokeAsync();
+    }
+}

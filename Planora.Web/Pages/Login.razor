@@ -1,0 +1,60 @@
+@page "/login"
+
+<PageTitle>Sign in — Planora</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">Planora</div>
+        <h1 class="auth-title">Sign in</h1>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2">@_error</div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" @bind="_email" placeholder="you@example.com" @onkeydown="OnKeyDown" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" @bind="_password" placeholder="••••••••" @onkeydown="OnKeyDown" />
+        </div>
+        <button class="btn btn-primary w-100" @onclick="HandleLogin" disabled="@_loading">
+            @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+            Sign in
+        </button>
+
+        <p class="auth-switch">Don't have an account? <a href="/register">Sign up</a></p>
+    </div>
+</div>
+
+@code {
+    [Inject] AuthService AuthService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+    private bool _loading;
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Please enter your email and password.";
+            return;
+        }
+        _loading = true;
+        _error = null;
+        var (success, error) = await AuthService.LoginAsync(new() { Email = _email, Password = _password });
+        _loading = false;
+        if (success) Nav.NavigateTo("/workspaces");
+        else _error = error;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = HandleLogin();
+    }
+}

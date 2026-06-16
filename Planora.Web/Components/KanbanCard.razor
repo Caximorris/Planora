@@ -1,0 +1,40 @@
+@using Planora.Shared.DTOs.Card
+@using Planora.Shared.Enums
+
+<div class="kanban-card @PriorityClass"
+     style="@(Card.Color is not null ? $"background:{Card.Color};" : "")"
+     data-card-id="@Card.Id"
+     @onclick="() => OnClick.InvokeAsync()">
+
+    <div class="kanban-card-title">@Card.Title</div>
+
+    @if (Card.DueDate.HasValue || Card.Priority != CardPriority.None)
+    {
+        <div class="kanban-card-meta">
+            @if (Card.DueDate.HasValue)
+            {
+                <span class="card-due @(IsOverdue ? "card-due--overdue" : "")">
+                    @(IsOverdue ? "!" : "") @Card.DueDate.Value.ToLocalTime().ToString("MMM d")
+                </span>
+            }
+            @if (Card.Priority != CardPriority.None)
+            {
+                <span class="card-priority-badge priority-@Card.Priority.ToString().ToLower()">@Card.Priority</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CardDto Card { get; set; } = null!;
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private bool IsOverdue => Card.DueDate.HasValue && Card.DueDate.Value < DateTime.UtcNow;
+
+    private string PriorityClass => Card.Priority switch
+    {
+        CardPriority.Critical => "kanban-card--critical",
+        CardPriority.High     => "kanban-card--high",
+        _                     => ""
+    };
+}

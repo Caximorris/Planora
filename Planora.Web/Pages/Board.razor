@@ -1,0 +1,489 @@
+@page "/boards/{Id:guid}"
+@attribute [Authorize]
+@implements IDisposable
+@using Planora.Shared.Enums
+
+<PageTitle>@(_board?.Name ?? "Board") — Planora</PageTitle>
+
+@if (_loading)
+{
+    <div class="board-loading"><span class="spinner-border text-light"></span></div>
+}
+else if (_board is null)
+{
+    <div class="container py-5 text-center">
+        <p class="text-muted">Board not found.</p>
+        <a href="/workspaces" class="btn btn-primary mt-2">Back to workspaces</a>
+    </div>
+}
+else
+{
+    <div class="board-root" style="@BoardBackgroundStyle">
+        <div class="board-header">
+            <div class="board-breadcrumb">
+                <a href="/workspaces">Workspaces</a>
+                <span>/</span>
+                <span>@(_workspaceName ?? "...")</span>
+                <span>/</span>
+            </div>
+            <div class="board-title-wrap">
+                <span class="board-title-display">@_board.Name</span>
+                <button type="button" class="settings-gear-btn" title="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
+            </div>
+            <div class="board-filter">
+                <span class="board-filter-label">Filter:</span>
+                <button class="filter-pill @(_filter == null ? "active" : "")" @onclick="() => _filter = null">All</button>
+                <button class="filter-pill @(_filter == CardPriority.Low ? "active" : "")" @onclick="() => _filter = CardPriority.Low">Low</button>
+                <button class="filter-pill @(_filter == CardPriority.Medium ? "active" : "")" @onclick="() => _filter = CardPriority.Medium">Medium</button>
+                <button class="filter-pill @(_filter == CardPriority.High ? "active" : "")" @onclick="() => _filter = CardPriority.High">High</button>
+                <button class="filter-pill @(_filter == CardPriority.Critical ? "active" : "")" @onclick="() => _filter = CardPriority.Critical">Critical</button>
+            </div>
+        </div>
+
+        <div class="board-columns">
+            @foreach (var col in _board.Columns.OrderBy(c => c.Position))
+            {
+                <KanbanColumn
+                    Column="col"
+                    Filter="_filter"
+                    OnAddCard="@(title => AddCard(col.Id, title))"
+                    OnDeleteColumn="@(() => DeleteColumn(col.Id))"
+                    OnCardClick="@(card => OpenCard(card))"
+                    OnColorChange="@(color => ChangeColumnColor(col.Id, color))"
+                    OnRename="@(title => RenameColumn(col.Id, title))" />
+            }
+
+            <div class="add-column-panel">
+                @if (_addingColumn)
+                {
+                    <div class="new-column-form">
+                        <input class="form-control mb-2"
+                               @bind="_newColTitle"
+                               placeholder="Column title"
+                               @onkeydown="ColKeyDown" />
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-primary" @onclick="AddColumn">Add</button>
+                            <button class="btn btn-sm btn-secondary" @onclick="CancelColumn">Cancel</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <button class="add-column-btn" @onclick="() => _addingColumn = true">+ Add column</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* Card detail modal *@
+@if (_editCard is not null)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseCard"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Card details</h5>
+                    <button class="btn-close" @onclick="CloseCard"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input class="form-control" @bind="_editTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="3" @bind="_editDesc" placeholder="Add a description…"></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Due date</label>
+                            <input type="date" class="form-control" @bind="_editDue" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" @bind="_editPriority">
+                                @foreach (var p in Enum.GetValues<CardPriority>())
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Color</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color"
+                                   value="@(_editColor ?? "#f8f5ed")"
+                                   @onchange="e => _editColor = e.Value?.ToString()" />
+                            <button type="button" class="btn btn-sm btn-secondary" @onclick="() => _editColor = null">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-danger btn-sm me-auto" @onclick="DeleteCard">Delete card</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCard">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveCard" disabled="@_saving">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Board settings *@
+@if (_showBoardSettings)
+{
+    <div class="modal-backdrop fade show" @onclick="() => _showBoardSettings = false"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Board settings</h5>
+                    <button class="btn-close" @onclick="() => _showBoardSettings = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" value="@_board!.Name" @onchange="SaveBoardName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <div>
+                            <input type="color" class="form-control form-control-color"
+                                   value="@(_board.CoverColor ?? "#3d4d27")"
+                                   @onchange="SaveBoardColor" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cover image</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="settings-upload-label">
+                                @(_board.CoverImageUrl is null ? "Upload…" : "Change…")
+                                <InputFile OnChange="OnCoverFileSelected" accept="image/png,image/jpeg,image/webp,image/gif" />
+                            </label>
+                            @if (_board.CoverImageUrl is not null)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="RemoveCoverImage">Remove</button>
+                            }
+                        </div>
+                        @if (_coverError is not null)
+                        {
+                            <div class="settings-error mt-1">@_coverError</div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-danger btn-sm me-auto" @onclick="ConfirmDeleteBoard">Delete board</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showBoardSettings = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete board confirmation *@
+@if (_confirmDeleteBoard)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete board?</h5>
+                    <button class="btn-close" @onclick="() => _confirmDeleteBoard = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">
+                        "<strong>@_board?.Name</strong>" and all its columns and cards will be permanently deleted.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _confirmDeleteBoard = false">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteBoard" disabled="@_saving">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [Inject] BoardService BoardService { get; set; } = null!;
+    [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
+    [Inject] ColumnService ColumnService { get; set; } = null!;
+    [Inject] CardService CardService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    [Inject] IJSRuntime JS { get; set; } = null!;
+
+    private DotNetObjectReference<Board>? _jsRef;
+
+    private BoardDetailDto? _board;
+    private string? _workspaceName;
+    private CardPriority? _filter;
+    private bool _loading = true;
+    private bool _saving;
+
+    private bool _addingColumn;
+    private string _newColTitle = "";
+
+    private CardDto? _editCard;
+    private string _editTitle = "";
+    private string _editDesc = "";
+    private DateTime? _editDue;
+    private CardPriority _editPriority;
+    private string? _editColor;
+
+    private string? _coverError;
+    private bool _showBoardSettings;
+    private bool _confirmDeleteBoard;
+
+    private string BoardBackgroundStyle =>
+        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, "#253018");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _board = await BoardService.GetByIdAsync(Id);
+        if (_board is not null)
+        {
+            var ws = await WorkspaceService.GetByIdAsync(_board.WorkspaceId);
+            _workspaceName = ws?.Name;
+        }
+        _loading = false;
+    }
+
+    // Wires up SortableJS (wwwroot/js/board-sortable.js) on the rendered column/card lists so
+    // dragging follows the mouse and live-reorders, instead of the old "drop only" HTML5 DnD.
+    // Both JS functions are idempotent (they skip elements already initialized), so calling them
+    // on every render correctly picks up newly added columns/cards without double-wiring.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _jsRef = DotNetObjectReference.Create(this);
+
+        if (_board is not null && _jsRef is not null)
+        {
+            await JS.InvokeVoidAsync("planoraInitColumnsSortable", _jsRef);
+            await JS.InvokeVoidAsync("planoraInitCardLists", _jsRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnColumnsReordered(string columnId, int newIndex)
+    {
+        if (_board is null || !Guid.TryParse(columnId, out var id)) return;
+
+        var columns = _board.Columns.OrderBy(c => c.Position).ToList();
+        var dragged = columns.FirstOrDefault(c => c.Id == id);
+        if (dragged is null) return;
+
+        columns.Remove(dragged);
+        columns.Insert(Math.Clamp(newIndex, 0, columns.Count), dragged);
+
+        for (var i = 0; i < columns.Count; i++)
+        {
+            if (columns[i].Position == i) continue;
+            columns[i].Position = i;
+            await ColumnService.UpdateAsync(columns[i].Id, new() { Position = i });
+        }
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnCardsReordered(string cardId, string targetColumnId, int newIndex)
+    {
+        if (_board is null) return;
+        if (!Guid.TryParse(cardId, out var draggedId) || !Guid.TryParse(targetColumnId, out var targetColumnGuid)) return;
+
+        var sourceColumn = _board.Columns.FirstOrDefault(c => c.Cards.Any(card => card.Id == draggedId));
+        var targetColumn = _board.Columns.FirstOrDefault(c => c.Id == targetColumnGuid);
+        var dragged = sourceColumn?.Cards.FirstOrDefault(card => card.Id == draggedId);
+        if (sourceColumn is null || targetColumn is null || dragged is null) return;
+
+        var changedColumn = sourceColumn.Id != targetColumn.Id;
+        if (changedColumn)
+        {
+            sourceColumn.Cards.Remove(dragged);
+            dragged.ColumnId = targetColumn.Id;
+            targetColumn.Cards.Add(dragged);
+        }
+
+        var targetCards = targetColumn.Cards.OrderBy(c => c.Position).ToList();
+        targetCards.Remove(dragged);
+        targetCards.Insert(Math.Clamp(newIndex, 0, targetCards.Count), dragged);
+
+        for (var i = 0; i < targetCards.Count; i++)
+        {
+            var positionChanged = targetCards[i].Position != i;
+            targetCards[i].Position = i;
+            if (positionChanged || targetCards[i].Id == draggedId)
+                await CardService.UpdateAsync(targetCards[i].Id, new() { ColumnId = targetColumn.Id, Position = i });
+        }
+
+        if (changedColumn)
+        {
+            var sourceCards = sourceColumn.Cards.OrderBy(c => c.Position).ToList();
+            for (var i = 0; i < sourceCards.Count; i++)
+            {
+                if (sourceCards[i].Position == i) continue;
+                sourceCards[i].Position = i;
+                await CardService.UpdateAsync(sourceCards[i].Id, new() { Position = i });
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose() => _jsRef?.Dispose();
+
+    private async Task SaveBoardName(ChangeEventArgs e)
+    {
+        var newName = e.Value?.ToString()?.Trim();
+        if (string.IsNullOrWhiteSpace(newName) || newName == _board!.Name) return;
+        var updated = await BoardService.UpdateAsync(_board.Id, new() { Name = newName, Description = _board.Description, CoverColor = _board.CoverColor });
+        if (updated is not null) _board.Name = updated.Name;
+    }
+
+    private async Task SaveBoardColor(ChangeEventArgs e)
+    {
+        var color = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(color)) return;
+        var updated = await BoardService.UpdateAsync(_board!.Id, new() { Name = _board.Name, Description = _board.Description, CoverColor = color });
+        if (updated is not null) _board.CoverColor = updated.CoverColor;
+    }
+
+    private async Task OnCoverFileSelected(InputFileChangeEventArgs e)
+    {
+        _coverError = null;
+        _saving = true;
+        try
+        {
+            var updated = await BoardService.UploadCoverImageAsync(_board!.Id, e.File);
+            if (updated is not null) _board!.CoverImageUrl = updated.CoverImageUrl;
+            else _coverError = "Couldn't upload image — check the file type and size (max 5 MB).";
+        }
+        catch (IOException)
+        {
+            _coverError = "Image is too large (max 5 MB).";
+        }
+        _saving = false;
+    }
+
+    private async Task RemoveCoverImage()
+    {
+        _saving = true;
+        if (await BoardService.RemoveCoverImageAsync(_board!.Id))
+            _board!.CoverImageUrl = null;
+        _saving = false;
+    }
+
+    private void ConfirmDeleteBoard()
+    {
+        _showBoardSettings = false;
+        _confirmDeleteBoard = true;
+    }
+
+    private async Task DeleteBoard()
+    {
+        _saving = true;
+        if (await BoardService.DeleteAsync(_board!.Id))
+            Nav.NavigateTo("/workspaces");
+        _saving = false;
+        _confirmDeleteBoard = false;
+    }
+
+    private async Task RenameColumn(Guid columnId, string title)
+    {
+        var updated = await ColumnService.UpdateAsync(columnId, new() { Title = title });
+        if (updated is null) return;
+        var column = _board!.Columns.FirstOrDefault(c => c.Id == columnId);
+        if (column is not null) column.Title = updated.Title;
+    }
+
+    private async Task ChangeColumnColor(Guid columnId, string? color)
+    {
+        var request = color is null
+            ? new UpdateColumnRequest { ClearColor = true }
+            : new UpdateColumnRequest { Color = color };
+        var updated = await ColumnService.UpdateAsync(columnId, request);
+        if (updated is null) return;
+        var column = _board!.Columns.FirstOrDefault(c => c.Id == columnId);
+        if (column is not null) column.Color = updated.Color;
+    }
+
+    private async Task AddColumn()
+    {
+        if (string.IsNullOrWhiteSpace(_newColTitle)) return;
+        var created = await ColumnService.CreateAsync(new() { Title = _newColTitle, BoardId = Id });
+        if (created is not null)
+            _board!.Columns.Add(new ColumnDto { Id = created.Id, Title = created.Title, Position = created.Position, BoardId = Id });
+        CancelColumn();
+    }
+
+    private void CancelColumn() { _addingColumn = false; _newColTitle = ""; }
+
+    private void ColKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = AddColumn();
+        if (e.Key == "Escape") CancelColumn();
+    }
+
+    private async Task AddCard(Guid columnId, string title)
+    {
+        var created = await CardService.CreateAsync(new() { Title = title, ColumnId = columnId });
+        if (created is null) return;
+        _board!.Columns.FirstOrDefault(c => c.Id == columnId)?.Cards.Add(created);
+    }
+
+    private async Task DeleteColumn(Guid columnId)
+    {
+        if (!await ColumnService.DeleteAsync(columnId)) return;
+        _board!.Columns.RemoveAll(c => c.Id == columnId);
+    }
+
+    private void OpenCard(CardDto card)
+    {
+        _editCard = card;
+        _editTitle = card.Title;
+        _editDesc = card.Description ?? "";
+        _editDue = card.DueDate?.ToLocalTime();
+        _editPriority = card.Priority;
+        _editColor = card.Color;
+    }
+
+    private void CloseCard() => _editCard = null;
+
+    private async Task SaveCard()
+    {
+        if (_editCard is null) return;
+        _saving = true;
+        var updated = await CardService.UpdateAsync(_editCard.Id, new()
+        {
+            Title = _editTitle,
+            Description = _editDesc.Length > 0 ? _editDesc : null,
+            DueDate = _editDue?.ToUniversalTime(),
+            Priority = _editPriority,
+            Color = _editColor,
+            ClearColor = _editColor is null
+        });
+        if (updated is not null)
+        {
+            foreach (var col in _board!.Columns)
+            {
+                var idx = col.Cards.FindIndex(c => c.Id == _editCard.Id);
+                if (idx >= 0) { col.Cards[idx] = updated; break; }
+            }
+        }
+        _saving = false;
+        CloseCard();
+    }
+
+    private async Task DeleteCard()
+    {
+        if (_editCard is null) return;
+        if (!await CardService.DeleteAsync(_editCard.Id)) return;
+        foreach (var col in _board!.Columns) col.Cards.RemoveAll(c => c.Id == _editCard.Id);
+        CloseCard();
+    }
+}

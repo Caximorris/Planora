@@ -1,0 +1,43 @@
+name: planora
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: planora
+      POSTGRES_USER: planora
+      POSTGRES_PASSWORD: planora_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planora -d planora"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Planora.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ConnectionStrings__Default=Host=db;Port=5432;Database=planora;Username=planora;Password=planora_dev_pass
+      - Jwt__Key=dev-super-secret-key-minimum-32-characters-long!!
+      - Jwt__Issuer=Planora.Api
+      - Jwt__Audience=Planora.Web
+      - Jwt__ExpirationDays=7
+      - Cors__AllowedOrigins=http://localhost:5010,https://localhost:7010
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - board_covers:/app/wwwroot/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  board_covers:

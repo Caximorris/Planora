@@ -1,0 +1,40 @@
+@inherits LayoutComponentBase
+
+<AuthorizeView>
+    <Authorized>
+        <header class="top-nav">
+            <a class="top-nav-brand" href="/">Planora</a>
+            <nav class="top-nav-links">
+                <NavLink class="top-nav-link" href="/" Match="NavLinkMatch.All">Home</NavLink>
+                <NavLink class="top-nav-link" href="/workspaces">Workspaces</NavLink>
+            </nav>
+            <div class="top-nav-spacer"></div>
+            <div class="top-nav-user">
+                <a class="top-nav-profile-link" href="/profile" title="Profile">
+                    <div class="nav-avatar">
+                        @(context.User.FindFirst("displayName")?.Value?.Length > 0
+                            ? context.User.FindFirst("displayName")!.Value[0].ToString().ToUpper()
+                            : "?")
+                    </div>
+                    <span class="nav-name">@context.User.FindFirst("displayName")?.Value</span>
+                </a>
+                <button class="btn-logout" @onclick="Logout">Sign out</button>
+            </div>
+        </header>
+    </Authorized>
+</AuthorizeView>
+
+<main class="main-content">
+    @Body
+</main>
+
+@code {
+    [Inject] AuthService AuthService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Nav.NavigateTo("/login");
+    }
+}

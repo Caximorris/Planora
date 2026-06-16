@@ -1,0 +1,288 @@
+@page "/workspaces"
+@attribute [Authorize]
+
+<PageTitle>Workspaces — Planora</PageTitle>
+
+<div class="ws-layout">
+
+    @* ── Sidebar ── *@
+    <aside class="ws-sidebar">
+        <div class="ws-sidebar-label">Workspaces</div>
+        <div class="ws-sidebar-top">
+            <button class="ws-new-btn" @onclick="() => _showCreateWs = true">
+                <span>+</span> New workspace
+            </button>
+        </div>
+        <div class="ws-nav">
+            @if (_loading)
+            {
+                <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
+            }
+            else
+            {
+                @foreach (var ws in _workspaces)
+                {
+                    <button class="ws-nav-item @(_selected?.Id == ws.Id ? "active" : "")"
+                            @key="ws.Id"
+                            @onclick="() => SelectWorkspace(ws)">
+                        <div class="ws-nav-avatar">@ws.Name[0]</div>
+                        <span class="ws-nav-name">@ws.Name</span>
+                        <button class="ws-nav-delete"
+                                title="Delete workspace"
+                                @onclick:stopPropagation="true"
+                                @onclick="() => ConfirmDeleteWorkspace(ws)">✕</button>
+                    </button>
+                }
+            }
+        </div>
+    </aside>
+
+    @* ── Main content ── *@
+    <div class="ws-content">
+        @if (_selected is null)
+        {
+            <div class="ws-empty">
+                <div class="ws-empty-icon">📋</div>
+                <div class="ws-empty-text">Select a workspace</div>
+                <div class="ws-empty-sub">or create a new one to get started</div>
+            </div>
+        }
+        else
+        {
+            <div class="ws-content-header">
+                <span class="ws-content-title">@_selected.Name</span>
+                <button class="btn btn-sm btn-primary" @onclick="() => _showCreateBoard = true">+ New board</button>
+            </div>
+
+            @if (_loadingBoards)
+            {
+                <div class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></div>
+            }
+            else if (_boards.Count == 0)
+            {
+                <div class="ws-empty">
+                    <div class="ws-empty-icon">🗂</div>
+                    <div class="ws-empty-text">No boards yet</div>
+                    <div class="ws-empty-sub">Create your first board to start organizing work</div>
+                </div>
+            }
+            else
+            {
+                <div class="boards-grid">
+                    @foreach (var board in _boards)
+                    {
+                        <div class="board-tile @(_dragOverBoardId == board.Id ? "board-tile--drop" : "")"
+                             @key="board.Id"
+                             style="@TileStyle(board)"
+                             draggable="true"
+                             title="Drag to reorder"
+                             @ondragstart="() => DragState.DraggedBoardId = board.Id"
+                             @ondragend="() => { DragState.DraggedBoardId = null; _dragOverBoardId = null; }"
+                             @ondragover:preventDefault
+                             @ondragover="() => _dragOverBoardId = board.Id"
+                             @ondragleave="() => _dragOverBoardId = null"
+                             @ondrop="() => OnBoardDrop(board)"
+                             @onclick="() => OpenBoard(board.Id)">
+                            <span class="board-tile-name">@board.Name</span>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@* Delete workspace confirmation *@
+@if (_deleteTarget is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete workspace?</h5>
+                    <button class="btn-close" @onclick="() => _deleteTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">
+                        "<strong>@_deleteTarget.Name</strong>" and all its boards will be permanently deleted.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _deleteTarget = null">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteWorkspace" disabled="@_saving">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Create workspace modal *@
+@if (_showCreateWs)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Workspace</h5>
+                    <button class="btn-close" @onclick="CloseWsModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_wsName" placeholder="e.g. Marketing team" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input class="form-control" @bind="_wsDesc" placeholder="Optional" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseWsModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateWorkspace" disabled="@(_saving || string.IsNullOrWhiteSpace(_wsName))">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Create board modal *@
+@if (_showCreateBoard)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Board</h5>
+                    <button class="btn-close" @onclick="CloseBoardModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_boardName" placeholder="e.g. Sprint board" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cover color</label>
+                        <input type="color" class="form-control form-control-color" @bind="_boardColor" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseBoardModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateBoard" disabled="@(_saving || string.IsNullOrWhiteSpace(_boardName))">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
+    [Inject] BoardService BoardService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private List<WorkspaceDto> _workspaces = [];
+    private List<BoardDto> _boards = [];
+    private WorkspaceDto? _selected;
+    private WorkspaceDto? _deleteTarget;
+    private bool _loading = true;
+    private bool _loadingBoards;
+    private bool _saving;
+
+    private bool _showCreateWs;
+    private string _wsName = "";
+    private string _wsDesc = "";
+
+    private bool _showCreateBoard;
+    private string _boardName = "";
+    private string _boardColor = "#4a5d30";
+    private Guid? _dragOverBoardId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _workspaces = await WorkspaceService.GetAllAsync() ?? [];
+        _loading = false;
+        if (_workspaces.Count > 0)
+            await SelectWorkspace(_workspaces[0]);
+    }
+
+    private async Task SelectWorkspace(WorkspaceDto ws)
+    {
+        _selected = ws;
+        _loadingBoards = true;
+        _boards = await WorkspaceService.GetBoardsAsync(ws.Id) ?? [];
+        _loadingBoards = false;
+    }
+
+    private void ConfirmDeleteWorkspace(WorkspaceDto ws) => _deleteTarget = ws;
+
+    private async Task DeleteWorkspace()
+    {
+        if (_deleteTarget is null) return;
+        _saving = true;
+        var ok = await WorkspaceService.DeleteAsync(_deleteTarget.Id);
+        if (ok)
+        {
+            _workspaces.RemoveAll(w => w.Id == _deleteTarget.Id);
+            if (_selected?.Id == _deleteTarget.Id)
+            {
+                _selected = null;
+                _boards = [];
+            }
+        }
+        _deleteTarget = null;
+        _saving = false;
+        if (_selected is null && _workspaces.Count > 0)
+            await SelectWorkspace(_workspaces[0]);
+    }
+
+    private async Task CreateWorkspace()
+    {
+        if (string.IsNullOrWhiteSpace(_wsName)) return;
+        _saving = true;
+        var created = await WorkspaceService.CreateAsync(new() { Name = _wsName, Description = _wsDesc.Length > 0 ? _wsDesc : null });
+        if (created is not null) { _workspaces.Add(created); }
+        CloseWsModal();
+        _saving = false;
+        if (created is not null) await SelectWorkspace(created);
+    }
+
+    private async Task CreateBoard()
+    {
+        if (_selected is null || string.IsNullOrWhiteSpace(_boardName)) return;
+        _saving = true;
+        var created = await BoardService.CreateAsync(new() { Name = _boardName, WorkspaceId = _selected.Id, CoverColor = _boardColor });
+        if (created is not null) _boards.Add(created);
+        CloseBoardModal();
+        _saving = false;
+    }
+
+    private string TileStyle(BoardDto board) =>
+        BoardService.ResolveBackgroundStyle(board.CoverImageUrl, board.CoverColor);
+
+    private async Task OnBoardDrop(BoardDto target)
+    {
+        _dragOverBoardId = null;
+        if (DragState.DraggedBoardId is not { } draggedId || draggedId == target.Id) return;
+        DragState.DraggedBoardId = null;
+
+        var dragged = _boards.FirstOrDefault(b => b.Id == draggedId);
+        if (dragged is null) return;
+
+        _boards.Remove(dragged);
+        var targetIndex = _boards.FindIndex(b => b.Id == target.Id);
+        _boards.Insert(targetIndex, dragged);
+
+        for (var i = 0; i < _boards.Count; i++)
+        {
+            if (_boards[i].Position == i) continue;
+            _boards[i].Position = i;
+            await BoardService.UpdateAsync(_boards[i].Id, new() { Position = i });
+        }
+    }
+
+    private void OpenBoard(Guid id) => Nav.NavigateTo($"/boards/{id}");
+    private void CloseWsModal() { _showCreateWs = false; _wsName = ""; _wsDesc = ""; }
+    private void CloseBoardModal() { _showCreateBoard = false; _boardName = ""; _boardColor = "#4a5d30"; }
+}

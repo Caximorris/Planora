@@ -1,0 +1,65 @@
+@page "/register"
+
+<PageTitle>Create account — Planora</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">Planora</div>
+        <h1 class="auth-title">Create account</h1>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2">@_error</div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label">Display name</label>
+            <input class="form-control" @bind="_displayName" placeholder="Your name" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" @bind="_email" placeholder="you@example.com" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" @bind="_password" placeholder="At least 6 characters" />
+        </div>
+        <button class="btn btn-primary w-100" @onclick="HandleRegister" disabled="@_loading">
+            @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+            Create account
+        </button>
+
+        <p class="auth-switch">Already have an account? <a href="/login">Sign in</a></p>
+    </div>
+</div>
+
+@code {
+    [Inject] AuthService AuthService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private string _displayName = "";
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+    private bool _loading;
+
+    private async Task HandleRegister()
+    {
+        if (string.IsNullOrWhiteSpace(_displayName) || string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "All fields are required.";
+            return;
+        }
+        _loading = true;
+        _error = null;
+        var (success, error) = await AuthService.RegisterAsync(new()
+        {
+            DisplayName = _displayName,
+            Email = _email,
+            Password = _password
+        });
+        _loading = false;
+        if (success) Nav.NavigateTo("/workspaces");
+        else _error = error;
+    }
+}
