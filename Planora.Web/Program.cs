@@ -33,5 +33,7 @@ builder.Services.AddScoped<WorkspaceService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<ColumnService>();
 builder.Services.AddScoped<CardService>();
+builder.Services.AddScoped<InvitationService>();
+builder.Services.AddScoped<CommentService>();
 
 await builder.Build().RunAsync();

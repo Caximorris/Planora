@@ -13,4 +13,6 @@ public class UpdateCardRequest
     public string? AssigneeId { get; set; }
     public string? Color { get; set; }
     public bool ClearColor { get; set; }
+    public bool ClearDescription { get; set; }
+    public bool ClearAssignee { get; set; }
 }

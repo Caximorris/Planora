@@ -10,4 +10,5 @@ public class Workspace : BaseEntity
 
     public ICollection<Board> Boards { get; set; } = [];
     public ICollection<WorkspaceMember> Members { get; set; } = [];
+    public ICollection<WorkspaceInvitation> Invitations { get; set; } = [];
 }

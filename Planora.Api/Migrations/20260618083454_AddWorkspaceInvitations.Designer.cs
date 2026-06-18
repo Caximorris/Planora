@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Planora.Api.Infrastructure.Data;
@@ -11,9 +12,11 @@ using Planora.Api.Infrastructure.Data;
 namespace Planora.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618083454_AddWorkspaceInvitations")]
+    partial class AddWorkspaceInvitations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,40 +330,6 @@ namespace Planora.Api.Migrations
                     b.ToTable("cards", (string)null);
                 });
 
-            modelBuilder.Entity("Planora.Api.Domain.Entities.CardComment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AuthorId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AuthorId");
-
-                    b.HasIndex("CardId");
-
-                    b.ToTable("card_comments", (string)null);
-                });
-
             modelBuilder.Entity("Planora.Api.Domain.Entities.Column", b =>
                 {
                     b.Property<Guid>("Id")
@@ -587,25 +556,6 @@ namespace Planora.Api.Migrations
                     b.Navigation("Column");
                 });
 
-            modelBuilder.Entity("Planora.Api.Domain.Entities.CardComment", b =>
-                {
-                    b.HasOne("Planora.Api.Domain.Entities.AppUser", "Author")
-                        .WithMany()
-                        .HasForeignKey("AuthorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Planora.Api.Domain.Entities.Card", "Card")
-                        .WithMany("Comments")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Author");
-
-                    b.Navigation("Card");
-                });
-
             modelBuilder.Entity("Planora.Api.Domain.Entities.Column", b =>
                 {
                     b.HasOne("Planora.Api.Domain.Entities.Board", "Board")
@@ -676,11 +626,6 @@ namespace Planora.Api.Migrations
             modelBuilder.Entity("Planora.Api.Domain.Entities.Board", b =>
                 {
                     b.Navigation("Columns");
-                });
-
-            modelBuilder.Entity("Planora.Api.Domain.Entities.Card", b =>
-                {
-                    b.Navigation("Comments");
                 });
 
             modelBuilder.Entity("Planora.Api.Domain.Entities.Column", b =>

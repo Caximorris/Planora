@@ -95,11 +95,13 @@ public class CardsController : ControllerBase
         if (!isMember) return Forbid();
 
         if (request.Title is not null) card.Title = request.Title;
-        if (request.Description is not null) card.Description = request.Description;
+        if (request.ClearDescription) card.Description = null;
+        else if (request.Description is not null) card.Description = request.Description;
         if (request.Priority.HasValue) card.Priority = request.Priority.Value;
         if (request.DueDate.HasValue) card.DueDate = request.DueDate;
         if (request.Position.HasValue) card.Position = request.Position.Value;
-        if (request.AssigneeId is not null) card.AssigneeId = request.AssigneeId;
+        if (request.ClearAssignee) card.AssigneeId = null;
+        else if (request.AssigneeId is not null) card.AssigneeId = request.AssigneeId;
         if (request.ClearColor) card.Color = null;
         else if (request.Color is not null) card.Color = request.Color;
 

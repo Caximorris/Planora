@@ -17,4 +17,6 @@ public class Card : BaseEntity
 
     public string? AssigneeId { get; set; }
     public AppUser? Assignee { get; set; }
+
+    public ICollection<CardComment> Comments { get; set; } = [];
 }

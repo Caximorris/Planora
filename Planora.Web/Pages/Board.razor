@@ -41,6 +41,7 @@ else
         </div>
 
         <div class="board-columns">
+            <CascadingValue Value="_membersByUserId" Name="BoardMembers">
             @foreach (var col in _board.Columns.OrderBy(c => c.Position))
             {
                 <KanbanColumn
@@ -53,6 +54,7 @@ else
                     OnRename="@(title => RenameColumn(col.Id, title))" />
             }
 
+            </CascadingValue>
             <div class="add-column-panel">
                 @if (_addingColumn)
                 {
@@ -81,10 +83,10 @@ else
 {
     <div class="modal-backdrop fade show" @onclick="CloseCard"></div>
     <div class="modal fade show d-block" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Card details</h5>
+                    <h5 class="modal-title">@_editTitle</h5>
                     <button class="btn-close" @onclick="CloseCard"></button>
                 </div>
                 <div class="modal-body">
@@ -94,7 +96,17 @@ else
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Description</label>
-                        <textarea class="form-control" rows="3" @bind="_editDesc" placeholder="Add a description…"></textarea>
+                        <textarea class="form-control" rows="4" @bind="_editDesc" placeholder="Add a description…"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Assignee</label>
+                        <select class="form-select" @bind="_editAssigneeId">
+                            <option value="">— Unassigned —</option>
+                            @foreach (var member in _membersByUserId.Values)
+                            {
+                                <option value="@member.UserId">@member.DisplayName</option>
+                            }
+                        </select>
                     </div>
                     <div class="row g-2">
                         <div class="col-6">
@@ -118,6 +130,52 @@ else
                                    value="@(_editColor ?? "#f8f5ed")"
                                    @onchange="e => _editColor = e.Value?.ToString()" />
                             <button type="button" class="btn btn-sm btn-secondary" @onclick="() => _editColor = null">Reset</button>
+                        </div>
+                    </div>
+                    <hr class="mt-3 mb-3" />
+                    <div class="comments-section">
+                        <h6 class="comments-title">Comments</h6>
+                        @if (_loadingComments)
+                        {
+                            <div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>
+                        }
+                        else if (_comments.Count == 0)
+                        {
+                            <p class="comments-empty">No comments yet. Be the first!</p>
+                        }
+                        else
+                        {
+                            <div class="comments-list">
+                                @foreach (var comment in _comments)
+                                {
+                                    <div class="comment-item" @key="comment.Id">
+                                        <div class="comment-avatar">@comment.AuthorDisplayName[0]</div>
+                                        <div class="comment-body">
+                                            <div class="comment-header">
+                                                <span class="comment-author">@comment.AuthorDisplayName</span>
+                                                <span class="comment-time">@TimeAgo(comment.CreatedAt)</span>
+                                                @if (comment.AuthorId == _currentUserId)
+                                                {
+                                                    <button class="comment-delete-btn" @onclick="() => DeleteComment(comment)">✕</button>
+                                                }
+                                            </div>
+                                            <div class="comment-text">@comment.Text</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <div class="comment-input-row mt-3">
+                            <textarea class="form-control form-control-sm"
+                                      rows="2"
+                                      placeholder="Write a comment…"
+                                      @bind="_newCommentText"
+                                      @onkeydown="CommentKeyDown"></textarea>
+                            <button class="btn btn-sm btn-primary mt-1 align-self-end"
+                                    @onclick="AddComment"
+                                    disabled="@(_savingComment || string.IsNullOrWhiteSpace(_newCommentText))">
+                                Post
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -213,6 +271,8 @@ else
     [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
     [Inject] ColumnService ColumnService { get; set; } = null!;
     [Inject] CardService CardService { get; set; } = null!;
+    [Inject] CommentService CommentService { get; set; } = null!;
+    [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
     [Inject] IJSRuntime JS { get; set; } = null!;
 
@@ -227,9 +287,12 @@ else
     private bool _addingColumn;
     private string _newColTitle = "";
 
+    private Dictionary<string, WorkspaceMemberDto> _membersByUserId = [];
+
     private CardDto? _editCard;
     private string _editTitle = "";
     private string _editDesc = "";
+    private string _editAssigneeId = "";
     private DateTime? _editDue;
     private CardPriority _editPriority;
     private string? _editColor;
@@ -238,17 +301,29 @@ else
     private bool _showBoardSettings;
     private bool _confirmDeleteBoard;
 
+    private List<CardCommentDto> _comments = [];
+    private bool _loadingComments;
+    private string _newCommentText = "";
+    private bool _savingComment;
+    private string? _currentUserId;
+
     private string BoardBackgroundStyle =>
         BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, "#253018");
 
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? authState.User.FindFirst("sub")?.Value;
+
         _board = await BoardService.GetByIdAsync(Id);
         if (_board is not null)
         {
             var ws = await WorkspaceService.GetByIdAsync(_board.WorkspaceId);
             _workspaceName = ws?.Name;
+            var members = await WorkspaceService.GetMembersAsync(_board.WorkspaceId) ?? [];
+            _membersByUserId = members.ToDictionary(m => m.UserId);
         }
         _loading = false;
     }
@@ -442,17 +517,55 @@ else
         _board!.Columns.RemoveAll(c => c.Id == columnId);
     }
 
-    private void OpenCard(CardDto card)
+    private async Task OpenCard(CardDto card)
     {
         _editCard = card;
         _editTitle = card.Title;
         _editDesc = card.Description ?? "";
+        _editAssigneeId = card.AssigneeId ?? "";
         _editDue = card.DueDate?.ToLocalTime();
         _editPriority = card.Priority;
         _editColor = card.Color;
+        _newCommentText = "";
+        _comments = [];
+        _loadingComments = true;
+        StateHasChanged();
+        _comments = await CommentService.GetAllAsync(card.Id) ?? [];
+        _loadingComments = false;
     }
 
-    private void CloseCard() => _editCard = null;
+    private void CloseCard() { _editCard = null; _comments = []; _newCommentText = ""; }
+
+    private async Task AddComment()
+    {
+        if (_editCard is null || string.IsNullOrWhiteSpace(_newCommentText)) return;
+        _savingComment = true;
+        var created = await CommentService.CreateAsync(_editCard.Id, _newCommentText);
+        if (created is not null) { _comments.Add(created); _newCommentText = ""; }
+        _savingComment = false;
+    }
+
+    private async Task DeleteComment(CardCommentDto comment)
+    {
+        if (_editCard is null) return;
+        if (await CommentService.DeleteAsync(_editCard.Id, comment.Id))
+            _comments.Remove(comment);
+    }
+
+    private async Task CommentKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && e.CtrlKey) await AddComment();
+    }
+
+    private static string TimeAgo(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return utc.ToLocalTime().ToString("MMM d");
+    }
 
     private async Task SaveCard()
     {
@@ -462,6 +575,9 @@ else
         {
             Title = _editTitle,
             Description = _editDesc.Length > 0 ? _editDesc : null,
+            ClearDescription = _editDesc.Length == 0,
+            AssigneeId = _editAssigneeId.Length > 0 ? _editAssigneeId : null,
+            ClearAssignee = _editAssigneeId.Length == 0,
             DueDate = _editDue?.ToUniversalTime(),
             Priority = _editPriority,
             Color = _editColor,

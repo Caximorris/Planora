@@ -1,4 +1,5 @@
 @using Planora.Shared.DTOs.Card
+@using Planora.Shared.DTOs.Workspace
 @using Planora.Shared.Enums
 
 <div class="kanban-card @PriorityClass"
@@ -8,13 +9,17 @@
 
     <div class="kanban-card-title">@Card.Title</div>
 
-    @if (Card.DueDate.HasValue || Card.Priority != CardPriority.None)
+    @if (!string.IsNullOrEmpty(Card.Description))
     {
+        <div class="card-desc-preview">@Card.Description</div>
+    }
+
+    <div class="kanban-card-footer">
         <div class="kanban-card-meta">
             @if (Card.DueDate.HasValue)
             {
                 <span class="card-due @(IsOverdue ? "card-due--overdue" : "")">
-                    @(IsOverdue ? "!" : "") @Card.DueDate.Value.ToLocalTime().ToString("MMM d")
+                    @(IsOverdue ? "⚠ " : "")@Card.DueDate.Value.ToLocalTime().ToString("MMM d")
                 </span>
             }
             @if (Card.Priority != CardPriority.None)
@@ -22,14 +27,25 @@
                 <span class="card-priority-badge priority-@Card.Priority.ToString().ToLower()">@Card.Priority</span>
             }
         </div>
-    }
+        @if (Assignee is not null)
+        {
+            <div class="card-assignee-avatar" title="@Assignee.DisplayName">
+                @Assignee.DisplayName[0]
+            </div>
+        }
+    </div>
 </div>
 
 @code {
     [Parameter, EditorRequired] public CardDto Card { get; set; } = null!;
     [Parameter] public EventCallback OnClick { get; set; }
+    [CascadingParameter(Name = "BoardMembers")]
+    public Dictionary<string, WorkspaceMemberDto>? BoardMembers { get; set; }
 
     private bool IsOverdue => Card.DueDate.HasValue && Card.DueDate.Value < DateTime.UtcNow;
+
+    private WorkspaceMemberDto? Assignee =>
+        Card.AssigneeId is not null && BoardMembers?.TryGetValue(Card.AssigneeId, out var m) == true ? m : null;
 
     private string PriorityClass => Card.Priority switch
     {

@@ -14,6 +14,8 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<Column> Columns => Set<Column>();
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
+    public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
+    public DbSet<CardComment> CardComments => Set<CardComment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

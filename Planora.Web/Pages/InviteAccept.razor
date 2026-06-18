@@ -1,0 +1,144 @@
+@page "/invite/{Token}"
+@using System.Security.Claims
+@using Planora.Shared.Enums
+
+<PageTitle>Invitation — Planora</PageTitle>
+
+<div class="invite-page">
+    @if (_loading)
+    {
+        <div class="invite-card">
+            <span class="spinner-border spinner-border-sm"></span>
+            <span class="ms-2">Loading invitation…</span>
+        </div>
+    }
+    else if (_invitation is null)
+    {
+        <div class="invite-card invite-card--error">
+            <div class="invite-icon">🔗</div>
+            <h2>Invitation not found</h2>
+            <p>This link is invalid or has already been used.</p>
+            <a href="/" class="btn btn-primary mt-2">Go to Planora</a>
+        </div>
+    }
+    else
+    {
+        <div class="invite-card">
+            <div class="invite-icon">✉️</div>
+            <div class="invite-workspace">@_invitation.WorkspaceName</div>
+            <h2 class="invite-title">You've been invited</h2>
+            <p class="invite-sub">
+                <strong>@_invitation.InviterName</strong> invited
+                <strong>@_invitation.InviteeEmail</strong> to join as
+                <span class="role-badge role-badge--@_invitation.Role.ToString().ToLower()">@_invitation.Role</span>
+            </p>
+
+            @if (_invitation.Status == InvitationStatus.Accepted)
+            {
+                <div class="alert alert-success mt-3">This invitation has already been accepted.</div>
+                <a href="/workspaces" class="btn btn-primary mt-2">Go to workspace</a>
+            }
+            else if (_invitation.Status == InvitationStatus.Declined)
+            {
+                <div class="alert alert-secondary mt-3">This invitation was declined.</div>
+            }
+            else if (_invitation.Status == InvitationStatus.Expired)
+            {
+                <div class="alert alert-warning mt-3">This invitation has expired. Ask the workspace owner to send a new one.</div>
+            }
+            else
+            {
+                <AuthorizeView>
+                    <Authorized>
+                        @if (_emailMismatch)
+                        {
+                            <div class="alert alert-warning mt-3">
+                                This invitation was sent to <strong>@_invitation.InviteeEmail</strong>.
+                                Please log in with that account to accept it.
+                            </div>
+                        }
+                        else if (_error is not null)
+                        {
+                            <div class="alert alert-danger mt-3">@_error</div>
+                        }
+                        else
+                        {
+                            <div class="invite-actions mt-4">
+                                <button class="btn btn-primary" @onclick="Accept" disabled="@_saving">
+                                    @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    Accept invitation
+                                </button>
+                                <button class="btn btn-outline-secondary ms-2" @onclick="Decline" disabled="@_saving">
+                                    Decline
+                                </button>
+                            </div>
+                        }
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="invite-login mt-4">
+                            <p class="text-muted">Log in to accept this invitation.</p>
+                            <a href="/login" class="btn btn-primary">Log in</a>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+    [Inject] InvitationService InvitationService { get; set; } = null!;
+    [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private InvitationDto? _invitation;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _emailMismatch;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _invitation = await InvitationService.GetByTokenAsync(Token);
+
+        if (_invitation is not null)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                var currentEmail = authState.User.FindFirst(ClaimTypes.Email)?.Value
+                    ?? authState.User.FindFirst("email")?.Value
+                    ?? string.Empty;
+
+                _emailMismatch = !string.Equals(currentEmail, _invitation.InviteeEmail, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Accept()
+    {
+        if (_invitation is null) return;
+        _saving = true;
+        var (success, workspaceId) = await InvitationService.AcceptAsync(Token);
+        if (success)
+            Nav.NavigateTo("/workspaces");
+        else
+            _error = "Could not accept the invitation. It may have expired or already been used.";
+        _saving = false;
+    }
+
+    private async Task Decline()
+    {
+        if (_invitation is null) return;
+        _saving = true;
+        var ok = await InvitationService.DeclineAsync(Token);
+        if (ok)
+            _invitation.Status = InvitationStatus.Declined;
+        else
+            _error = "Could not decline the invitation.";
+        _saving = false;
+    }
+}
