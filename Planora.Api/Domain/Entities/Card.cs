@@ -19,4 +19,6 @@ public class Card : BaseEntity
     public AppUser? Assignee { get; set; }
 
     public ICollection<CardComment> Comments { get; set; } = [];
+    public ICollection<CardLabel> Labels { get; set; } = [];
+    public ICollection<Checklist> Checklists { get; set; } = [];
 }

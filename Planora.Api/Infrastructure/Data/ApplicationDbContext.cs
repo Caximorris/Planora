@@ -16,6 +16,11 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
     public DbSet<CardComment> CardComments => Set<CardComment>();
+    public DbSet<WorkspaceLabel> WorkspaceLabels => Set<WorkspaceLabel>();
+    public DbSet<CardLabel> CardLabels => Set<CardLabel>();
+    public DbSet<Checklist> Checklists => Set<Checklist>();
+    public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
