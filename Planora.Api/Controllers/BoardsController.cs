@@ -46,6 +46,8 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards
             .Include(b => b.Columns.OrderBy(c => c.Position))
                 .ThenInclude(c => c.Cards.OrderBy(card => card.Position))
+                    .ThenInclude(card => card.Labels)
+                        .ThenInclude(cl => cl.Label)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (board is null) return NotFound();

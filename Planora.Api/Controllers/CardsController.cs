@@ -7,6 +7,7 @@ using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
 using Planora.Shared.DTOs.Card;
+using Planora.Shared.Enums;
 
 namespace Planora.Api.Controllers;
 
@@ -32,6 +33,10 @@ public class CardsController : ControllerBase
         var card = await _db.Cards
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
+            .Include(c => c.Labels)
+                .ThenInclude(cl => cl.Label)
+            .Include(c => c.Checklists.OrderBy(ch => ch.Position))
+                .ThenInclude(ch => ch.Items.OrderBy(i => i.Position))
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (card is null) return NotFound();
@@ -94,6 +99,8 @@ public class CardsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
+        var previousAssigneeId = card.AssigneeId;
+
         if (request.Title is not null) card.Title = request.Title;
         if (request.ClearDescription) card.Description = null;
         else if (request.Description is not null) card.Description = request.Description;
@@ -112,6 +119,22 @@ public class CardsController : ControllerBase
             if (targetColumn is null)
                 return BadRequest("Target column does not belong to the same board.");
             card.ColumnId = request.ColumnId.Value;
+        }
+
+        // Notify the new assignee if it changed (and they didn't assign themselves)
+        if (card.AssigneeId is not null
+            && card.AssigneeId != previousAssigneeId
+            && card.AssigneeId != UserId)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = card.AssigneeId,
+                Type = NotificationType.AssignedToCard,
+                Message = $"You were assigned to \"{card.Title}\"",
+                RelatedCardId = card.Id,
+                RelatedBoardId = card.Column.BoardId,
+                RelatedWorkspaceId = card.Column.Board.WorkspaceId
+            });
         }
 
         await _db.SaveChangesAsync();

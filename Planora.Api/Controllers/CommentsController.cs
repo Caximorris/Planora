@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
 using Planora.Shared.DTOs.Card;
+using Planora.Shared.Enums;
 
 namespace Planora.Api.Controllers;
 
@@ -18,20 +19,17 @@ public class CommentsController : ControllerBase
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-    private async Task<bool> IsMemberAsync(Guid cardId)
+    [HttpGet]
+    public async Task<IActionResult> GetAll(Guid cardId)
     {
         var card = await _db.Cards
             .Include(c => c.Column).ThenInclude(col => col.Board)
             .FirstOrDefaultAsync(c => c.Id == cardId);
-        if (card is null) return false;
-        return await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
-    }
+        if (card is null) return NotFound();
 
-    [HttpGet]
-    public async Task<IActionResult> GetAll(Guid cardId)
-    {
-        if (!await IsMemberAsync(cardId)) return Forbid();
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
 
         var comments = await _db.CardComments
             .Include(c => c.Author)
@@ -56,7 +54,14 @@ public class CommentsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Text))
             return BadRequest("Comment text is required.");
 
-        if (!await IsMemberAsync(cardId)) return Forbid();
+        var card = await _db.Cards
+            .Include(c => c.Column).ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == cardId);
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
 
         var author = await _db.Users.FindAsync(UserId);
         if (author is null) return Unauthorized();
@@ -67,8 +72,22 @@ public class CommentsController : ControllerBase
             AuthorId = UserId,
             Text = request.Text.Trim()
         };
-
         _db.CardComments.Add(comment);
+
+        // Notify the card's assignee if they're not the one commenting
+        if (card.AssigneeId is not null && card.AssigneeId != UserId)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = card.AssigneeId,
+                Type = NotificationType.NewComment,
+                Message = $"{author.DisplayName} commented on \"{card.Title}\"",
+                RelatedCardId = cardId,
+                RelatedBoardId = card.Column.BoardId,
+                RelatedWorkspaceId = card.Column.Board.WorkspaceId
+            });
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok(new CardCommentDto

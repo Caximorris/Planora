@@ -7,6 +7,16 @@
      data-card-id="@Card.Id"
      @onclick="() => OnClick.InvokeAsync()">
 
+    @if (Card.Labels.Count > 0)
+    {
+        <div class="card-labels">
+            @foreach (var label in Card.Labels.Take(5))
+            {
+                <span class="card-label-chip" style="background:@label.Color" title="@label.Name"></span>
+            }
+        </div>
+    }
+
     <div class="kanban-card-title">@Card.Title</div>
 
     @if (!string.IsNullOrEmpty(Card.Description))
@@ -25,6 +35,12 @@
             @if (Card.Priority != CardPriority.None)
             {
                 <span class="card-priority-badge priority-@Card.Priority.ToString().ToLower()">@Card.Priority</span>
+            }
+            @if (ChecklistProgress.HasValue)
+            {
+                <span class="card-checklist-badge @(ChecklistProgress.Value.done == ChecklistProgress.Value.total ? "card-checklist-badge--done" : "")">
+                    ✓ @ChecklistProgress.Value.done/@ChecklistProgress.Value.total
+                </span>
             }
         </div>
         @if (Assignee is not null)
@@ -46,6 +62,18 @@
 
     private WorkspaceMemberDto? Assignee =>
         Card.AssigneeId is not null && BoardMembers?.TryGetValue(Card.AssigneeId, out var m) == true ? m : null;
+
+    private (int done, int total)? ChecklistProgress
+    {
+        get
+        {
+            if (Card.Checklists.Count == 0) return null;
+            var total = Card.Checklists.Sum(c => c.Items.Count);
+            if (total == 0) return null;
+            var done = Card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
+            return (done, total);
+        }
+    }
 
     private string PriorityClass => Card.Priority switch
     {

@@ -35,5 +35,8 @@ builder.Services.AddScoped<ColumnService>();
 builder.Services.AddScoped<CardService>();
 builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<CommentService>();
+builder.Services.AddScoped<LabelService>();
+builder.Services.AddScoped<ChecklistService>();
+builder.Services.AddScoped<NotificationService>();
 
 await builder.Build().RunAsync();

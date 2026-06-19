@@ -1,6 +1,8 @@
 @page "/boards/{Id:guid}"
 @attribute [Authorize]
 @implements IDisposable
+@using Planora.Shared.DTOs.Checklist
+@using Planora.Shared.DTOs.Label
 @using Planora.Shared.Enums
 
 <PageTitle>@(_board?.Name ?? "Board") — Planora</PageTitle>
@@ -132,6 +134,122 @@ else
                             <button type="button" class="btn btn-sm btn-secondary" @onclick="() => _editColor = null">Reset</button>
                         </div>
                     </div>
+                    @* Labels *@
+                    <div class="mb-3 mt-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0">Labels</label>
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    @onclick="() => _showLabelManager = !_showLabelManager">
+                                @(_showLabelManager ? "Done" : "Manage")
+                            </button>
+                        </div>
+                        <div class="label-picker">
+                            @foreach (var label in _workspaceLabels)
+                            {
+                                var isActive = _editCardLabelIds.Contains(label.Id);
+                                <button type="button"
+                                        class="label-chip @(isActive ? "label-chip--active" : "")"
+                                        style="background:@label.Color"
+                                        title="@label.Name"
+                                        @onclick="() => ToggleLabel(label)">
+                                    @label.Name
+                                    @if (isActive) { <span class="label-check">✓</span> }
+                                </button>
+                            }
+                        </div>
+                        @if (_showLabelManager)
+                        {
+                            <div class="label-manager mt-2">
+                                <div class="d-flex gap-2 align-items-center">
+                                    <input type="color" class="form-control form-control-color form-control-sm"
+                                           style="width:40px;height:32px;padding:2px;"
+                                           @bind="_newLabelColor" />
+                                    <input class="form-control form-control-sm"
+                                           placeholder="Label name…"
+                                           @bind="_newLabelName"
+                                           @onkeydown="@(e => { if (e.Key == "Enter") _ = CreateWorkspaceLabel(); })" />
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            @onclick="CreateWorkspaceLabel"
+                                            disabled="@string.IsNullOrWhiteSpace(_newLabelName)">Add</button>
+                                </div>
+                                @if (_workspaceLabels.Count > 0)
+                                {
+                                    <div class="label-manager-list mt-2">
+                                        @foreach (var label in _workspaceLabels)
+                                        {
+                                            <div class="label-manager-row">
+                                                <span class="label-manager-color" style="background:@label.Color"></span>
+                                                <span class="label-manager-name">@label.Name</span>
+                                                <button type="button" class="btn-icon-sm" @onclick="() => DeleteWorkspaceLabel(label)">✕</button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @* Checklists *@
+                    @if (_editChecklists.Count > 0 || _addingChecklist)
+                    {
+                        <div class="checklists-section mb-3">
+                            <label class="form-label">Checklists</label>
+                            @foreach (var cl in _editChecklists)
+                            {
+                                var total = cl.Items.Count;
+                                var done = cl.Items.Count(i => i.IsCompleted);
+                                var pct = total == 0 ? 0 : (int)(done * 100.0 / total);
+                                <div class="checklist-block" @key="cl.Id">
+                                    <div class="checklist-header">
+                                        <span class="checklist-title">@cl.Title</span>
+                                        <span class="checklist-progress-label">@done/@total</span>
+                                        <button type="button" class="btn-icon-sm ms-auto" @onclick="() => DeleteChecklist(cl)">✕</button>
+                                    </div>
+                                    <div class="checklist-progress-bar mb-2">
+                                        <div class="checklist-progress-fill @(pct == 100 ? "checklist-progress-fill--done" : "")"
+                                             style="width:@(pct)%"></div>
+                                    </div>
+                                    <div class="checklist-items">
+                                        @foreach (var item in cl.Items.OrderBy(i => i.Position))
+                                        {
+                                            <div class="checklist-item @(item.IsCompleted ? "checklist-item--done" : "")" @key="item.Id">
+                                                <input type="checkbox" class="checklist-checkbox"
+                                                       checked="@item.IsCompleted"
+                                                       @onchange="() => ToggleChecklistItem(cl, item)" />
+                                                <span class="checklist-item-text">@item.Text</span>
+                                                <button type="button" class="btn-icon-sm" @onclick="() => DeleteChecklistItem(cl, item)">✕</button>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="checklist-add-item mt-1">
+                                        <input class="form-control form-control-sm"
+                                               placeholder="Add an item…"
+                                               value="@(_newItemText.GetValueOrDefault(cl.Id, string.Empty))"
+                                               @oninput="e => SetNewItemText(cl.Id, e.Value?.ToString())"
+                                               @onkeydown="e => OnAddItemKeyDown(e, cl)" />
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="mb-3">
+                        @if (_addingChecklist)
+                        {
+                            <div class="d-flex gap-2 align-items-center">
+                                <input class="form-control form-control-sm"
+                                       placeholder="Checklist title…"
+                                       @bind="_newChecklistTitle"
+                                       @onkeydown="OnChecklistTitleKeyDown" />
+                                <button type="button" class="btn btn-sm btn-primary" @onclick="AddChecklist">Add</button>
+                                <button type="button" class="btn btn-sm btn-secondary" @onclick="CancelAddChecklist">Cancel</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => _addingChecklist = true">+ Add checklist</button>
+                        }
+                    </div>
+
                     <hr class="mt-3 mb-3" />
                     <div class="comments-section">
                         <h6 class="comments-title">Comments</h6>
@@ -272,6 +390,8 @@ else
     [Inject] ColumnService ColumnService { get; set; } = null!;
     [Inject] CardService CardService { get; set; } = null!;
     [Inject] CommentService CommentService { get; set; } = null!;
+    [Inject] LabelService LabelService { get; set; } = null!;
+    [Inject] ChecklistService ChecklistService { get; set; } = null!;
     [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
     [Inject] IJSRuntime JS { get; set; } = null!;
@@ -307,6 +427,17 @@ else
     private bool _savingComment;
     private string? _currentUserId;
 
+    private List<LabelDto> _workspaceLabels = [];
+    private HashSet<Guid> _editCardLabelIds = [];
+    private bool _showLabelManager;
+    private string _newLabelName = "";
+    private string _newLabelColor = "#94BFBE";
+
+    private List<ChecklistDto> _editChecklists = [];
+    private bool _addingChecklist;
+    private string _newChecklistTitle = "";
+    private Dictionary<Guid, string> _newItemText = [];
+
     private string BoardBackgroundStyle =>
         BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, "#253018");
 
@@ -324,6 +455,7 @@ else
             _workspaceName = ws?.Name;
             var members = await WorkspaceService.GetMembersAsync(_board.WorkspaceId) ?? [];
             _membersByUserId = members.ToDictionary(m => m.UserId);
+            _workspaceLabels = await LabelService.GetWorkspaceLabelsAsync(_board.WorkspaceId) ?? [];
         }
         _loading = false;
     }
@@ -528,13 +660,46 @@ else
         _editColor = card.Color;
         _newCommentText = "";
         _comments = [];
+        _editChecklists = [];
+        _editCardLabelIds = [];
+        _showLabelManager = false;
+        _addingChecklist = false;
+        _newItemText = [];
         _loadingComments = true;
         StateHasChanged();
-        _comments = await CommentService.GetAllAsync(card.Id) ?? [];
+
+        // Load full card detail (labels + checklists) and comments in parallel
+        var detailTask = CardService.GetByIdAsync(card.Id);
+        var commentsTask = CommentService.GetAllAsync(card.Id);
+        await Task.WhenAll(detailTask, commentsTask);
+
+        var detail = detailTask.Result;
+        if (detail is not null)
+        {
+            _editCardLabelIds = detail.Labels.Select(l => l.Id).ToHashSet();
+            _editChecklists = detail.Checklists.OrderBy(c => c.Position).ToList();
+            foreach (var cl in _editChecklists)
+                _newItemText[cl.Id] = "";
+            // Sync labels back to the in-memory card so chips appear on the tile
+            card.Labels = detail.Labels;
+            card.Checklists = detail.Checklists;
+        }
+
+        _comments = commentsTask.Result ?? [];
         _loadingComments = false;
     }
 
-    private void CloseCard() { _editCard = null; _comments = []; _newCommentText = ""; }
+    private void CloseCard()
+    {
+        _editCard = null;
+        _comments = [];
+        _newCommentText = "";
+        _editChecklists = [];
+        _editCardLabelIds = [];
+        _newItemText = [];
+        _showLabelManager = false;
+        _addingChecklist = false;
+    }
 
     private async Task AddComment()
     {
@@ -601,5 +766,122 @@ else
         if (!await CardService.DeleteAsync(_editCard.Id)) return;
         foreach (var col in _board!.Columns) col.Cards.RemoveAll(c => c.Id == _editCard.Id);
         CloseCard();
+    }
+
+    // ── Checklist inline-input helpers ──────────────────────────────────────
+
+    private void SetNewItemText(Guid checklistId, string? text) =>
+        _newItemText[checklistId] = text ?? string.Empty;
+
+    private async Task OnAddItemKeyDown(KeyboardEventArgs e, ChecklistDto cl)
+    {
+        if (e.Key == "Enter") await AddChecklistItem(cl);
+    }
+
+    private async Task OnChecklistTitleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddChecklist();
+        else if (e.Key == "Escape") CancelAddChecklist();
+    }
+
+    private void CancelAddChecklist()
+    {
+        _addingChecklist = false;
+        _newChecklistTitle = string.Empty;
+    }
+
+    // ── Labels ──────────────────────────────────────────────────────────────
+
+    private async Task ToggleLabel(LabelDto label)
+    {
+        if (_editCard is null) return;
+        if (_editCardLabelIds.Contains(label.Id))
+        {
+            if (await LabelService.DetachFromCardAsync(label.Id, _editCard.Id))
+            {
+                _editCardLabelIds.Remove(label.Id);
+                _editCard.Labels.RemoveAll(l => l.Id == label.Id);
+            }
+        }
+        else
+        {
+            if (await LabelService.AttachToCardAsync(label.Id, _editCard.Id))
+            {
+                _editCardLabelIds.Add(label.Id);
+                _editCard.Labels.Add(label);
+            }
+        }
+    }
+
+    private async Task CreateWorkspaceLabel()
+    {
+        if (_board is null || string.IsNullOrWhiteSpace(_newLabelName)) return;
+        var created = await LabelService.CreateAsync(_board.WorkspaceId,
+            new CreateLabelRequest { Name = _newLabelName.Trim(), Color = _newLabelColor });
+        if (created is not null)
+        {
+            _workspaceLabels.Add(created);
+            _newLabelName = "";
+            _newLabelColor = "#94BFBE";
+        }
+    }
+
+    private async Task DeleteWorkspaceLabel(LabelDto label)
+    {
+        if (!await LabelService.DeleteAsync(label.Id)) return;
+        _workspaceLabels.Remove(label);
+        _editCardLabelIds.Remove(label.Id);
+        _editCard?.Labels.RemoveAll(l => l.Id == label.Id);
+    }
+
+    // ── Checklists ──────────────────────────────────────────────────────────
+
+    private async Task AddChecklist()
+    {
+        if (_editCard is null || string.IsNullOrWhiteSpace(_newChecklistTitle)) return;
+        var created = await ChecklistService.CreateAsync(_editCard.Id, _newChecklistTitle.Trim());
+        if (created is not null)
+        {
+            _editChecklists.Add(created);
+            _newItemText[created.Id] = "";
+            _editCard.Checklists.Add(created);
+        }
+        _newChecklistTitle = "";
+        _addingChecklist = false;
+    }
+
+    private async Task DeleteChecklist(ChecklistDto cl)
+    {
+        if (!await ChecklistService.DeleteAsync(cl.Id)) return;
+        _editChecklists.Remove(cl);
+        _editCard?.Checklists.RemoveAll(c => c.Id == cl.Id);
+    }
+
+    private async Task ToggleChecklistItem(ChecklistDto cl, ChecklistItemDto item)
+    {
+        var updated = await ChecklistService.UpdateItemAsync(item.Id,
+            new UpdateChecklistItemRequest { IsCompleted = !item.IsCompleted });
+        if (updated is null) return;
+        item.IsCompleted = updated.IsCompleted;
+        var memCard = _editCard?.Checklists.FirstOrDefault(c => c.Id == cl.Id);
+        var memItem = memCard?.Items.FirstOrDefault(i => i.Id == item.Id);
+        if (memItem is not null) memItem.IsCompleted = updated.IsCompleted;
+    }
+
+    private async Task AddChecklistItem(ChecklistDto cl)
+    {
+        if (!_newItemText.TryGetValue(cl.Id, out var text) || string.IsNullOrWhiteSpace(text)) return;
+        var created = await ChecklistService.AddItemAsync(cl.Id, text.Trim());
+        if (created is null) return;
+        cl.Items.Add(created);
+        _editCard?.Checklists.FirstOrDefault(c => c.Id == cl.Id)?.Items.Add(created);
+        _newItemText[cl.Id] = "";
+    }
+
+    private async Task DeleteChecklistItem(ChecklistDto cl, ChecklistItemDto item)
+    {
+        if (!await ChecklistService.DeleteItemAsync(item.Id)) return;
+        cl.Items.Remove(item);
+        _editCard?.Checklists.FirstOrDefault(c => c.Id == cl.Id)?.Items.RemoveAll(i => i.Id == item.Id);
     }
 }

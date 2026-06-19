@@ -8,6 +8,9 @@ public class CardService
     private readonly HttpClient _http;
     public CardService(HttpClient http) => _http = http;
 
+    public Task<CardDto?> GetByIdAsync(Guid id) =>
+        _http.GetFromJsonAsync<CardDto>($"api/cards/{id}");
+
     public async Task<CardDto?> CreateAsync(CreateCardRequest request)
     {
         var res = await _http.PostAsJsonAsync("api/cards", request);

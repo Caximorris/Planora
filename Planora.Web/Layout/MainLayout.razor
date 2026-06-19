@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
+@using Planora.Shared.DTOs.Notification
+@using Planora.Web.Services
 
 <AuthorizeView>
     <Authorized>
@@ -26,6 +29,62 @@
             </nav>
 
             <div class="top-nav-spacer"></div>
+
+            @* Notification bell *@
+            <div class="nav-notif-wrap">
+                <button class="nav-notif-btn" @onclick="ToggleNotifications" title="Notifications" aria-expanded="@_notifOpen">
+                    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="18" height="18">
+                        <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5A1 1 0 003.5 15h13a1 1 0 00.87-1.5L16 11V8a6 6 0 00-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M8 15.5a2 2 0 004 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    @if (NotificationService.UnreadCount > 0)
+                    {
+                        <span class="nav-notif-badge">@(NotificationService.UnreadCount > 9 ? "9+" : NotificationService.UnreadCount.ToString())</span>
+                    }
+                </button>
+
+                @if (_notifOpen)
+                {
+                    <div class="nav-notif-dropdown">
+                        <div class="nav-notif-header">
+                            <span class="nav-notif-title">Notifications</span>
+                            @if (NotificationService.UnreadCount > 0)
+                            {
+                                <button class="nav-notif-mark-all" @onclick="MarkAllRead">Mark all read</button>
+                            }
+                        </div>
+
+                        @if (_loadingNotifs)
+                        {
+                            <div class="nav-notif-empty"><span class="spinner-border spinner-border-sm"></span></div>
+                        }
+                        else if (_notifications.Count == 0)
+                        {
+                            <div class="nav-notif-empty">No notifications yet.</div>
+                        }
+                        else
+                        {
+                            <div class="nav-notif-list">
+                                @foreach (var n in _notifications)
+                                {
+                                    <div class="nav-notif-item @(n.IsRead ? "" : "nav-notif-item--unread")" @key="n.Id"
+                                         @onclick="() => OpenNotification(n)">
+                                        <div class="nav-notif-icon">@NotifIcon(n)</div>
+                                        <div class="nav-notif-body">
+                                            <div class="nav-notif-msg">@n.Message</div>
+                                            <div class="nav-notif-time">@TimeAgo(n.CreatedAt)</div>
+                                        </div>
+                                        <button class="nav-notif-dismiss" title="Dismiss"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="() => DismissNotification(n)">✕</button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="nav-dropdown-backdrop" @onclick="CloseNotifications"></div>
+                }
+            </div>
 
             <div class="nav-user-wrap">
                 <button class="nav-user-btn" @onclick="ToggleMenu" aria-expanded="@_open">
@@ -88,6 +147,7 @@
 @code {
     [Inject] AuthService AuthService { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
+    [Inject] NotificationService NotificationService { get; set; } = null!;
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = null!;
 
     private bool _open;
@@ -95,15 +155,87 @@
     private string _email = "";
     private string _initial = "?";
 
+    private bool _notifOpen;
+    private bool _loadingNotifs;
+    private List<NotificationDto> _notifications = [];
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState;
         _displayName = state.User.FindFirst("displayName")?.Value ?? "";
         _email       = state.User.FindFirst("email")?.Value ?? "";
         _initial     = _displayName.Length > 0 ? _displayName[0].ToString().ToUpper() : "?";
+
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            NotificationService.OnChange += OnNotifCountChanged;
+            NotificationService.StartPolling();
+        }
     }
 
-    private void ToggleMenu() => _open = !_open;
+    private void OnNotifCountChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task ToggleNotifications()
+    {
+        _notifOpen = !_notifOpen;
+        _open = false;
+        if (_notifOpen) await LoadNotificationsAsync();
+    }
+
+    private void CloseNotifications() => _notifOpen = false;
+
+    private async Task LoadNotificationsAsync()
+    {
+        _loadingNotifs = true;
+        _notifications = await NotificationService.GetRecentAsync() ?? [];
+        _loadingNotifs = false;
+    }
+
+    private async Task OpenNotification(NotificationDto n)
+    {
+        if (!n.IsRead)
+        {
+            await NotificationService.MarkReadAsync(n.Id);
+            n.IsRead = true;
+        }
+        _notifOpen = false;
+
+        if (n.RelatedBoardId.HasValue)
+            Nav.NavigateTo($"/boards/{n.RelatedBoardId}");
+        else if (n.RelatedWorkspaceId.HasValue)
+            Nav.NavigateTo("/workspaces");
+    }
+
+    private async Task MarkAllRead()
+    {
+        await NotificationService.MarkAllReadAsync();
+        foreach (var n in _notifications) n.IsRead = true;
+    }
+
+    private async Task DismissNotification(NotificationDto n)
+    {
+        await NotificationService.DeleteAsync(n.Id, wasUnread: !n.IsRead);
+        _notifications.Remove(n);
+    }
+
+    private static string NotifIcon(NotificationDto n) => n.Type switch
+    {
+        Planora.Shared.Enums.NotificationType.AssignedToCard => "👤",
+        Planora.Shared.Enums.NotificationType.NewComment     => "💬",
+        _                                                     => "🔔"
+    };
+
+    private static string TimeAgo(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return utc.ToLocalTime().ToString("MMM d");
+    }
+
+    private void ToggleMenu() { _open = !_open; _notifOpen = false; }
     private void CloseMenu()  => _open = false;
 
     private async Task Logout()
@@ -111,5 +243,11 @@
         _open = false;
         await AuthService.LogoutAsync();
         Nav.NavigateTo("/login");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        NotificationService.OnChange -= OnNotifCountChanged;
+        await NotificationService.DisposeAsync();
     }
 }

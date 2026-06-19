@@ -1,16 +1,15 @@
 using Planora.Shared.Enums;
 
-namespace Planora.Api.Domain.Entities;
+namespace Planora.Shared.DTOs.Notification;
 
-public class Notification : BaseEntity
+public class NotificationDto
 {
-    public string UserId { get; set; } = string.Empty;
+    public Guid Id { get; set; }
     public NotificationType Type { get; set; }
     public string Message { get; set; } = string.Empty;
     public bool IsRead { get; set; }
     public Guid? RelatedCardId { get; set; }
     public Guid? RelatedBoardId { get; set; }
     public Guid? RelatedWorkspaceId { get; set; }
-
-    public AppUser User { get; set; } = null!;
+    public DateTime CreatedAt { get; set; }
 }
