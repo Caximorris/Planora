@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/planora-api:latest" >> $GITHUB_ENV
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -32,7 +35,7 @@ jobs:
           context: .
           file: Planora.Api/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/planora-api:latest
+          tags: ${{ env.IMAGE }}
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -51,4 +54,4 @@ jobs:
           az containerapp update \
             --name planora-api \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --image ghcr.io/${{ github.repository_owner }}/planora-api:latest
+            --image ${{ env.IMAGE }}
