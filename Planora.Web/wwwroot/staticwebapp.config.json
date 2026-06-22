@@ -1,0 +1,21 @@
+{
+  "globalHeaders": {
+    "Blazor-Environment": "Production"
+  },
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/_framework/*",
+      "/css/*",
+      "/js/*",
+      "/lib/*",
+      "*.{ico,png,jpg,gif,svg,woff,woff2,ttf}"
+    ]
+  },
+  "mimeTypes": {
+    ".dll": "application/octet-stream",
+    ".blat": "application/octet-stream",
+    ".dat": "application/octet-stream",
+    ".wasm": "application/wasm"
+  }
+}

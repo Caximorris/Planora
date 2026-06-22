@@ -12,6 +12,10 @@ using Planora.Api.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Railway sets PORT env var dynamically; fall back to 8080 for local Docker
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://+:{port}");
+
 // This is an API-only project, so it has no wwwroot by default — WebApplication.CreateBuilder
 // already snapshots WebRootFileProvider as a NullFileProvider before this point if the folder
 // doesn't exist on disk yet, so just creating the directory and updating WebRootPath isn't
@@ -85,6 +89,13 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// Apply pending EF Core migrations on startup (idempotent — safe to run every boot)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
 
 // Board cover images are saved here at runtime (see BoardsController) — make sure it
 // exists before UseStaticFiles tries to serve from it.
