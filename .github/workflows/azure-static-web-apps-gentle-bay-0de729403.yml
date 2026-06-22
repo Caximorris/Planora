@@ -20,12 +20,10 @@ jobs:
           submodules: true
           lfs: false
       - name: Inject production API URL
+        env:
+          API_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          cat << EOF > Planora.Web/wwwroot/appsettings.Production.json
-          {
-            "ApiBaseUrl": "${{ secrets.API_BASE_URL }}"
-          }
-          EOF
+          sed -i "s|http://localhost:5009|${API_URL}|g" Planora.Web/wwwroot/appsettings.json
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
