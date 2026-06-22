@@ -1,0 +1,54 @@
+name: Deploy API to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Planora.Api/**'
+      - 'Planora.Shared/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Planora.Api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/planora-api:latest
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set registry credentials and deploy
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp registry set \
+            --name planora-api \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --server ghcr.io \
+            --username ${{ github.repository_owner }} \
+            --password ${{ secrets.GHCR_TOKEN }}
+          az containerapp update \
+            --name planora-api \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --image ghcr.io/${{ github.repository_owner }}/planora-api:latest
