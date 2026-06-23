@@ -154,20 +154,22 @@
     private string _displayName = "";
     private string _email = "";
     private string _initial = "?";
+    private bool _notifStarted;
 
     private bool _notifOpen;
     private bool _loadingNotifs;
     private List<NotificationDto> _notifications = [];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         var state = await AuthState;
         _displayName = state.User.FindFirst("displayName")?.Value ?? "";
         _email       = state.User.FindFirst("email")?.Value ?? "";
         _initial     = _displayName.Length > 0 ? _displayName[0].ToString().ToUpper() : "?";
 
-        if (state.User.Identity?.IsAuthenticated == true)
+        if (state.User.Identity?.IsAuthenticated == true && !_notifStarted)
         {
+            _notifStarted = true;
             NotificationService.OnChange += OnNotifCountChanged;
             NotificationService.StartPolling();
         }
