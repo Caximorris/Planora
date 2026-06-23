@@ -141,7 +141,15 @@
 </AuthorizeView>
 
 <main class="main-content">
-    @Body
+    <ErrorBoundary @ref="_errorBoundary">
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent>
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:50vh;gap:1rem;">
+                <p style="color:var(--text-secondary)">Something went wrong. Please try again.</p>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="RecoverFromError">Retry</button>
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
 </main>
 
 @code {
@@ -155,6 +163,9 @@
     private string _email = "";
     private string _initial = "?";
     private bool _notifStarted;
+
+    private ErrorBoundary? _errorBoundary;
+    private void RecoverFromError() => _errorBoundary?.Recover();
 
     private bool _notifOpen;
     private bool _loadingNotifs;

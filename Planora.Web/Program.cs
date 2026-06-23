@@ -21,12 +21,17 @@ builder.Services.AddScoped<AuthenticationStateProvider>(
 
 builder.Services.AddTransient<AuthHeaderHandler>();
 
+// Main client: uses AuthHeaderHandler for automatic token injection
 builder.Services.AddHttpClient("PlanorApi", client =>
     client.BaseAddress = new Uri(apiBaseUrl))
     .AddHttpMessageHandler<AuthHeaderHandler>();
 
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("PlanorApi"));
+
+// Bare refresh client: no auth handler — used for silent token refresh to avoid circular calls
+builder.Services.AddHttpClient("PlanoraRefresh", client =>
+    client.BaseAddress = new Uri(apiBaseUrl));
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<WorkspaceService>();

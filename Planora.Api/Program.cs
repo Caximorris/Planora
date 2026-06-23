@@ -1,13 +1,15 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
-using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using FluentValidation;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Services;
 using Planora.Api.Domain.Entities;
@@ -15,15 +17,23 @@ using Planora.Api.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Structured JSON logging (production only) ──────────────────────────────────
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.TimestampFormat = "o";
+        options.JsonWriterOptions = new JsonWriterOptions { Indented = false };
+    });
+}
+
 // Railway sets PORT env var dynamically; fall back to 8080 for local Docker
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://+:{port}");
 
-// This is an API-only project, so it has no wwwroot by default — WebApplication.CreateBuilder
-// already snapshots WebRootFileProvider as a NullFileProvider before this point if the folder
-// doesn't exist on disk yet, so just creating the directory and updating WebRootPath isn't
-// enough; the file provider itself has to be replaced too. Board cover images (see
-// BoardsController) need this to work.
+// wwwroot for board cover images
 var webRootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
 Directory.CreateDirectory(webRootPath);
 builder.Environment.WebRootPath = webRootPath;
@@ -31,7 +41,9 @@ builder.Environment.WebRootFileProvider = new PhysicalFileProvider(webRootPath);
 
 // ── Database ──────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("Default"),
+        npgsql => npgsql.CommandTimeout(30)));
 
 // ── Identity ──────────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
@@ -42,12 +54,21 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 8;
     options.User.RequireUniqueEmail = true;
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    // Progressive lockout is handled manually in AuthController.
+    // MaxFailedAccessAttempts is set high to prevent Identity from auto-resetting the counter.
+    options.Lockout.MaxFailedAccessAttempts = 100;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
     options.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+// ── HSTS ──────────────────────────────────────────────────────────────────────
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+});
 
 // ── JWT Authentication ────────────────────────────────────────────────────────
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -119,6 +140,7 @@ builder.Services.AddRateLimiter(options =>
 
 // ── Application Services ──────────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -130,30 +152,64 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Apply pending EF Core migrations on startup (idempotent — safe to run every boot)
+// Apply pending EF Core migrations on startup
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
 }
 
-// Board cover images are saved here at runtime (see BoardsController) — make sure it
-// exists before UseStaticFiles tries to serve from it.
 Directory.CreateDirectory(Path.Combine(app.Environment.WebRootPath, "uploads", "boards"));
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// ── Exception handler (no stack traces in production) ─────────────────────────
+app.UseExceptionHandler(errApp =>
+{
+    errApp.Run(async context =>
+    {
+        var ex = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Unhandled exception {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        var message = app.Environment.IsDevelopment() && ex is not null
+            ? ex.Message
+            : "An internal server error occurred.";
+        await context.Response.WriteAsJsonAsync(new { error = message });
+    });
+});
+
 app.UseCors("BlazorClient");
+
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 
+// ── Correlation ID middleware ─────────────────────────────────────────────────
+app.Use(async (context, next) =>
+{
+    const string correlationHeader = "X-Correlation-ID";
+    var correlationId = context.Request.Headers[correlationHeader].FirstOrDefault()
+        ?? Guid.NewGuid().ToString("N")[..16];
+    context.Response.Headers.Append(correlationHeader, correlationId);
+    context.Items["CorrelationId"] = correlationId;
+    await next();
+});
+
+// ── Security headers ──────────────────────────────────────────────────────────
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
     context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    context.Response.Headers.Append("X-Permitted-Cross-Domain-Policies", "none");
+    context.Response.Headers.Append("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
     await next();
 });
 

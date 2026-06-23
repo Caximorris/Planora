@@ -107,8 +107,20 @@ public class CardsController : ControllerBase
         if (request.Priority.HasValue) card.Priority = request.Priority.Value;
         if (request.DueDate.HasValue) card.DueDate = request.DueDate;
         if (request.Position.HasValue) card.Position = request.Position.Value;
-        if (request.ClearAssignee) card.AssigneeId = null;
-        else if (request.AssigneeId is not null) card.AssigneeId = request.AssigneeId;
+
+        if (request.ClearAssignee)
+        {
+            card.AssigneeId = null;
+        }
+        else if (request.AssigneeId is not null)
+        {
+            var isAssigneeMember = await _db.WorkspaceMembers
+                .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == request.AssigneeId);
+            if (!isAssigneeMember)
+                return BadRequest("Assignee must be a member of this workspace.");
+            card.AssigneeId = request.AssigneeId;
+        }
+
         if (request.ClearColor) card.Color = null;
         else if (request.Color is not null) card.Color = request.Color;
 

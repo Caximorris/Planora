@@ -25,6 +25,7 @@ public class AuthService
 
         var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
         await _localStorage.SetItemAsync("authToken", auth!.Token);
+        await _localStorage.SetItemAsync("refreshToken", auth.RefreshToken);
         _authState.NotifyLoggedIn(auth.Token);
         return (true, null);
     }
@@ -47,6 +48,7 @@ public class AuthService
 
         var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
         await _localStorage.SetItemAsync("authToken", auth!.Token);
+        await _localStorage.SetItemAsync("refreshToken", auth.RefreshToken);
         _authState.NotifyLoggedIn(auth.Token);
         return (true, null);
     }
@@ -55,6 +57,7 @@ public class AuthService
     {
         try { await _http.PostAsync("api/auth/logout", null); } catch { }
         await _localStorage.RemoveItemAsync("authToken");
+        await _localStorage.RemoveItemAsync("refreshToken");
         _authState.NotifyLoggedOut();
     }
 }

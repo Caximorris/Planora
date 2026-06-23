@@ -39,5 +39,5 @@ public class TokenService : ITokenService
     }
 
     public DateTime GetExpiration() =>
-        DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:ExpirationDays"] ?? "7"));
+        DateTime.UtcNow.AddMinutes(int.TryParse(_config["Jwt:ExpirationMinutes"], out var m) ? m : 15);
 }

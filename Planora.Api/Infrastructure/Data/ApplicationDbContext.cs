@@ -21,6 +21,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<Checklist> Checklists => Set<Checklist>();
     public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

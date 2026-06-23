@@ -1,6 +1,11 @@
 {
   "globalHeaders": {
-    "Blazor-Environment": "Production"
+    "Blazor-Environment": "Production",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
   },
   "navigationFallback": {
     "rewrite": "/index.html",
