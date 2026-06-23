@@ -53,6 +53,7 @@ public class AuthService
 
     public async Task LogoutAsync()
     {
+        try { await _http.PostAsync("api/auth/logout", null); } catch { }
         await _localStorage.RemoveItemAsync("authToken");
         _authState.NotifyLoggedOut();
     }

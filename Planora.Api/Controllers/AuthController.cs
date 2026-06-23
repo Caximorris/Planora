@@ -1,6 +1,9 @@
+using System.Security.Claims;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Domain.Entities;
 using Planora.Shared.DTOs.Auth;
@@ -35,6 +38,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var validation = await _registerValidator.ValidateAsync(request);
@@ -61,6 +65,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var validation = await _loginValidator.ValidateAsync(request);
@@ -71,11 +76,22 @@ public class AuthController : ControllerBase
         if (user is null)
             return Unauthorized("Invalid credentials.");
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
+        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
             return Unauthorized("Invalid credentials.");
 
         return Ok(BuildAuthResponse(user));
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    public async Task<IActionResult> Logout()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = await _userManager.FindByIdAsync(userId!);
+        if (user is not null)
+            await _userManager.UpdateSecurityStampAsync(user);
+        return NoContent();
     }
 
     private AuthResponse BuildAuthResponse(AppUser user) => new()
