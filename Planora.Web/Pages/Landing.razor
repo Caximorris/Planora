@@ -1,0 +1,68 @@
+@page "/"
+@inject NavigationManager Nav
+
+<PageTitle>Planora — Organize your work, your way</PageTitle>
+
+@if (_ready)
+{
+    <div class="landing-root">
+
+        <nav class="landing-nav">
+            <span class="landing-brand">
+                <svg viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="20" height="16">
+                    <rect x="0"  y="2" width="6" height="14" rx="1.5" fill="currentColor"/>
+                    <rect x="8"  y="2" width="6" height="9"  rx="1.5" fill="currentColor" opacity=".75"/>
+                    <rect x="16" y="2" width="6" height="11" rx="1.5" fill="currentColor" opacity=".55"/>
+                </svg>
+                Planora
+            </span>
+            <a class="landing-nav-signin" href="/login">Sign in →</a>
+        </nav>
+
+        <section class="landing-hero">
+            <div class="landing-badge">Free &middot; No credit card &middot; No real data needed</div>
+
+            <h1 class="landing-title">
+                Organize your work,<br>your way.
+            </h1>
+
+            <p class="landing-subtitle">
+                Planora is a visual Kanban board for individuals and teams.
+                Create tasks, set priorities, and move cards between columns — your workflow, simplified.
+            </p>
+
+            <ul class="landing-features">
+                <li>
+                    <span class="landing-check">✓</span>
+                    <span>Use any email to sign up — invented addresses work fine, it's just a demo</span>
+                </li>
+                <li>
+                    <span class="landing-check">✓</span>
+                    <span>A full demo workspace with a sample board is created for you instantly</span>
+                </li>
+                <li>
+                    <span class="landing-check">✓</span>
+                    <span>Drag &amp; drop cards, reorder columns, filter by priority — everything works</span>
+                </li>
+            </ul>
+
+            <a class="landing-cta" href="/register">Try it free</a>
+            <p class="landing-hint">Already have an account? <a href="/login">Sign in</a></p>
+        </section>
+
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = null!;
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState;
+        if (state.User.Identity?.IsAuthenticated == true)
+            Nav.NavigateTo("/home", replace: true);
+        else
+            _ready = true;
+    }
+}

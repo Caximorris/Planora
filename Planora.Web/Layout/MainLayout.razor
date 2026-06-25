@@ -7,7 +7,7 @@
     <Authorized>
         <header class="top-nav">
 
-            <a class="top-nav-brand" href="/">
+            <a class="top-nav-brand" href="/home">
                 <svg class="top-nav-icon" viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <rect x="0"   y="2" width="6" height="14" rx="1.5" fill="currentColor"/>
                     <rect x="8"   y="2" width="6" height="9"  rx="1.5" fill="currentColor" opacity=".75"/>
@@ -254,6 +254,8 @@
     private async Task Logout()
     {
         _open = false;
+        await NotificationService.StopPollingAsync();
+        _notifStarted = false;
         await AuthService.LogoutAsync();
         Nav.NavigateTo("/login");
     }

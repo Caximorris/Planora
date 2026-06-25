@@ -253,7 +253,9 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     color: var(--wine-800); text-align: center;
     margin-bottom: 0.2rem; letter-spacing: -0.6px;
     display: flex; align-items: center; justify-content: center; gap: 8px;
+    text-decoration: none;
 }
+.auth-logo:hover { color: var(--wine-700); }
 .auth-logo::before {
     content: '';
     width: 10px; height: 10px; border-radius: 50%;
