@@ -6,6 +6,7 @@ public interface IRefreshTokenService
 {
     Task<string> CreateAsync(string userId);
     Task<(bool IsValid, AppUser? User)> ValidateAsync(string token);
+    Task<string?> GetUserIdAsync(string token);
     Task RevokeAsync(string token);
     Task RevokeAllAsync(string userId);
 }

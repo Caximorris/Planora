@@ -6,7 +6,7 @@ namespace Planora.Web.Services;
 public class NotificationService : IAsyncDisposable
 {
     private readonly HttpClient _http;
-    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource _cts = new();
 
     public int UnreadCount { get; private set; }
     public event Action? OnChange;
@@ -14,6 +14,15 @@ public class NotificationService : IAsyncDisposable
     public NotificationService(HttpClient http) => _http = http;
 
     public void StartPolling() => _ = PollAsync(_cts.Token);
+
+    public async Task StopPollingAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        UnreadCount = 0;
+        OnChange?.Invoke();
+    }
 
     private async Task PollAsync(CancellationToken ct)
     {

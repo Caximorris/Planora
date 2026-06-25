@@ -55,7 +55,8 @@ public class AuthService
 
     public async Task LogoutAsync()
     {
-        try { await _http.PostAsync("api/auth/logout", null); } catch { }
+        var refreshToken = await _localStorage.GetItemAsync<string>("refreshToken");
+        try { await _http.PostAsJsonAsync("api/auth/logout", new LogoutRequest(refreshToken)); } catch { }
         await _localStorage.RemoveItemAsync("authToken");
         await _localStorage.RemoveItemAsync("refreshToken");
         _authState.NotifyLoggedOut();

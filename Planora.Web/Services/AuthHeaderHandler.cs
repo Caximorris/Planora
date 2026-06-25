@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components;
 using Planora.Shared.DTOs.Auth;
+using Planora.Web.Auth;
 
 namespace Planora.Web.Services;
 
@@ -12,16 +13,19 @@ public class AuthHeaderHandler : DelegatingHandler
     private readonly ILocalStorageService _localStorage;
     private readonly NavigationManager _navigation;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly PlanorAuthStateProvider _authState;
     private static readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     public AuthHeaderHandler(
         ILocalStorageService localStorage,
         NavigationManager navigation,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        PlanorAuthStateProvider authState)
     {
         _localStorage = localStorage;
         _navigation = navigation;
         _httpClientFactory = httpClientFactory;
+        _authState = authState;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -44,6 +48,7 @@ public class AuthHeaderHandler : DelegatingHandler
             {
                 await _localStorage.RemoveItemAsync("authToken");
                 await _localStorage.RemoveItemAsync("refreshToken");
+                _authState.NotifyLoggedOut();
                 _navigation.NavigateTo("/login", forceLoad: false);
             }
         }
@@ -70,6 +75,7 @@ public class AuthHeaderHandler : DelegatingHandler
 
             await _localStorage.SetItemAsync("authToken", auth.Token);
             await _localStorage.SetItemAsync("refreshToken", auth.RefreshToken);
+            _authState.NotifyLoggedIn(auth.Token);
             return auth.Token;
         }
         catch { return null; }

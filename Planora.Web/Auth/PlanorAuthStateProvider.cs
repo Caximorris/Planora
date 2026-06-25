@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
@@ -11,18 +10,15 @@ namespace Planora.Web.Auth;
 public class PlanorAuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _localStorage;
-    private readonly HttpClient _http;
     private readonly IHttpClientFactory _httpClientFactory;
     private static readonly AuthenticationState Anonymous =
         new(new ClaimsPrincipal(new ClaimsIdentity()));
 
     public PlanorAuthStateProvider(
         ILocalStorageService localStorage,
-        HttpClient http,
         IHttpClientFactory httpClientFactory)
     {
         _localStorage = localStorage;
-        _http = http;
         _httpClientFactory = httpClientFactory;
     }
 
@@ -43,19 +39,16 @@ public class PlanorAuthStateProvider : AuthenticationStateProvider
             }
         }
 
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return BuildState(token);
     }
 
     public void NotifyLoggedIn(string token)
     {
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         NotifyAuthenticationStateChanged(Task.FromResult(BuildState(token)));
     }
 
     public void NotifyLoggedOut()
     {
-        _http.DefaultRequestHeaders.Authorization = null;
         NotifyAuthenticationStateChanged(Task.FromResult(Anonymous));
     }
 
@@ -76,7 +69,6 @@ public class PlanorAuthStateProvider : AuthenticationStateProvider
 
             await _localStorage.SetItemAsync("authToken", auth.Token);
             await _localStorage.SetItemAsync("refreshToken", auth.RefreshToken);
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.Token);
             return auth.Token;
         }
         catch { return null; }

@@ -150,21 +150,36 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize]
-    public async Task<IActionResult> Logout()
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest? request)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var correlationId = HttpContext.Items["CorrelationId"] as string;
-        var user = await _userManager.FindByIdAsync(userId);
+        string? userId = null;
 
-        if (user is not null)
+        // Prefer the authenticated JWT path (access token still valid)
+        if (User.Identity?.IsAuthenticated == true)
         {
-            await _userManager.UpdateSecurityStampAsync(user);
+            userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        }
+        // Fall back to refresh token when access token is expired or missing.
+        // GetUserIdAsync does not trigger reuse-detection side effects unlike ValidateAsync.
+        else if (!string.IsNullOrEmpty(request?.RefreshToken))
+        {
+            userId = await _refreshTokenService.GetUserIdAsync(request.RefreshToken);
+        }
+
+        if (userId is not null)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is not null)
+                await _userManager.UpdateSecurityStampAsync(user);
+            // RevokeAllAsync runs even when FindByIdAsync returns null (deleted user)
             await _refreshTokenService.RevokeAllAsync(userId);
         }
 
         _logger.LogInformation("AUTH_LOGOUT UserId={UserId} CorrelationId={CorrelationId}",
-            userId, correlationId);
+            userId ?? "unknown", correlationId);
         return NoContent();
     }
 
