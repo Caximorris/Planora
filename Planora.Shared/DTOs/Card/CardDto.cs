@@ -17,6 +17,7 @@ public class CardDto
     public string? AssigneeId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsArchived { get; set; }
     public List<LabelDto> Labels { get; set; } = [];
     public List<ChecklistDto> Checklists { get; set; } = [];
 }

@@ -39,7 +39,7 @@ public class DemoWorkspaceSeeder : IDemoWorkspaceSeeder
             WorkspaceId = workspace.Id,
             Name = "Showcase Board",
             Description = "Explore columns, cards, priorities, due dates and custom colors.",
-            CoverColor = "#3e0019"
+            CoverColor = "#94BFBE"
         };
 
         var backlog = new Column { BoardId = board.Id, Title = "Backlog", Position = 0 };

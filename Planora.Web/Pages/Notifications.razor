@@ -1,0 +1,107 @@
+@page "/notifications"
+@attribute [Authorize]
+@using Planora.Shared.DTOs.Notification
+@using Planora.Shared.Enums
+
+<PageTitle>Notifications — Planora</PageTitle>
+
+<div class="notif-page-root">
+    <div class="notif-page-header">
+        <span class="notif-page-title">Notifications</span>
+        @if (_notifications.Any(n => !n.IsRead))
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="MarkAllRead">Mark all as read</button>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+    }
+    else if (_notifications.Count == 0)
+    {
+        <div class="notif-page-empty">
+            <div style="font-size:2.5rem;margin-bottom:0.75rem;">🔔</div>
+            <div>You're all caught up! No notifications yet.</div>
+        </div>
+    }
+    else
+    {
+        <div class="notif-page-list">
+            @foreach (var n in _notifications)
+            {
+                <div class="notif-page-item @(n.IsRead ? "" : "notif-page-item--unread")"
+                     @key="n.Id"
+                     @onclick="() => OpenNotification(n)">
+                    <div class="notif-page-icon">@NotifIcon(n)</div>
+                    <div class="notif-page-body">
+                        <div class="notif-page-msg">@n.Message</div>
+                        <div class="notif-page-time">@TimeAgo(n.CreatedAt)</div>
+                    </div>
+                    <button class="notif-page-dismiss"
+                            title="Dismiss"
+                            @onclick:stopPropagation="true"
+                            @onclick="() => Dismiss(n)">✕</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] NotificationService NotificationService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private List<NotificationDto> _notifications = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _notifications = await NotificationService.GetRecentAsync(limit: 50) ?? [];
+        _loading = false;
+    }
+
+    private async Task OpenNotification(NotificationDto n)
+    {
+        if (!n.IsRead)
+        {
+            await NotificationService.MarkReadAsync(n.Id);
+            n.IsRead = true;
+        }
+        if (n.RelatedBoardId.HasValue)
+            Nav.NavigateTo($"/boards/{n.RelatedBoardId}");
+        else if (n.RelatedWorkspaceId.HasValue)
+            Nav.NavigateTo("/workspaces");
+    }
+
+    private async Task MarkAllRead()
+    {
+        await NotificationService.MarkAllReadAsync();
+        foreach (var n in _notifications) n.IsRead = true;
+    }
+
+    private async Task Dismiss(NotificationDto n)
+    {
+        await NotificationService.DeleteAsync(n.Id, wasUnread: !n.IsRead);
+        _notifications.Remove(n);
+    }
+
+    private static string NotifIcon(NotificationDto n) => n.Type switch
+    {
+        NotificationType.AssignedToCard => "👤",
+        NotificationType.NewComment     => "💬",
+        NotificationType.MemberJoined   => "👋",
+        NotificationType.CardMoved      => "↗️",
+        _                               => "🔔"
+    };
+
+    private static string TimeAgo(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1)   return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1)    return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7)    return $"{(int)diff.TotalDays}d ago";
+        return utc.ToLocalTime().ToString("MMM d");
+    }
+}

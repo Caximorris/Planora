@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Planora.Shared.DTOs.Board;
+using Planora.Shared.DTOs.Calendar;
 using Planora.Shared.DTOs.Invitation;
 using Planora.Shared.DTOs.Workspace;
 using Planora.Shared.Enums;
@@ -46,4 +47,7 @@ public class WorkspaceService
         var res = await _http.PostAsJsonAsync($"api/workspaces/{workspaceId}/invitations", request);
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<InvitationDto>() : null;
     }
+
+    public Task<List<CalendarCardDto>?> GetCalendarAsync(Guid workspaceId, string month) =>
+        _http.GetFromJsonAsync<List<CalendarCardDto>>($"api/workspaces/{workspaceId}/calendar?month={month}");
 }

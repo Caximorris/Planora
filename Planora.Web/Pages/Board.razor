@@ -92,6 +92,12 @@ else
                     <button class="btn-close" @onclick="CloseCard"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_editCard is not null && _editCard.IsArchived)
+                    {
+                        <div class="alert alert-warning py-2 mb-3" style="font-size:13px;">
+                            This card is archived. It is hidden from the board but can be restored.
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Title</label>
                         <input class="form-control" @bind="_editTitle" />
@@ -299,6 +305,14 @@ else
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-outline-danger btn-sm me-auto" @onclick="DeleteCard">Delete card</button>
+                    @if (_editCard is not null && !_editCard.IsArchived)
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ArchiveCard" disabled="@_saving">Archive</button>
+                    }
+                    else if (_editCard is not null && _editCard.IsArchived)
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="UnarchiveCard" disabled="@_saving">Restore</button>
+                    }
                     <button class="btn btn-secondary btn-sm" @onclick="CloseCard">Cancel</button>
                     <button class="btn btn-primary btn-sm" @onclick="SaveCard" disabled="@_saving">Save</button>
                 </div>
@@ -310,13 +324,13 @@ else
 @* Board settings *@
 @if (_showBoardSettings)
 {
-    <div class="modal-backdrop fade show" @onclick="() => _showBoardSettings = false"></div>
+    <div class="modal-backdrop fade show" @onclick="CloseBoardSettings"></div>
     <div class="modal fade show d-block" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Board settings</h5>
-                    <button class="btn-close" @onclick="() => _showBoardSettings = false"></button>
+                    <button class="btn-close" @onclick="CloseBoardSettings"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -331,6 +345,35 @@ else
                                    @onchange="SaveBoardColor" />
                         </div>
                     </div>
+                    @if (_showArchivedCards)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Archived cards</label>
+                            @if (_loadingArchivedCards)
+                            {
+                                <div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>
+                            }
+                            else if (_archivedCards.Count == 0)
+                            {
+                                <p style="font-size:13px;color:var(--color-text-mid)">No archived cards.</p>
+                            }
+                            else
+                            {
+                                <div class="archived-cards-list">
+                                    @foreach (var card in _archivedCards)
+                                    {
+                                        <div class="archived-card-row" @key="card.Id">
+                                            <span class="archived-card-title">@card.Title</span>
+                                            <div class="d-flex gap-1">
+                                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => RestoreArchivedCard(card)">Restore</button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteArchivedCard(card)">Delete</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Cover image</label>
                         <div class="d-flex align-items-center gap-2">
@@ -351,7 +394,10 @@ else
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-outline-danger btn-sm me-auto" @onclick="ConfirmDeleteBoard">Delete board</button>
-                    <button class="btn btn-secondary btn-sm" @onclick="() => _showBoardSettings = false">Close</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ToggleArchivedCards">
+                        @(_showArchivedCards ? "Hide archived" : "View archived cards")
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseBoardSettings">Close</button>
                 </div>
             </div>
         </div>
@@ -397,6 +443,9 @@ else
     [Inject] IJSRuntime JS { get; set; } = null!;
 
     private DotNetObjectReference<Board>? _jsRef;
+    private readonly Dictionary<Guid, int> _pendingColumnPositions = [];
+    private readonly Dictionary<Guid, (Guid ColumnId, int Position)> _pendingCardPositions = [];
+    private CancellationTokenSource? _saveCts;
 
     private BoardDetailDto? _board;
     private string? _workspaceName;
@@ -420,6 +469,9 @@ else
     private string? _coverError;
     private bool _showBoardSettings;
     private bool _confirmDeleteBoard;
+    private bool _showArchivedCards;
+    private bool _loadingArchivedCards;
+    private List<CardDto> _archivedCards = [];
 
     private List<CardCommentDto> _comments = [];
     private bool _loadingComments;
@@ -477,36 +529,38 @@ else
     }
 
     [JSInvokable]
-    public async Task OnColumnsReordered(string columnId, int newIndex)
+    public Task OnColumnsReordered(string columnId, int newIndex)
     {
-        if (_board is null || !Guid.TryParse(columnId, out var id)) return;
+        if (_board is null || !Guid.TryParse(columnId, out var id)) return Task.CompletedTask;
 
         var columns = _board.Columns.OrderBy(c => c.Position).ToList();
         var dragged = columns.FirstOrDefault(c => c.Id == id);
-        if (dragged is null) return;
+        if (dragged is null) return Task.CompletedTask;
 
         columns.Remove(dragged);
         columns.Insert(Math.Clamp(newIndex, 0, columns.Count), dragged);
 
         for (var i = 0; i < columns.Count; i++)
         {
-            if (columns[i].Position == i) continue;
             columns[i].Position = i;
-            await ColumnService.UpdateAsync(columns[i].Id, new() { Position = i });
+            _pendingColumnPositions[columns[i].Id] = i;
         }
+
         StateHasChanged();
+        ScheduleSave();
+        return Task.CompletedTask;
     }
 
     [JSInvokable]
-    public async Task OnCardsReordered(string cardId, string targetColumnId, int newIndex)
+    public Task OnCardsReordered(string cardId, string targetColumnId, int newIndex)
     {
-        if (_board is null) return;
-        if (!Guid.TryParse(cardId, out var draggedId) || !Guid.TryParse(targetColumnId, out var targetColumnGuid)) return;
+        if (_board is null) return Task.CompletedTask;
+        if (!Guid.TryParse(cardId, out var draggedId) || !Guid.TryParse(targetColumnId, out var targetColumnGuid)) return Task.CompletedTask;
 
         var sourceColumn = _board.Columns.FirstOrDefault(c => c.Cards.Any(card => card.Id == draggedId));
         var targetColumn = _board.Columns.FirstOrDefault(c => c.Id == targetColumnGuid);
         var dragged = sourceColumn?.Cards.FirstOrDefault(card => card.Id == draggedId);
-        if (sourceColumn is null || targetColumn is null || dragged is null) return;
+        if (sourceColumn is null || targetColumn is null || dragged is null) return Task.CompletedTask;
 
         var changedColumn = sourceColumn.Id != targetColumn.Id;
         if (changedColumn)
@@ -522,10 +576,8 @@ else
 
         for (var i = 0; i < targetCards.Count; i++)
         {
-            var positionChanged = targetCards[i].Position != i;
             targetCards[i].Position = i;
-            if (positionChanged || targetCards[i].Id == draggedId)
-                await CardService.UpdateAsync(targetCards[i].Id, new() { ColumnId = targetColumn.Id, Position = i });
+            _pendingCardPositions[targetCards[i].Id] = (targetColumn.Id, i);
         }
 
         if (changedColumn)
@@ -533,16 +585,47 @@ else
             var sourceCards = sourceColumn.Cards.OrderBy(c => c.Position).ToList();
             for (var i = 0; i < sourceCards.Count; i++)
             {
-                if (sourceCards[i].Position == i) continue;
                 sourceCards[i].Position = i;
-                await CardService.UpdateAsync(sourceCards[i].Id, new() { Position = i });
+                _pendingCardPositions[sourceCards[i].Id] = (sourceColumn.Id, i);
             }
         }
 
         StateHasChanged();
+        ScheduleSave();
+        return Task.CompletedTask;
     }
 
-    public void Dispose() => _jsRef?.Dispose();
+    private void ScheduleSave()
+    {
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+        _saveCts = new CancellationTokenSource();
+        _ = FlushAfterDelay(_saveCts.Token);
+    }
+
+    private async Task FlushAfterDelay(CancellationToken token)
+    {
+        try { await Task.Delay(800, token); }
+        catch (OperationCanceledException) { return; }
+
+        var colSnap = _pendingColumnPositions.ToList();
+        _pendingColumnPositions.Clear();
+        var cardSnap = _pendingCardPositions.ToList();
+        _pendingCardPositions.Clear();
+
+        foreach (var (colId, pos) in colSnap)
+            await ColumnService.UpdateAsync(colId, new() { Position = pos });
+
+        foreach (var (cardId, (colId, pos)) in cardSnap)
+            await CardService.UpdateAsync(cardId, new() { ColumnId = colId, Position = pos });
+    }
+
+    public void Dispose()
+    {
+        _jsRef?.Dispose();
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+    }
 
     private async Task SaveBoardName(ChangeEventArgs e)
     {
@@ -585,9 +668,18 @@ else
         _saving = false;
     }
 
+    private void CloseBoardSettings()
+    {
+        _showBoardSettings = false;
+        _showArchivedCards = false;
+        _archivedCards = [];
+    }
+
     private void ConfirmDeleteBoard()
     {
         _showBoardSettings = false;
+        _showArchivedCards = false;
+        _archivedCards = [];
         _confirmDeleteBoard = true;
     }
 
@@ -758,6 +850,71 @@ else
         }
         _saving = false;
         CloseCard();
+    }
+
+    private async Task ArchiveCard()
+    {
+        if (_editCard is null) return;
+        _saving = true;
+        var updated = await CardService.ArchiveAsync(_editCard.Id);
+        if (updated is not null)
+        {
+            foreach (var col in _board!.Columns)
+                col.Cards.RemoveAll(c => c.Id == _editCard.Id);
+        }
+        _saving = false;
+        CloseCard();
+    }
+
+    private async Task UnarchiveCard()
+    {
+        if (_editCard is null) return;
+        _saving = true;
+        var updated = await CardService.UnarchiveAsync(_editCard.Id);
+        if (updated is not null)
+        {
+            _editCard.IsArchived = false;
+            _archivedCards.RemoveAll(c => c.Id == _editCard.Id);
+        }
+        _saving = false;
+        CloseCard();
+    }
+
+    private async Task ToggleArchivedCards()
+    {
+        _showArchivedCards = !_showArchivedCards;
+        if (_showArchivedCards && _archivedCards.Count == 0)
+            await LoadArchivedCardsAsync();
+    }
+
+    private async Task LoadArchivedCardsAsync()
+    {
+        if (_board is null) return;
+        _loadingArchivedCards = true;
+        var full = await BoardService.GetByIdAsync(_board.Id, includeArchived: true);
+        if (full is not null)
+        {
+            _archivedCards = full.Columns
+                .SelectMany(c => c.Cards)
+                .Where(c => c.IsArchived)
+                .ToList();
+        }
+        _loadingArchivedCards = false;
+    }
+
+    private async Task RestoreArchivedCard(CardDto card)
+    {
+        var updated = await CardService.UnarchiveAsync(card.Id);
+        if (updated is null) return;
+        _archivedCards.Remove(card);
+        var col = _board!.Columns.FirstOrDefault(c => c.Id == updated.ColumnId);
+        col?.Cards.Add(updated);
+    }
+
+    private async Task DeleteArchivedCard(CardDto card)
+    {
+        if (!await CardService.DeleteAsync(card.Id)) return;
+        _archivedCards.Remove(card);
     }
 
     private async Task DeleteCard()

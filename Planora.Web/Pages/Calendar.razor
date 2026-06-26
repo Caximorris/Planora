@@ -1,0 +1,166 @@
+@page "/calendar"
+@attribute [Authorize]
+@using Planora.Shared.DTOs.Calendar
+@using Planora.Shared.Enums
+
+<PageTitle>Calendar — Planora</PageTitle>
+
+<div class="calendar-root">
+
+    <div class="calendar-toolbar">
+        <select class="form-select calendar-ws-select" @bind="_workspaceId" @bind:after="LoadCalendarAsync">
+            @foreach (var ws in _workspaces)
+            {
+                <option value="@ws.Id">@ws.Name</option>
+            }
+        </select>
+
+        <div class="calendar-nav">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevMonth">‹</button>
+            <span class="calendar-month-label">@_currentDate.ToString("MMMM yyyy")</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="NextMonth">›</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="GoToToday">Today</button>
+        </div>
+    </div>
+
+    @if (_loadingWorkspaces)
+    {
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+    }
+    else if (_workspaces.Count == 0)
+    {
+        <div class="text-center py-5" style="color:var(--text-secondary)">
+            No workspaces found. <a href="/workspaces">Create one</a> to get started.
+        </div>
+    }
+    else
+    {
+        @* Day-of-week headers *@
+        <div class="calendar-grid">
+            @foreach (var day in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+            {
+                <div class="calendar-day-header">@day</div>
+            }
+
+            @foreach (var cell in _cells)
+            {
+                var isToday = cell.Date == DateOnly.FromDateTime(DateTime.Today);
+                var isCurrentMonth = cell.Date.Month == _currentDate.Month;
+                var cellCards = _cardsByDate.GetValueOrDefault(cell.Date, []);
+                var shown = cellCards.Take(3).ToList();
+                var extra = cellCards.Count - shown.Count;
+
+                <div class="calendar-cell @(!isCurrentMonth ? "calendar-cell--other-month" : "") @(isToday ? "calendar-cell--today" : "")">
+                    <div class="calendar-cell-date">@cell.Date.Day</div>
+                    @foreach (var card in shown)
+                    {
+                        <a class="calendar-card-chip @PriorityClass(card) @(card.IsOverdue ? "calendar-chip--overdue" : "")"
+                           href="/boards/@card.BoardId"
+                           title="@card.Title — @card.BoardName">
+                            @card.Title
+                        </a>
+                    }
+                    @if (extra > 0)
+                    {
+                        <span class="calendar-more">+@extra more</span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_loading)
+        {
+            <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
+        }
+    }
+</div>
+
+@code {
+    [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
+
+    private List<Planora.Shared.DTOs.Workspace.WorkspaceDto> _workspaces = [];
+    private Guid _workspaceId;
+    private DateTime _currentDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private bool _loadingWorkspaces = true;
+    private bool _loading;
+
+    private List<CalendarCell> _cells = [];
+    private Dictionary<DateOnly, List<CalendarCardDto>> _cardsByDate = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _workspaces = await WorkspaceService.GetAllAsync() ?? [];
+        _loadingWorkspaces = false;
+        if (_workspaces.Count > 0)
+        {
+            _workspaceId = _workspaces[0].Id;
+            BuildGrid();
+            await LoadCalendarAsync();
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        _currentDate = _currentDate.AddMonths(-1);
+        BuildGrid();
+        await LoadCalendarAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        _currentDate = _currentDate.AddMonths(1);
+        BuildGrid();
+        await LoadCalendarAsync();
+    }
+
+    private async Task GoToToday()
+    {
+        _currentDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        BuildGrid();
+        await LoadCalendarAsync();
+    }
+
+    private void BuildGrid()
+    {
+        _cells = [];
+        // Start grid on Monday of the week containing the 1st
+        var first = new DateOnly(_currentDate.Year, _currentDate.Month, 1);
+        var startOffset = ((int)first.DayOfWeek + 6) % 7; // 0=Mon
+        var gridStart = first.AddDays(-startOffset);
+
+        // 6 rows × 7 cols = 42 cells
+        for (var i = 0; i < 42; i++)
+            _cells.Add(new CalendarCell { Date = gridStart.AddDays(i) });
+    }
+
+    private async Task LoadCalendarAsync()
+    {
+        if (_workspaceId == Guid.Empty) return;
+        _loading = true;
+        _cardsByDate = [];
+        var month = _currentDate.ToString("yyyy-MM");
+        var cards = await WorkspaceService.GetCalendarAsync(_workspaceId, month) ?? [];
+        foreach (var card in cards)
+        {
+            var key = DateOnly.FromDateTime(card.DueDate.ToLocalTime());
+            if (!_cardsByDate.TryGetValue(key, out var list))
+            {
+                list = [];
+                _cardsByDate[key] = list;
+            }
+            list.Add(card);
+        }
+        _loading = false;
+    }
+
+    private static string PriorityClass(CalendarCardDto card) => card.Priority switch
+    {
+        CardPriority.Low      => "calendar-chip--low",
+        CardPriority.Medium   => "calendar-chip--medium",
+        CardPriority.High     => "calendar-chip--high",
+        CardPriority.Critical => "calendar-chip--critical",
+        _                     => "calendar-chip--none"
+    };
+
+    private record CalendarCell { public DateOnly Date { get; init; } }
+}

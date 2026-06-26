@@ -23,6 +23,18 @@ public class CardService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
     }
 
+    public async Task<CardDto?> ArchiveAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/cards/{id}/archive", null);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
+    }
+
+    public async Task<CardDto?> UnarchiveAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/cards/{id}/unarchive", null);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
+    }
+
     public async Task<bool> DeleteAsync(Guid id) =>
         (await _http.DeleteAsync($"api/cards/{id}")).IsSuccessStatusCode;
 }

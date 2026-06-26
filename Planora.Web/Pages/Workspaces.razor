@@ -55,6 +55,9 @@
                 <span class="ws-content-title">@_selected.Name</span>
                 <div class="ws-content-actions">
                     <button class="btn btn-sm btn-outline-secondary" @onclick="OpenMembersModal">👥 Members</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleArchivedBoards">
+                        @(_showArchivedBoards ? "Hide archived" : "Show archived")
+                    </button>
                     <button class="btn btn-sm btn-primary" @onclick="() => _showCreateBoard = true">+ New board</button>
                 </div>
             </div>
@@ -89,6 +92,40 @@
                              @ondrop="() => OnBoardDrop(board)"
                              @onclick="() => OpenBoard(board.Id)">
                             <span class="board-tile-name">@board.Name</span>
+                            <button class="board-tile-archive-btn"
+                                    title="Archive board"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => ArchiveBoard(board)">⬇</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_showArchivedBoards)
+            {
+                <div class="mt-4">
+                    <h6 style="font-size:13px;color:var(--text-secondary);margin-bottom:0.5rem;">Archived boards</h6>
+                    @if (_loadingArchivedBoards)
+                    {
+                        <div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>
+                    }
+                    else if (_archivedBoards.Count == 0)
+                    {
+                        <p style="font-size:13px;color:var(--text-secondary)">No archived boards.</p>
+                    }
+                    else
+                    {
+                        <div class="boards-grid boards-grid--archived">
+                            @foreach (var board in _archivedBoards)
+                            {
+                                <div class="board-tile board-tile--archived" @key="board.Id" style="@TileStyle(board)">
+                                    <span class="board-tile-name">@board.Name</span>
+                                    <div class="board-tile-archived-actions">
+                                        <button class="btn btn-sm btn-light" @onclick="() => UnarchiveBoard(board)">Restore</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDeleteBoard(board)">Delete</button>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
                 </div>
@@ -96,6 +133,31 @@
         }
     </div>
 </div>
+
+@* Delete board confirmation *@
+@if (_deleteBoardTarget is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete board?</h5>
+                    <button class="btn-close" @onclick="() => _deleteBoardTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">
+                        "<strong>@_deleteBoardTarget.Name</strong>" and all its data will be permanently deleted.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _deleteBoardTarget = null">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteArchivedBoard" disabled="@_saving">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @* Delete workspace confirmation *@
 @if (_deleteTarget is not null)
@@ -136,7 +198,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <input class="form-control" @bind="_wsName" placeholder="e.g. Marketing team" />
+                        <input class="form-control" @bind="_wsName" @bind:event="oninput" placeholder="e.g. Marketing team" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Description</label>
@@ -166,7 +228,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <input class="form-control" @bind="_boardName" placeholder="e.g. Sprint board" />
+                        <input class="form-control" @bind="_boardName" @bind:event="oninput" placeholder="e.g. Sprint board" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Cover color</label>
@@ -299,6 +361,11 @@
     private string _boardColor = "#4a5d30";
     private Guid? _dragOverBoardId;
 
+    private bool _showArchivedBoards;
+    private bool _loadingArchivedBoards;
+    private List<BoardDto> _archivedBoards = [];
+    private BoardDto? _deleteBoardTarget;
+
     // Members modal
     private bool _showMembers;
     private bool _loadingMembers;
@@ -328,9 +395,52 @@
     private async Task SelectWorkspace(WorkspaceDto ws)
     {
         _selected = ws;
+        _showArchivedBoards = false;
+        _archivedBoards = [];
         _loadingBoards = true;
         _boards = await WorkspaceService.GetBoardsAsync(ws.Id) ?? [];
         _loadingBoards = false;
+    }
+
+    private async Task ToggleArchivedBoards()
+    {
+        _showArchivedBoards = !_showArchivedBoards;
+        if (_showArchivedBoards && _selected is not null)
+        {
+            _loadingArchivedBoards = true;
+            var all = await BoardService.GetByWorkspaceAsync(_selected.Id, includeArchived: true) ?? [];
+            _archivedBoards = all.Where(b => b.IsArchived).ToList();
+            _loadingArchivedBoards = false;
+        }
+    }
+
+    private async Task ArchiveBoard(BoardDto board)
+    {
+        var updated = await BoardService.ArchiveAsync(board.Id);
+        if (updated is null) return;
+        _boards.RemoveAll(b => b.Id == board.Id);
+        if (_showArchivedBoards)
+            _archivedBoards.Add(updated);
+    }
+
+    private async Task UnarchiveBoard(BoardDto board)
+    {
+        var updated = await BoardService.UnarchiveAsync(board.Id);
+        if (updated is null) return;
+        _archivedBoards.RemoveAll(b => b.Id == board.Id);
+        _boards.Add(updated);
+    }
+
+    private void ConfirmDeleteBoard(BoardDto board) => _deleteBoardTarget = board;
+
+    private async Task DeleteArchivedBoard()
+    {
+        if (_deleteBoardTarget is null) return;
+        _saving = true;
+        if (await BoardService.DeleteAsync(_deleteBoardTarget.Id))
+            _archivedBoards.RemoveAll(b => b.Id == _deleteBoardTarget.Id);
+        _deleteBoardTarget = null;
+        _saving = false;
     }
 
     private void ConfirmDeleteWorkspace(WorkspaceDto ws) => _deleteTarget = ws;

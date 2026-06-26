@@ -52,8 +52,8 @@ public class NotificationService : IAsyncDisposable
         catch { }
     }
 
-    public Task<List<NotificationDto>?> GetRecentAsync() =>
-        _http.GetFromJsonAsync<List<NotificationDto>>("api/notifications?limit=15");
+    public Task<List<NotificationDto>?> GetRecentAsync(int limit = 15) =>
+        _http.GetFromJsonAsync<List<NotificationDto>>($"api/notifications?limit={limit}");
 
     public async Task<bool> MarkReadAsync(Guid id)
     {

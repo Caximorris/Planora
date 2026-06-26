@@ -41,11 +41,14 @@ public class BoardsController : ControllerBase
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id, [FromQuery] bool includeArchived = false)
     {
         var board = await _db.Boards
+            .IgnoreQueryFilters()
             .Include(b => b.Columns.OrderBy(c => c.Position))
-                .ThenInclude(c => c.Cards.OrderBy(card => card.Position))
+                .ThenInclude(c => c.Cards
+                    .Where(card => includeArchived || !card.IsArchived)
+                    .OrderBy(card => card.Position))
                     .ThenInclude(card => card.Labels)
                         .ThenInclude(cl => cl.Label)
             .FirstOrDefaultAsync(b => b.Id == id);
@@ -109,10 +112,40 @@ public class BoardsController : ControllerBase
         return Ok(board.ToDto());
     }
 
+    [HttpPatch("{id:guid}/archive")]
+    public async Task<IActionResult> Archive(Guid id)
+    {
+        var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
+        if (board is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        board.IsArchived = true;
+        await _db.SaveChangesAsync();
+        return Ok(board.ToDto());
+    }
+
+    [HttpPatch("{id:guid}/unarchive")]
+    public async Task<IActionResult> Unarchive(Guid id)
+    {
+        var board = await _db.Boards.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Id == id);
+        if (board is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        board.IsArchived = false;
+        await _db.SaveChangesAsync();
+        return Ok(board.ToDto());
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
+        var board = await _db.Boards.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers

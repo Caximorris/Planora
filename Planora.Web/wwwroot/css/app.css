@@ -462,10 +462,32 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     content: '';
     position: absolute; inset: 0;
     background: linear-gradient(to bottom, rgba(92,0,41,0) 20%, rgba(62,0,25,0.70) 100%);
+    pointer-events: none;
 }
 .board-tile:hover { transform: translateY(-4px) scale(1.01); box-shadow: var(--shadow-lg); filter: brightness(1.08); }
 .board-tile:active { transform: translateY(-1px) scale(1); }
 .board-tile--drop { box-shadow: 0 0 0 3px var(--teal), var(--shadow-lg); }
+.board-tile--archived { cursor: default; flex-direction: column; align-items: flex-start; justify-content: flex-end; }
+.board-tile--archived::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(247,242,245,0.42); pointer-events: none;
+}
+.board-tile--archived:hover { transform: none; filter: none; }
+.board-tile-archive-btn {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,0.35); border: none; color: #fff;
+    border-radius: 4px; font-size: 11px; padding: 2px 5px;
+    opacity: 0; transition: opacity 0.15s; cursor: pointer; line-height: 1.4;
+}
+.board-tile:hover .board-tile-archive-btn { opacity: 1; }
+.board-tile-archived-actions {
+    display: flex; gap: 4px; flex-shrink: 0;
+    position: relative; z-index: 1;
+}
+.board-tile--archived .board-tile-name {
+    width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin-bottom: 0.35rem;
+}
 .board-tile-name {
     position: relative; color: var(--mint-300);
     font-weight: 700; font-size: 15px;
@@ -1216,6 +1238,89 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--cream-600); }
     .nav-notif-dropdown { width: calc(100vw - 1rem); right: -4.5rem; }
     .nav-dropdown { right: 0; }
 }
+
+/* ── Archived cards list (board settings) ───────────────────── */
+.archived-cards-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.archived-card-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.4rem 0.6rem; border-radius: 6px;
+    background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.archived-card-title {
+    font-size: 13px; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* ── Calendar page ──────────────────────────────────────────── */
+.calendar-root { padding: 1.5rem 2rem; max-width: 1100px; margin: 0 auto; }
+.calendar-toolbar {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.25rem; flex-wrap: wrap;
+}
+.calendar-ws-select { font-size: 14px; max-width: 220px; }
+.calendar-nav { display: flex; align-items: center; gap: 0.5rem; }
+.calendar-month-label { font-size: 1.1rem; font-weight: 600; min-width: 140px; text-align: center; }
+.calendar-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+}
+.calendar-day-header {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    color: var(--text-secondary); text-align: center; padding: 0.4rem 0;
+    border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+.calendar-cell {
+    min-height: 110px; padding: 0.35rem; vertical-align: top;
+    border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
+}
+.calendar-cell--other-month { background: var(--bg-secondary); opacity: 0.55; }
+.calendar-cell--today { background: var(--rose-50); }
+.calendar-cell-date { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.calendar-cell--today .calendar-cell-date {
+    background: var(--rose-800); color: #fff; border-radius: 50%;
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+}
+.calendar-card-chip {
+    display: block; font-size: 11px; padding: 2px 6px; border-radius: 4px;
+    margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: pointer; text-decoration: none; color: inherit;
+}
+.calendar-card-chip:hover { opacity: 0.85; }
+.calendar-chip--none     { background: #e2e8f0; color: #4a5568; }
+.calendar-chip--low      { background: #c6f6d5; color: #276749; }
+.calendar-chip--medium   { background: #fefcbf; color: #744210; }
+.calendar-chip--high     { background: #fed7d7; color: #9b2c2c; }
+.calendar-chip--critical { background: #fed7d7; color: #7b0000; font-weight: 700; }
+.calendar-chip--overdue  { outline: 2px solid #e53e3e; }
+.calendar-more { font-size: 10px; color: var(--text-secondary); padding: 0 4px; }
+
+/* ── Notifications page ─────────────────────────────────────── */
+.notif-page-root { padding: 1.5rem 2rem; max-width: 700px; margin: 0 auto; }
+.notif-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.notif-page-title { font-size: 1.3rem; font-weight: 700; }
+.notif-page-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.notif-page-item {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.75rem 1rem; border-radius: 8px;
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+}
+.notif-page-item:hover { background: var(--bg-hover, var(--bg-secondary)); filter: brightness(0.97); }
+.notif-page-item--unread { background: var(--rose-50); border-color: var(--rose-200); }
+.notif-page-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+.notif-page-body { flex: 1; min-width: 0; }
+.notif-page-msg { font-size: 14px; color: var(--text-primary); }
+.notif-page-time { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.notif-page-dismiss {
+    background: none; border: none; color: var(--text-secondary);
+    font-size: 14px; cursor: pointer; padding: 0 4px; flex-shrink: 0;
+    line-height: 1;
+}
+.notif-page-dismiss:hover { color: var(--text-primary); }
+.notif-page-empty { text-align: center; padding: 3rem; color: var(--text-secondary); font-size: 14px; }
 
 /* Small mobile (≤480px) */
 @media (max-width: 480px) {

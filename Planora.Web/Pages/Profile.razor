@@ -1,5 +1,6 @@
 @page "/profile"
 @attribute [Authorize]
+@using Planora.Shared.DTOs.Users
 
 <PageTitle>Profile — Planora</PageTitle>
 
@@ -8,13 +9,11 @@
         <div class="profile-root">
             <div class="profile-header">
                 <div class="profile-avatar-lg">
-                    @(context.User.FindFirst("displayName")?.Value?.Length > 0
-                        ? context.User.FindFirst("displayName")!.Value[0].ToString().ToUpper()
-                        : "?")
+                    @(_displayName.Length > 0 ? _displayName[0].ToString().ToUpper() : "?")
                 </div>
                 <div>
-                    <h1>@(context.User.FindFirst("displayName")?.Value ?? "Account")</h1>
-                    <p>@(context.User.FindFirst("email")?.Value)</p>
+                    <h1>@(_displayName.Length > 0 ? _displayName : "Account")</h1>
+                    <p>@context.User.FindFirst("email")?.Value</p>
                 </div>
             </div>
 
@@ -25,8 +24,23 @@
                         <div class="profile-row-label">Display name</div>
                         <div class="profile-row-desc">The name other members see on your cards and boards</div>
                     </div>
-                    <input class="form-control profile-row-input" value="@(context.User.FindFirst("displayName")?.Value)" disabled />
+                    <div class="d-flex gap-2 align-items-center">
+                        <input class="form-control profile-row-input"
+                               @bind="_displayName"
+                               maxlength="50"
+                               placeholder="Your display name" />
+                        <button class="btn btn-primary btn-sm" @onclick="SaveDisplayName" disabled="@_savingName">
+                            @if (_savingName) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Save
+                        </button>
+                    </div>
                 </div>
+                @if (_nameSuccess is not null)
+                {
+                    <div class="alert @(_nameSuccess == true ? "alert-success" : "alert-danger") py-1 mt-1" style="font-size:13px;">
+                        @_nameMessage
+                    </div>
+                }
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Email</div>
@@ -48,13 +62,6 @@
                         <button type="button" class="profile-theme-btn @(_theme == "dark" ? "profile-theme-btn--active" : "")" @onclick='() => SetTheme("dark")'>🌙 Dark</button>
                     </div>
                 </div>
-                <div class="profile-row">
-                    <div>
-                        <div class="profile-row-label">Default board view</div>
-                        <div class="profile-row-desc">Show boards as a list instead of a grid</div>
-                    </div>
-                    <span class="profile-soon-badge">Soon</span>
-                </div>
             </div>
 
             <div class="profile-section">
@@ -64,8 +71,39 @@
                         <div class="profile-row-label">Password</div>
                         <div class="profile-row-desc">Change your account password</div>
                     </div>
-                    <button type="button" class="btn btn-secondary btn-sm" disabled>Change password <span class="profile-soon-badge">Soon</span></button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _showChangePwd = !_showChangePwd">
+                        @(_showChangePwd ? "Cancel" : "Change password")
+                    </button>
                 </div>
+
+                @if (_showChangePwd)
+                {
+                    <div class="mt-2 mb-2" style="max-width:380px;">
+                        <div class="mb-2">
+                            <label class="form-label" style="font-size:13px;">Current password</label>
+                            <input type="password" class="form-control form-control-sm" @bind="_currentPwd" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" style="font-size:13px;">New password</label>
+                            <input type="password" class="form-control form-control-sm" @bind="_newPwd" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" style="font-size:13px;">Confirm new password</label>
+                            <input type="password" class="form-control form-control-sm" @bind="_confirmPwd" />
+                        </div>
+                        @if (_pwdMessage is not null)
+                        {
+                            <div class="alert @(_pwdSuccess == true ? "alert-success" : "alert-danger") py-1 mb-2" style="font-size:13px;">
+                                @_pwdMessage
+                            </div>
+                        }
+                        <button class="btn btn-primary btn-sm" @onclick="ChangePassword" disabled="@_savingPwd">
+                            @if (_savingPwd) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Update password
+                        </button>
+                    </div>
+                }
+
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Two-factor authentication</div>
@@ -116,17 +154,87 @@
 
 @code {
     [Inject] IJSRuntime JS { get; set; } = null!;
+    [Inject] UserService UserService { get; set; } = null!;
+    [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
 
     private string _theme = "light";
+    private string _displayName = "";
+
+    private bool _savingName;
+    private bool? _nameSuccess;
+    private string? _nameMessage;
+
+    private bool _showChangePwd;
+    private string _currentPwd = "";
+    private string _newPwd = "";
+    private string _confirmPwd = "";
+    private bool _savingPwd;
+    private bool? _pwdSuccess;
+    private string? _pwdMessage;
 
     protected override async Task OnInitializedAsync()
     {
         _theme = await JS.InvokeAsync<string>("planoraGetTheme");
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _displayName = state.User.FindFirst("displayName")?.Value ?? "";
     }
 
     private async Task SetTheme(string theme)
     {
         _theme = theme;
         await JS.InvokeVoidAsync("planoraSetTheme", theme);
+    }
+
+    private async Task SaveDisplayName()
+    {
+        if (string.IsNullOrWhiteSpace(_displayName)) return;
+        _savingName = true;
+        _nameSuccess = null;
+        var (ok, error) = await UserService.UpdateProfileAsync(new UpdateProfileRequest { DisplayName = _displayName.Trim() });
+        _nameSuccess = ok;
+        _nameMessage = ok ? "Display name updated." : (error ?? "Could not save.");
+        _savingName = false;
+    }
+
+    private async Task ChangePassword()
+    {
+        _pwdMessage = null;
+        _pwdSuccess = null;
+
+        if (string.IsNullOrWhiteSpace(_currentPwd) || string.IsNullOrWhiteSpace(_newPwd))
+        {
+            _pwdMessage = "All fields are required.";
+            _pwdSuccess = false;
+            return;
+        }
+        if (_newPwd.Length < 6)
+        {
+            _pwdMessage = "New password must be at least 6 characters.";
+            _pwdSuccess = false;
+            return;
+        }
+        if (_newPwd != _confirmPwd)
+        {
+            _pwdMessage = "Passwords do not match.";
+            _pwdSuccess = false;
+            return;
+        }
+
+        _savingPwd = true;
+        var (ok, error) = await UserService.ChangePasswordAsync(new ChangePasswordRequest
+        {
+            CurrentPassword = _currentPwd,
+            NewPassword = _newPwd
+        });
+        _pwdSuccess = ok;
+        _pwdMessage = ok ? "Password changed successfully." : (error ?? "Could not change password.");
+        if (ok)
+        {
+            _currentPwd = "";
+            _newPwd = "";
+            _confirmPwd = "";
+            _showChangePwd = false;
+        }
+        _savingPwd = false;
     }
 }

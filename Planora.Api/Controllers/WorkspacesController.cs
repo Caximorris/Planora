@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Shared.DTOs.Calendar;
 using Planora.Shared.DTOs.Invitation;
 using Planora.Shared.DTOs.Workspace;
 using Planora.Shared.Enums;
@@ -53,17 +54,18 @@ public class WorkspacesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/boards")]
-    public async Task<IActionResult> GetBoards(Guid id)
+    public async Task<IActionResult> GetBoards(Guid id, [FromQuery] bool includeArchived = false)
     {
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == id && m.UserId == UserId);
 
         if (!isMember) return Forbid();
 
-        var boards = await _db.Boards
-            .Where(b => b.WorkspaceId == id)
-            .OrderBy(b => b.Position)
-            .ToListAsync();
+        var boardsQuery = includeArchived
+            ? _db.Boards.IgnoreQueryFilters().Where(b => b.WorkspaceId == id)
+            : _db.Boards.Where(b => b.WorkspaceId == id);
+
+        var boards = await boardsQuery.OrderBy(b => b.Position).ToListAsync();
 
         return Ok(boards.ToDtoList());
     }
@@ -143,6 +145,59 @@ public class WorkspacesController : ControllerBase
         target.Role = request.Role;
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpGet("{id:guid}/calendar")]
+    public async Task<IActionResult> GetCalendar(Guid id, [FromQuery] string? month)
+    {
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == id && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        // Parse month as "yyyy-MM"; default to current month
+        DateTime start;
+        if (!string.IsNullOrWhiteSpace(month) && DateTime.TryParseExact(month + "-01", "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var parsed))
+        {
+            start = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+        }
+        else
+        {
+            var now = DateTime.UtcNow;
+            start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        }
+
+        var end = start.AddMonths(1);
+        var now2 = DateTime.UtcNow;
+
+        var cards = await _db.Cards
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .Include(c => c.Assignee)
+            .Where(c => !c.IsArchived
+                && c.DueDate.HasValue
+                && c.DueDate >= start
+                && c.DueDate < end
+                && c.Column.Board.WorkspaceId == id
+                && !c.Column.Board.IsArchived)
+            .OrderBy(c => c.DueDate)
+            .ToListAsync();
+
+        var dtos = cards.Select(c => new CalendarCardDto
+        {
+            Id = c.Id,
+            Title = c.Title,
+            DueDate = c.DueDate!.Value,
+            BoardId = c.Column.BoardId,
+            BoardName = c.Column.Board.Name,
+            ColumnName = c.Column.Title,
+            Priority = c.Priority,
+            IsOverdue = c.DueDate < now2,
+            AssigneeDisplayName = c.Assignee?.DisplayName
+        });
+
+        return Ok(dtos);
     }
 
     [HttpPost("{id:guid}/invitations")]

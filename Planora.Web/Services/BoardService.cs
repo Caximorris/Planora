@@ -11,8 +11,8 @@ public class BoardService
     private readonly HttpClient _http;
     public BoardService(HttpClient http) => _http = http;
 
-    public Task<BoardDetailDto?> GetByIdAsync(Guid id) =>
-        _http.GetFromJsonAsync<BoardDetailDto>($"api/boards/{id}");
+    public Task<BoardDetailDto?> GetByIdAsync(Guid id, bool includeArchived = false) =>
+        _http.GetFromJsonAsync<BoardDetailDto>($"api/boards/{id}?includeArchived={includeArchived}");
 
     public async Task<BoardDto?> CreateAsync(CreateBoardRequest request)
     {
@@ -23,6 +23,21 @@ public class BoardService
     public async Task<BoardDto?> UpdateAsync(Guid id, UpdateBoardRequest request)
     {
         var res = await _http.PutAsJsonAsync($"api/boards/{id}", request);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
+    }
+
+    public Task<List<BoardDto>?> GetByWorkspaceAsync(Guid workspaceId, bool includeArchived = false) =>
+        _http.GetFromJsonAsync<List<BoardDto>>($"api/workspaces/{workspaceId}/boards?includeArchived={includeArchived}");
+
+    public async Task<BoardDto?> ArchiveAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/boards/{id}/archive", null);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
+    }
+
+    public async Task<BoardDto?> UnarchiveAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/boards/{id}/unarchive", null);
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
     }
 

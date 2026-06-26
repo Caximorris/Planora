@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Planora.Api.Domain.Entities;
@@ -14,8 +15,13 @@ namespace Planora.Api.Controllers;
 public class InvitationsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly UserManager<AppUser> _userManager;
 
-    public InvitationsController(ApplicationDbContext db) => _db = db;
+    public InvitationsController(ApplicationDbContext db, UserManager<AppUser> userManager)
+    {
+        _db = db;
+        _userManager = userManager;
+    }
 
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -94,6 +100,26 @@ public class InvitationsController : ControllerBase
         });
 
         invitation.Status = InvitationStatus.Accepted;
+
+        // Notify workspace owners and admins that a new member joined
+        var ownerAndAdmins = await _db.WorkspaceMembers
+            .Where(m => m.WorkspaceId == invitation.WorkspaceId
+                && m.UserId != UserId
+                && (m.Role == WorkspaceRole.Owner || m.Role == WorkspaceRole.Admin))
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        foreach (var adminId in ownerAndAdmins)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = adminId,
+                Type = NotificationType.MemberJoined,
+                Message = $"{user.DisplayName} joined the workspace",
+                RelatedWorkspaceId = invitation.WorkspaceId
+            });
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok(new { workspaceId = invitation.WorkspaceId });

@@ -43,5 +43,6 @@ builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<LabelService>();
 builder.Services.AddScoped<ChecklistService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<UserService>();
 
 await builder.Build().RunAsync();

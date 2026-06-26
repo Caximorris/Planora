@@ -8,6 +8,7 @@ public class BoardDto
     public string? CoverColor { get; set; }
     public string? CoverImageUrl { get; set; }
     public int Position { get; set; }
+    public bool IsArchived { get; set; }
     public Guid WorkspaceId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

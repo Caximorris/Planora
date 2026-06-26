@@ -124,6 +124,7 @@ public class CardsController : ControllerBase
         if (request.ClearColor) card.Color = null;
         else if (request.Color is not null) card.Color = request.Color;
 
+        var previousColumnId = card.ColumnId;
         if (request.ColumnId.HasValue)
         {
             var targetColumn = await _db.Columns
@@ -131,6 +132,28 @@ public class CardsController : ControllerBase
             if (targetColumn is null)
                 return BadRequest("Target column does not belong to the same board.");
             card.ColumnId = request.ColumnId.Value;
+        }
+
+        // Notify the assignee when the card is moved to a different column (and they didn't move it themselves)
+        if (request.ColumnId.HasValue
+            && request.ColumnId.Value != previousColumnId
+            && card.AssigneeId is not null
+            && card.AssigneeId != UserId)
+        {
+            var targetColumnName = await _db.Columns
+                .Where(c => c.Id == card.ColumnId)
+                .Select(c => c.Title)
+                .FirstOrDefaultAsync() ?? "another column";
+
+            _db.Notifications.Add(new Notification
+            {
+                UserId = card.AssigneeId,
+                Type = NotificationType.CardMoved,
+                Message = $"\"{card.Title}\" was moved to \"{targetColumnName}\"",
+                RelatedCardId = card.Id,
+                RelatedBoardId = card.Column.BoardId,
+                RelatedWorkspaceId = card.Column.Board.WorkspaceId
+            });
         }
 
         // Notify the new assignee if it changed (and they didn't assign themselves)
@@ -153,10 +176,50 @@ public class CardsController : ControllerBase
         return Ok(card.ToDto());
     }
 
+    [HttpPatch("{id:guid}/archive")]
+    public async Task<IActionResult> Archive(Guid id)
+    {
+        var card = await _db.Cards
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        card.IsArchived = true;
+        await _db.SaveChangesAsync();
+        return Ok(card.ToDto());
+    }
+
+    [HttpPatch("{id:guid}/unarchive")]
+    public async Task<IActionResult> Unarchive(Guid id)
+    {
+        var card = await _db.Cards
+            .IgnoreQueryFilters()
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        card.IsArchived = false;
+        await _db.SaveChangesAsync();
+        return Ok(card.ToDto());
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var card = await _db.Cards
+            .IgnoreQueryFilters()
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
             .FirstOrDefaultAsync(c => c.Id == id);
