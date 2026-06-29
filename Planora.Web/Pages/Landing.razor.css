@@ -42,13 +42,11 @@
 
 /* ── Primary hero ─────────────────────────────────────────── */
 .landing-hero {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     text-align: center;
-    padding: 3rem 1.5rem 4rem;
+    padding: clamp(3rem, 10vh, 6rem) 1.5rem 3.5rem;
     max-width: 600px;
     margin: 0 auto;
     width: 100%;
