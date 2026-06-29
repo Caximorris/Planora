@@ -202,25 +202,22 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
 .top-nav-spacer { flex: 1; }
 .top-nav-user { display: flex; align-items: center; gap: 0.5rem; }
 .top-nav-search-btn {
-    display: flex; align-items: center; gap: 0.45rem;
-    padding: 0.35rem 0.75rem;
-    background: var(--color-bg); border: 1px solid var(--color-border);
-    border-radius: var(--radius-md); cursor: pointer;
-    color: var(--color-text-low); font-size: 0.8rem; font-family: inherit;
-    transition: border-color 0.15s, background 0.15s;
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.4rem;
+    background: transparent; border: none;
+    border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--color-text-low); font-size: 0.75rem; font-family: inherit;
+    transition: color 0.15s, background 0.15s;
     white-space: nowrap;
 }
-.top-nav-search-btn:hover { background: var(--color-hover); border-color: var(--color-text-low); color: var(--color-text); }
-.top-nav-search-text { color: var(--color-text-low); }
-.top-nav-search-kbd { display: flex; gap: 2px; }
+.top-nav-search-btn:hover { background: var(--color-hover); color: var(--color-text); }
+.top-nav-search-text { display: none; }
+.top-nav-search-kbd { display: none; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+.top-nav-search-btn:hover .top-nav-search-kbd { display: flex; opacity: 1; }
 .top-nav-search-kbd kbd {
-    font-size: 0.65rem; padding: 0.1rem 0.3rem;
+    font-size: 0.62rem; padding: 0.1rem 0.28rem;
     background: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: 3px; font-family: inherit; color: var(--color-text-low);
-}
-@media (max-width: 640px) {
-    .top-nav-search-text, .top-nav-search-kbd { display: none; }
-    .top-nav-search-btn { padding: 0.4rem; }
 }
 
 .top-nav-profile-link {
