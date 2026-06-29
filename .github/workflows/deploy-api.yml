@@ -54,4 +54,5 @@ jobs:
           az containerapp update \
             --name planora-api \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --image ${{ env.IMAGE }}
+            --image ${{ env.IMAGE }} \
+            --set-env-vars "Cors__AllowedOrigins=${{ secrets.CORS_ALLOWED_ORIGINS }}"
