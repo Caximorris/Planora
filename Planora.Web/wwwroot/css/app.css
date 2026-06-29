@@ -508,6 +508,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     padding: 0.7rem 1.25rem;
     display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem;
     background: rgba(62,0,25,0.30);
+    -webkit-backdrop-filter: blur(8px) saturate(1.2);
     backdrop-filter: blur(8px) saturate(1.2);
     border-bottom: 1px solid rgba(172,247,193,0.06);
 }
@@ -559,6 +560,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
 .kanban-column {
     flex-shrink: 0; width: 280px;
     background: var(--column-bg);
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
     backdrop-filter: blur(10px) saturate(1.3);
     border: 1px solid var(--column-border);
     border-radius: var(--radius-md);
@@ -699,7 +701,7 @@ html[data-theme="dark"] .card-desc-preview { color: var(--lav-400); }
 }
 
 /* ── Modals ─────────────────────────────────────────────────── */
-.modal-backdrop { backdrop-filter: blur(2px); background: rgba(62,0,25,0.35) !important; }
+.modal-backdrop { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); background: rgba(62,0,25,0.35) !important; }
 .modal-content {
     background: var(--color-surface); color: var(--color-text);
     border: none; border-radius: var(--radius-xl); box-shadow: var(--shadow-xl);
