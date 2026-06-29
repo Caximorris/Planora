@@ -1,0 +1,210 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject SearchService SearchService
+@inject NavigationManager Nav
+@using Planora.Shared.DTOs.Search
+@using Planora.Shared.Enums
+
+@if (_open)
+{
+    <div class="search-backdrop" @onclick="Close"></div>
+    <div class="search-container" role="dialog" aria-modal="true" aria-label="Search">
+
+        <div class="search-input-row">
+            <svg class="search-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M15 15l-3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <input @ref="_inputRef"
+                   class="search-input"
+                   type="text"
+                   placeholder="Search cards and boards…"
+                   autocomplete="off"
+                   spellcheck="false"
+                   value="@_query"
+                   @oninput="OnInput"
+                   @onkeydown="OnKeyDown" />
+            <kbd class="search-esc-hint">Esc</kbd>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="search-state">
+                <span class="spinner-border spinner-border-sm" style="color:var(--color-text-low)"></span>
+            </div>
+        }
+        else if (_results is { Count: 0 } && _query.Length >= 2)
+        {
+            <div class="search-state search-state--empty">No results for "<strong>@_query</strong>"</div>
+        }
+        else if (_results is { Count: > 0 })
+        {
+            var boards = _results.Where(r => r.Type == SearchResultType.Board).ToList();
+            var cards  = _results.Where(r => r.Type == SearchResultType.Card).ToList();
+            <div class="search-results">
+                @if (boards.Count > 0)
+                {
+                    <div class="search-group-label">Boards</div>
+                    @foreach (var (r, i) in boards.Select((x, idx) => (x, idx)))
+                    {
+                        var cursor = i;
+                        <button class="search-item @(_cursor == cursor ? "search-item--active" : "")"
+                                @onclick="() => Navigate(r)"
+                                @key="r.Id">
+                            <svg class="search-item-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <rect x="1.5" y="3" width="5" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                                <rect x="8.5" y="3" width="5" height="6"  rx="1" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span class="search-item-title">@r.Title</span>
+                        </button>
+                    }
+                }
+                @if (cards.Count > 0)
+                {
+                    <div class="search-group-label">Cards</div>
+                    @foreach (var (r, i) in cards.Select((x, idx) => (x, idx)))
+                    {
+                        var cursor = boards.Count + i;
+                        <button class="search-item @(_cursor == cursor ? "search-item--active" : "")"
+                                @onclick="() => Navigate(r)"
+                                @key="r.Id">
+                            <svg class="search-item-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/>
+                                <path d="M5 6h6M5 9.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <div class="search-item-body">
+                                <span class="search-item-title">@r.Title</span>
+                                @if (r.Subtitle is not null)
+                                {
+                                    <span class="search-item-sub">@r.Subtitle</span>
+                                }
+                            </div>
+                        </button>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="search-state search-state--hint">Type to search across your workspaces</div>
+        }
+
+    </div>
+}
+
+@code {
+    private bool _open;
+    private string _query = "";
+    private bool _loading;
+    private List<SearchResultDto>? _results;
+    private int _cursor = -1;
+
+    private ElementReference _inputRef;
+    private CancellationTokenSource? _debounce;
+    private DotNetObjectReference<SearchModal>? _jsRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("planoraSearch.init", _jsRef);
+        }
+
+        if (_open)
+            await JS.InvokeVoidAsync("planoraSearch.focusInput", _inputRef);
+    }
+
+    [JSInvokable]
+    public void OpenSearch()
+    {
+        _open = true;
+        _query = "";
+        _results = null;
+        _cursor = -1;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Open()
+    {
+        _open = true;
+        _query = "";
+        _results = null;
+        _cursor = -1;
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _query = "";
+        _results = null;
+        _debounce?.Cancel();
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _cursor = -1;
+
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+
+        if (_query.Length < 2)
+        {
+            _results = _query.Length == 0 ? null : [];
+            _loading = false;
+            return;
+        }
+
+        _loading = true;
+
+        try
+        {
+            await Task.Delay(300, token);
+            _results = await SearchService.SearchAsync(_query) ?? [];
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+                _loading = false;
+        }
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        var total = _results?.Count ?? 0;
+        switch (e.Key)
+        {
+            case "Escape":
+                Close();
+                break;
+            case "ArrowDown":
+                if (total > 0) _cursor = (_cursor + 1) % total;
+                break;
+            case "ArrowUp":
+                if (total > 0) _cursor = (_cursor - 1 + total) % total;
+                break;
+            case "Enter":
+                if (_cursor >= 0 && _cursor < total)
+                    Navigate(_results![_cursor]);
+                break;
+        }
+    }
+
+    private void Navigate(SearchResultDto result)
+    {
+        Close();
+        Nav.NavigateTo($"/boards/{result.BoardId}");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await JS.InvokeVoidAsync("planoraSearch.dispose");
+        _jsRef?.Dispose();
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+    }
+}

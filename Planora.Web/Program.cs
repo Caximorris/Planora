@@ -44,5 +44,6 @@ builder.Services.AddScoped<LabelService>();
 builder.Services.AddScoped<ChecklistService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<SearchService>();
 
 await builder.Build().RunAsync();
