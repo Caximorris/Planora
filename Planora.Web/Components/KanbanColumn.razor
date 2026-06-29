@@ -17,7 +17,7 @@
     <div class="kanban-cards-list" data-column-id="@Column.Id">
         @foreach (var card in VisibleCards)
         {
-            <KanbanCard Card="card" OnClick="() => OnCardClick.InvokeAsync(card)" />
+            <KanbanCard @key="card.Id" Card="card" OnClick="() => OnCardClick.InvokeAsync(card)" />
         }
     </div>
 

@@ -46,7 +46,7 @@ else
             <CascadingValue Value="_membersByUserId" Name="BoardMembers">
             @foreach (var col in _board.Columns.OrderBy(c => c.Position))
             {
-                <KanbanColumn
+                <KanbanColumn @key="col.Id"
                     Column="col"
                     Filter="_filter"
                     OnAddCard="@(title => AddCard(col.Id, title))"

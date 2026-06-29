@@ -33,7 +33,7 @@
                 @if (_loading)
                 {
                     <span class="landing-spinner" aria-hidden="true"></span>
-                    <span>Setting up your workspace…</span>
+                    <span>@_loadingMessage</span>
                 }
                 else
                 {
@@ -86,6 +86,7 @@
     private bool _ready;
     private bool _loading;
     private string? _error;
+    private string _loadingMessage = "Setting up your workspace…";
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,7 +101,23 @@
     {
         _loading = true;
         _error = null;
+        _loadingMessage = "Setting up your workspace…";
+
+        // After 4s with no response, hint that the server may be cold-starting
+        var cts = new CancellationTokenSource();
+        _ = Task.Delay(4000, cts.Token).ContinueWith(t =>
+        {
+            if (t.IsCompletedSuccessfully && _loading)
+            {
+                _loadingMessage = "Server is waking up — almost there…";
+                InvokeAsync(StateHasChanged);
+            }
+        });
+
         var (success, error) = await Auth.DemoLoginAsync();
+        cts.Cancel();
+        cts.Dispose();
+
         if (success)
             Nav.NavigateTo("/workspaces", replace: true);
         else
