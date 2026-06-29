@@ -21,7 +21,6 @@
                    placeholder="Search cards and boards…"
                    autocomplete="off"
                    spellcheck="false"
-                   value="@_query"
                    @oninput="OnInput"
                    @onkeydown="OnKeyDown" />
             <kbd class="search-esc-hint">Esc</kbd>
@@ -98,6 +97,7 @@
     private bool _loading;
     private List<SearchResultDto>? _results;
     private int _cursor = -1;
+    private bool _focusPending;
 
     private ElementReference _inputRef;
     private CancellationTokenSource? _debounce;
@@ -111,8 +111,11 @@
             await JS.InvokeVoidAsync("planoraSearch.init", _jsRef);
         }
 
-        if (_open)
+        if (_focusPending)
+        {
+            _focusPending = false;
             await JS.InvokeVoidAsync("planoraSearch.focusInput", _inputRef);
+        }
     }
 
     [JSInvokable]
@@ -122,6 +125,7 @@
         _query = "";
         _results = null;
         _cursor = -1;
+        _focusPending = true;
         InvokeAsync(StateHasChanged);
     }
 
@@ -131,6 +135,8 @@
         _query = "";
         _results = null;
         _cursor = -1;
+        _focusPending = true;
+        StateHasChanged();
     }
 
     private void Close()
