@@ -149,6 +149,32 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("demo")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> Demo()
+    {
+        var uid = Guid.NewGuid().ToString("N")[..8];
+        string[] names = ["Alex", "Sam", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery", "Drew", "Quinn"];
+        var displayName = names[Random.Shared.Next(names.Length)];
+        var email = $"guest.{uid}@planora.demo";
+        var password = $"Demo1{uid}Xyz";
+
+        if (await _userManager.FindByEmailAsync(email) is not null)
+            return StatusCode(500, "Demo account collision — please retry.");
+
+        var user = new AppUser { UserName = email, Email = email, DisplayName = displayName };
+        var result = await _userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            return StatusCode(500, result.Errors.First().Description);
+
+        await _demoSeeder.SeedAsync(user.Id);
+
+        _logger.LogInformation("AUTH_DEMO UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, HttpContext.Items["CorrelationId"]);
+
+        return Ok(await BuildAuthResponseAsync(user));
+    }
+
     [HttpPost("logout")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]

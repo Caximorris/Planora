@@ -1,5 +1,6 @@
 @page "/"
 @inject NavigationManager Nav
+@inject AuthService Auth
 
 <PageTitle>Planora — Organize your work, your way</PageTitle>
 
@@ -19,23 +20,49 @@
             <a class="landing-nav-signin" href="/login">Sign in →</a>
         </nav>
 
+        <!-- ── Primary hero: instant demo ──────────────────────── -->
         <section class="landing-hero">
-            <div class="landing-badge">Free &middot; No credit card &middot; No real data needed</div>
-
             <h1 class="landing-title">
                 Organize your work,<br>your way.
             </h1>
-
             <p class="landing-subtitle">
-                Planora is a visual Kanban board for individuals and teams.
-                Create tasks, set priorities, and move cards between columns — your workflow, simplified.
+                Visual Kanban for individuals and teams — try it in one click.
             </p>
 
+            <button class="landing-demo-btn" @onclick="TryDemoAsync" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span class="landing-spinner" aria-hidden="true"></span>
+                    <span>Setting up your workspace…</span>
+                }
+                else
+                {
+                    <span>▶&nbsp; Try it instantly</span>
+                }
+            </button>
+
+            <p class="landing-demo-hint">No sign-up needed — a demo account is created for you.</p>
+
+            @if (_error is not null)
+            {
+                <p class="landing-error">@_error</p>
+            }
+
+            <div class="landing-divider">
+                <span>or</span>
+            </div>
+
+            <div class="landing-secondary-links">
+                <a class="landing-link-register" href="/register">Create your own account</a>
+                <span class="landing-dot">·</span>
+                <a class="landing-link-signin" href="/login">Sign in</a>
+            </div>
+        </section>
+
+        <!-- ── Secondary: feature details ─────────────────────── -->
+        <section class="landing-details">
+            <div class="landing-badge">Free &middot; No credit card &middot; No real data needed</div>
             <ul class="landing-features">
-                <li>
-                    <span class="landing-check">✓</span>
-                    <span>Use any email to sign up — invented addresses work fine, it's just a demo</span>
-                </li>
                 <li>
                     <span class="landing-check">✓</span>
                     <span>A full demo workspace with a sample board is created for you instantly</span>
@@ -44,10 +71,11 @@
                     <span class="landing-check">✓</span>
                     <span>Drag &amp; drop cards, reorder columns, filter by priority — everything works</span>
                 </li>
+                <li>
+                    <span class="landing-check">✓</span>
+                    <span>Use any email to sign up — invented addresses work fine</span>
+                </li>
             </ul>
-
-            <a class="landing-cta" href="/register">Try it free</a>
-            <p class="landing-hint">Already have an account? <a href="/login">Sign in</a></p>
         </section>
 
     </div>
@@ -56,6 +84,8 @@
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = null!;
     private bool _ready;
+    private bool _loading;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,5 +94,19 @@
             Nav.NavigateTo("/home", replace: true);
         else
             _ready = true;
+    }
+
+    private async Task TryDemoAsync()
+    {
+        _loading = true;
+        _error = null;
+        var (success, error) = await Auth.DemoLoginAsync();
+        if (success)
+            Nav.NavigateTo("/workspaces", replace: true);
+        else
+        {
+            _error = error;
+            _loading = false;
+        }
     }
 }

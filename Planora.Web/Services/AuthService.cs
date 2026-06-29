@@ -53,6 +53,19 @@ public class AuthService
         return (true, null);
     }
 
+    public async Task<(bool Success, string? Error)> DemoLoginAsync()
+    {
+        var res = await _http.PostAsync("api/auth/demo", null);
+        if (!res.IsSuccessStatusCode)
+            return (false, "Could not create demo account. Please try again.");
+
+        var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
+        await _localStorage.SetItemAsync("authToken", auth!.Token);
+        await _localStorage.SetItemAsync("refreshToken", auth.RefreshToken);
+        _authState.NotifyLoggedIn(auth.Token);
+        return (true, null);
+    }
+
     public async Task LogoutAsync()
     {
         var refreshToken = await _localStorage.GetItemAsync<string>("refreshToken");
