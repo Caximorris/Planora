@@ -34,6 +34,10 @@ public sealed class PlanoraWebAppFactory : WebApplicationFactory<Program>, IAsyn
         Environment.SetEnvironmentVariable("Jwt__ExpirationMinutes", "15");
         Environment.SetEnvironmentVariable("Jwt__RefreshTokenDays", "7");
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins", "http://localhost");
+        // The auth rate limiter is a single global window shared by the whole host; the test
+        // suite fires many auth calls in one minute, so raise the limit to avoid spurious 429s.
+        // Lockout still returns 429 through its own path, which these tests assert independently.
+        Environment.SetEnvironmentVariable("RateLimiting__AuthPermitLimit", "10000");
     }
 
     public async Task InitializeAsync()

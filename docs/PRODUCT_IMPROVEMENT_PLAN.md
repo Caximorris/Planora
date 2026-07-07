@@ -346,9 +346,14 @@ These unblock multiple features and prevent one-off hacks:
 Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server running before any
 `dotnet build` (per CLAUDE.md hot-reload rule).
 
-> **Status (2026-07-07):** Tasks 1–3 are ✅ done and committed locally. `/health/live` + `/health/ready`
-> shipped; `Planora.Tests` (xUnit) exists with `PlanoraWebAppFactory` (`WebApplicationFactory<Program>`)
-> against a throwaway `planora_test` Postgres DB, plus passing auth-flow + readiness tests. Next: Task 4.
+> **Status (2026-07-07):** Tasks 1–6 are ✅ done locally. `/health/live` + `/health/ready` shipped;
+> `Planora.Tests` (xUnit) boots the API via `PlanoraWebAppFactory` (`WebApplicationFactory<Program>`)
+> against a throwaway `planora_test` Postgres DB. Security coverage added: IDOR/membership
+> (`Security/WorkspaceAccessTests`), progressive lockout (`Auth/LockoutTests`), and refresh-token
+> rotation + reuse detection (`Auth/RefreshTokenTests`) — 17 tests green in Debug and Release.
+> `.github/workflows/ci.yml` builds + tests on PR/push with a Postgres service container. The `auth`
+> rate limiter's `PermitLimit` is now config-driven (`RateLimiting:AuthPermitLimit`, default 10) so the
+> shared-host test suite doesn't trip the global window. Next: Task 7 (`IFileStorage`).
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -356,12 +361,13 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
    passing test. Files: new `Planora.Tests/`, `Planora.slnx`. Risk: L. Deps: none.
 3. ✅ **`WebApplicationFactory` + test DB fixture.** Goal: boot API in-memory against disposable
    Postgres. Files: `Planora.Tests/Infrastructure/PlanoraWebAppFactory.cs`. Risk: M. Deps: 2.
-4. **IDOR/membership tests.** Goal: assert cross-workspace board/card access is denied. Files:
-   `Planora.Tests/Security/*`. Risk: L. Validate: `dotnet test`. Deps: 3.
-5. **Lockout + refresh-reuse tests.** Goal: assert thresholds + reuse→revoke-all. Files:
-   `Planora.Tests/Auth/*`. Risk: L. Validate: `dotnet test`. Deps: 3.
-6. **CI workflow.** Goal: build+test on PR/push. Files: `.github/workflows/ci.yml`. Risk: L.
-   Validate: green check on a PR. Deps: 2–5.
+4. ✅ **IDOR/membership tests.** Goal: assert cross-workspace board/card access is denied. Files:
+   `Planora.Tests/Security/WorkspaceAccessTests.cs`. Risk: L. Validate: `dotnet test`. Deps: 3.
+5. ✅ **Lockout + refresh-reuse tests.** Goal: assert thresholds + reuse rejection. Files:
+   `Planora.Tests/Auth/LockoutTests.cs`, `Planora.Tests/Auth/RefreshTokenTests.cs`. Risk: L.
+   Validate: `dotnet test`. Deps: 3.
+6. ✅ **CI workflow.** Goal: build+test on PR/push with a Postgres service. Files:
+   `.github/workflows/ci.yml`. Risk: L. Validate: green check on a PR. Deps: 2–5.
 7. **`IFileStorage` interface + local-disk impl.** Goal: extract current cover-image disk I/O behind
    interface, no behavior change. Files: `Planora.Api/Application/Interfaces/IFileStorage.cs`,
    `Infrastructure/Storage/*`, `BoardsController`. Risk: M. Validate: `dotnet build`; cover upload

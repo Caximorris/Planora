@@ -121,8 +121,11 @@ shared). `wwwroot/uploads/boards/` is gitignored.
 - **Refresh-token reuse detection** in `RefreshTokenService` (a revoked token used again → `RevokeAllAsync`
   for that user). Do not remove or weaken this.
 - **Progressive lockout** is manual in `AuthController.Login` (Identity `MaxFailedAccessAttempts=100` on
-  purpose, so Identity doesn't auto-reset the counter). Actual thresholds in code:
-  `<5 fails → 5 min`, `5–9 → 15 min`, `10+ → 24 h`. Keep these; don't swap for Identity's built-in lockout.
+  purpose, so Identity doesn't auto-reset the counter). Lockout begins at the **3rd** failed attempt;
+  actual thresholds in code: `<3 fails → no lockout`, `3–4 → 5 min`, `5–7 → 15 min`, `8–9 → 1 h`,
+  `10+ → 24 h`. Once locked, even a correct password is rejected (429) until the window elapses; a
+  successful login resets the counter. Verified by `Planora.Tests/Auth/LockoutTests.cs`. Keep these
+  thresholds; don't swap for Identity's built-in lockout.
 - `[EnableRateLimiting("auth")]` on sensitive auth endpoints — keep it.
 - SecurityStamp: rotated on logout + password change; every JWT is re-checked against `user.SecurityStamp`
   in `OnTokenValidated`. Don't bypass.
@@ -164,8 +167,9 @@ shared). `wwwroot/uploads/boards/` is gitignored.
 
 ## Open Questions / assumptions
 
-- Lockout thresholds documented from `AuthController.Login` code (`<5→5m, 5–9→15m, 10+→24h`), which
-  differs from the "3 fails → 5 min" phrasing in some notes — code is the source of truth.
+- Lockout thresholds are now read directly from `AuthController.Login` (lockout starts at the 3rd
+  failure: `3–4→5m, 5–7→15m, 8–9→1h, 10+→24h`) and pinned by `LockoutTests.cs`. An earlier note claimed
+  `<5→5m` — that was wrong; the switch (`>=10/>=8/>=5/else`) fires only once `failCount >= 3`.
 - `dotnet format` works via the SDK but there's no `.editorconfig`; treat formatting output as advisory.
 - Azure Static Web Apps deploy inferred from `.github/workflows/azure-static-web-apps-*.yml`; exact
   resource names live in GitHub secrets, not the repo.
