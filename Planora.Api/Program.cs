@@ -238,3 +238,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.Run();
+
+// Exposed so the integration test project can reference the entry point via
+// WebApplicationFactory<Program>. Top-level statements otherwise emit an
+// internal Program class.
+public partial class Program;
