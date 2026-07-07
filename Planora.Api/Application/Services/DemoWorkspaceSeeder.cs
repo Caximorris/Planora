@@ -1,6 +1,7 @@
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Shared.Constants;
 using Planora.Shared.Enums;
 
 namespace Planora.Api.Application.Services;
@@ -39,13 +40,13 @@ public class DemoWorkspaceSeeder : IDemoWorkspaceSeeder
             WorkspaceId = workspace.Id,
             Name = "Showcase Board",
             Description = "Explore columns, cards, priorities, due dates and custom colors.",
-            CoverColor = "#94BFBE"
+            CoverColor = PlanoraColors.DefaultBoardColor
         };
 
         var backlog = new Column { BoardId = board.Id, Title = "Backlog", Position = 0 };
-        var inProgress = new Column { BoardId = board.Id, Title = "In Progress", Position = 1, Color = "#fef3c7" };
-        var review = new Column { BoardId = board.Id, Title = "Review", Position = 2, Color = "#e0e7ff" };
-        var done = new Column { BoardId = board.Id, Title = "Done", Position = 3, Color = "#dcfce7" };
+        var inProgress = new Column { BoardId = board.Id, Title = "In Progress", Position = 1, Color = "#F5F3FF" };
+        var review = new Column { BoardId = board.Id, Title = "Review", Position = 2, Color = "#ECFEFF" };
+        var done = new Column { BoardId = board.Id, Title = "Done", Position = 3, Color = "#EEF2F7" };
 
         var cards = new List<Card>
         {
@@ -74,7 +75,7 @@ public class DemoWorkspaceSeeder : IDemoWorkspaceSeeder
                 Description = "Click the swatch on a column header to pick a background color for it — this column and 'Review' already have one.",
                 Priority = CardPriority.Medium,
                 DueDate = now.AddDays(2),
-                Color = "#fde68a"
+                Color = "#EDE9FE"
             },
             new()
             {
@@ -93,7 +94,7 @@ public class DemoWorkspaceSeeder : IDemoWorkspaceSeeder
                 Description = "Critical cards get a distinct red accent so they stand out at a glance.",
                 Priority = CardPriority.Critical,
                 DueDate = now,
-                Color = "#fecaca"
+                Color = "#F5F3FF"
             },
             new()
             {
@@ -110,7 +111,7 @@ public class DemoWorkspaceSeeder : IDemoWorkspaceSeeder
                 Title = "A finished task",
                 Description = "Cards don't disappear when you're done — move them here to keep a record.",
                 Priority = CardPriority.Low,
-                Color = "#bbf7d0"
+                Color = "#CFFAFE"
             },
             new()
             {

@@ -73,7 +73,8 @@ public class BoardService
         if (resolvedImage is not null)
             return $"background-image:url('{resolvedImage}');background-size:cover;background-position:center;";
 
-        var color = coverColor ?? fallbackColor;
-        return color.Length > 0 ? $"background:{color};" : "";
+        var color = PlanoraColors.SafeBoardBackgroundOrNull(coverColor)
+            ?? PlanoraColors.SafeBoardBackgroundOrNull(fallbackColor);
+        return color is not null ? $"background:{color};" : "";
     }
 }

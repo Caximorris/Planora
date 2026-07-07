@@ -32,7 +32,11 @@
             {
                 <div class="notif-page-item @(n.IsRead ? "" : "notif-page-item--unread")"
                      @key="n.Id"
-                     @onclick="() => OpenNotification(n)">
+                     role="button"
+                     tabindex="0"
+                     aria-label="Open notification"
+                     @onclick="() => OpenNotification(n)"
+                     @onkeydown="e => NotificationKeyDown(e, n)">
                     <div class="notif-page-icon">@NotifIcon(n)</div>
                     <div class="notif-page-body">
                         <div class="notif-page-msg">@n.Message</div>
@@ -40,6 +44,7 @@
                     </div>
                     <button class="notif-page-dismiss"
                             title="Dismiss"
+                            aria-label="Dismiss notification"
                             @onclick:stopPropagation="true"
                             @onclick="() => Dismiss(n)">✕</button>
                 </div>
@@ -72,6 +77,12 @@
             Nav.NavigateTo($"/boards/{n.RelatedBoardId}");
         else if (n.RelatedWorkspaceId.HasValue)
             Nav.NavigateTo("/workspaces");
+    }
+
+    private async Task NotificationKeyDown(KeyboardEventArgs e, NotificationDto n)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar")
+            await OpenNotification(n);
     }
 
     private async Task MarkAllRead()

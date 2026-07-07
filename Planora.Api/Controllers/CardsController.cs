@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Shared.Constants;
 using Planora.Shared.DTOs.Card;
 using Planora.Shared.Enums;
 
@@ -122,7 +123,12 @@ public class CardsController : ControllerBase
         }
 
         if (request.ClearColor) card.Color = null;
-        else if (request.Color is not null) card.Color = request.Color;
+        else if (request.Color is not null)
+        {
+            if (!PlanoraColors.TryNormalizeSafeSurfaceBackground(request.Color, out var color))
+                return BadRequest("Color must be a readable card or column background color.");
+            card.Color = color;
+        }
 
         var previousColumnId = card.ColumnId;
         if (request.ColumnId.HasValue)

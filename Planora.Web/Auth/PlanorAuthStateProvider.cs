@@ -91,7 +91,10 @@ public class PlanorAuthStateProvider : AuthenticationStateProvider
 
     private static IEnumerable<Claim> ParseClaims(string jwt)
     {
-        var payload = jwt.Split('.')[1];
+        // JWT segments are base64url-encoded: '-'/'_' replace '+'/'/'. Convert back to
+        // standard base64 before decoding, otherwise Convert.FromBase64String throws on
+        // any token whose payload happens to contain those characters.
+        var payload = jwt.Split('.')[1].Replace('-', '+').Replace('_', '/');
         var padded = (payload.Length % 4) switch
         {
             2 => payload + "==",

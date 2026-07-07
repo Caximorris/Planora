@@ -16,9 +16,9 @@
         </select>
 
         <div class="calendar-nav">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevMonth">‹</button>
+            <button class="btn btn-sm btn-outline-secondary" aria-label="Previous month" @onclick="PrevMonth">‹</button>
             <span class="calendar-month-label">@_currentDate.ToString("MMMM yyyy")</span>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="NextMonth">›</button>
+            <button class="btn btn-sm btn-outline-secondary" aria-label="Next month" @onclick="NextMonth">›</button>
             <button class="btn btn-sm btn-outline-secondary" @onclick="GoToToday">Today</button>
         </div>
     </div>

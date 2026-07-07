@@ -1,6 +1,7 @@
 @page "/workspaces"
 @attribute [Authorize]
 @using System.Security.Claims
+@using Planora.Shared.Constants
 @using Planora.Shared.Enums
 
 <PageTitle>Workspaces — Planora</PageTitle>
@@ -24,16 +25,19 @@
             {
                 @foreach (var ws in _workspaces)
                 {
-                    <button class="ws-nav-item @(_selected?.Id == ws.Id ? "active" : "")"
-                            @key="ws.Id"
-                            @onclick="() => SelectWorkspace(ws)">
-                        <div class="ws-nav-avatar">@ws.Name[0]</div>
-                        <span class="ws-nav-name">@ws.Name</span>
-                        <button class="ws-nav-delete"
+                    <div class="ws-nav-row" @key="ws.Id">
+                        <button class="ws-nav-item @(_selected?.Id == ws.Id ? "active" : "")"
+                                aria-pressed="@(_selected?.Id == ws.Id)"
+                                @onclick="() => SelectWorkspace(ws)">
+                            <div class="ws-nav-avatar">@ws.Name[0]</div>
+                            <span class="ws-nav-name">@ws.Name</span>
+                        </button>
+                        <button type="button"
+                                class="ws-nav-delete"
                                 title="Delete workspace"
-                                @onclick:stopPropagation="true"
+                                aria-label="Delete workspace @ws.Name"
                                 @onclick="() => ConfirmDeleteWorkspace(ws)">✕</button>
-                    </button>
+                    </div>
                 }
             }
         </div>
@@ -83,17 +87,23 @@
                              @key="board.Id"
                              style="@TileStyle(board)"
                              draggable="true"
-                             title="Drag to reorder"
+                             title="Open board. Drag to reorder"
+                             role="button"
+                             tabindex="0"
+                             aria-label="Open board @board.Name"
                              @ondragstart="() => DragState.DraggedBoardId = board.Id"
                              @ondragend="() => { DragState.DraggedBoardId = null; _dragOverBoardId = null; }"
                              @ondragover:preventDefault
                              @ondragover="() => _dragOverBoardId = board.Id"
                              @ondragleave="() => _dragOverBoardId = null"
                              @ondrop="() => OnBoardDrop(board)"
-                             @onclick="() => OpenBoard(board.Id)">
+                             @onclick="() => OpenBoard(board.Id)"
+                             @onkeydown="e => BoardTileKeyDown(e, board.Id)">
                             <span class="board-tile-name">@board.Name</span>
-                            <button class="board-tile-archive-btn"
+                            <button type="button"
+                                    class="board-tile-archive-btn"
                                     title="Archive board"
+                                    aria-label="Archive board @board.Name"
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ArchiveBoard(board)">⬇</button>
                         </div>
@@ -138,12 +148,12 @@
 @if (_deleteBoardTarget is not null)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-board-title">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Delete board?</h5>
-                    <button class="btn-close" @onclick="() => _deleteBoardTarget = null"></button>
+                    <h5 class="modal-title" id="delete-board-title">Delete board?</h5>
+                    <button class="btn-close" aria-label="Close delete board dialog" @onclick="() => _deleteBoardTarget = null"></button>
                 </div>
                 <div class="modal-body">
                     <p style="font-size:13px;color:var(--color-text-mid);">
@@ -163,12 +173,12 @@
 @if (_deleteTarget is not null)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-workspace-title">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Delete workspace?</h5>
-                    <button class="btn-close" @onclick="() => _deleteTarget = null"></button>
+                    <h5 class="modal-title" id="delete-workspace-title">Delete workspace?</h5>
+                    <button class="btn-close" aria-label="Close delete workspace dialog" @onclick="() => _deleteTarget = null"></button>
                 </div>
                 <div class="modal-body">
                     <p style="font-size:13px;color:var(--color-text-mid);">
@@ -188,12 +198,12 @@
 @if (_showCreateWs)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="create-workspace-title">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Workspace</h5>
-                    <button class="btn-close" @onclick="CloseWsModal"></button>
+                    <h5 class="modal-title" id="create-workspace-title">New Workspace</h5>
+                    <button class="btn-close" aria-label="Close new workspace dialog" @onclick="CloseWsModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -218,12 +228,12 @@
 @if (_showCreateBoard)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="create-board-title">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Board</h5>
-                    <button class="btn-close" @onclick="CloseBoardModal"></button>
+                    <h5 class="modal-title" id="create-board-title">New Board</h5>
+                    <button class="btn-close" aria-label="Close new board dialog" @onclick="CloseBoardModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -232,7 +242,18 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Cover color</label>
-                        <input type="color" class="form-control form-control-color" @bind="_boardColor" />
+                        <div class="color-swatch-grid" role="radiogroup" aria-label="Board color">
+                            @foreach (var color in PlanoraColors.BoardBackgroundColors)
+                            {
+                                <button type="button"
+                                        class="color-swatch color-swatch--board @(IsSelectedBoardColor(color) ? "color-swatch--selected" : "")"
+                                        style="@SwatchStyle(color)"
+                                        title="@color"
+                                        aria-label="Use board color @color"
+                                        aria-pressed="@IsSelectedBoardColor(color)"
+                                        @onclick="() => _boardColor = color"></button>
+                            }
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -248,12 +269,12 @@
 @if (_showMembers && _selected is not null)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="members-title">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Members — @_selected.Name</h5>
-                    <button class="btn-close" @onclick="CloseMembersModal"></button>
+                    <h5 class="modal-title" id="members-title">Members — @_selected.Name</h5>
+                    <button class="btn-close" aria-label="Close members dialog" @onclick="CloseMembersModal"></button>
                 </div>
                 <div class="modal-body">
 
@@ -280,6 +301,7 @@
                                     {
                                         <button class="member-remove-btn"
                                                 title="Remove member"
+                                                aria-label="Remove member @member.DisplayName"
                                                 @onclick="() => RemoveMember(member)"
                                                 disabled="@_saving">✕</button>
                                     }
@@ -358,7 +380,7 @@
 
     private bool _showCreateBoard;
     private string _boardName = "";
-    private string _boardColor = "#4a5d30";
+    private string _boardColor = PlanoraColors.DefaultBoardColor;
     private Guid? _dragOverBoardId;
 
     private bool _showArchivedBoards;
@@ -546,6 +568,17 @@
     private string TileStyle(BoardDto board) =>
         BoardService.ResolveBackgroundStyle(board.CoverImageUrl, board.CoverColor);
 
+    private static string SwatchStyle(string color) => $"background:{color};";
+
+    private bool IsSelectedBoardColor(string color) =>
+        string.Equals(PlanoraColors.SafeBoardBackgroundOrNull(_boardColor), color, StringComparison.OrdinalIgnoreCase);
+
+    private void BoardTileKeyDown(KeyboardEventArgs e, Guid boardId)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar")
+            OpenBoard(boardId);
+    }
+
     private async Task OnBoardDrop(BoardDto target)
     {
         _dragOverBoardId = null;
@@ -569,6 +602,6 @@
 
     private void OpenBoard(Guid id) => Nav.NavigateTo($"/boards/{id}");
     private void CloseWsModal() { _showCreateWs = false; _wsName = ""; _wsDesc = ""; }
-    private void CloseBoardModal() { _showCreateBoard = false; _boardName = ""; _boardColor = "#4a5d30"; }
+    private void CloseBoardModal() { _showCreateBoard = false; _boardName = ""; _boardColor = PlanoraColors.DefaultBoardColor; }
     private void CloseMembersModal() { _showMembers = false; _members = []; _inviteLink = null; _inviteError = null; }
 }

@@ -3,6 +3,7 @@
 @implements IDisposable
 @using Planora.Shared.DTOs.Checklist
 @using Planora.Shared.DTOs.Label
+@using Planora.Shared.Constants
 @using Planora.Shared.Enums
 
 <PageTitle>@(_board?.Name ?? "Board") — Planora</PageTitle>
@@ -30,15 +31,15 @@ else
             </div>
             <div class="board-title-wrap">
                 <span class="board-title-display">@_board.Name</span>
-                <button type="button" class="settings-gear-btn" title="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
+                <button type="button" class="settings-gear-btn" title="Board settings" aria-label="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
             </div>
             <div class="board-filter">
                 <span class="board-filter-label">Filter:</span>
-                <button class="filter-pill @(_filter == null ? "active" : "")" @onclick="() => _filter = null">All</button>
-                <button class="filter-pill @(_filter == CardPriority.Low ? "active" : "")" @onclick="() => _filter = CardPriority.Low">Low</button>
-                <button class="filter-pill @(_filter == CardPriority.Medium ? "active" : "")" @onclick="() => _filter = CardPriority.Medium">Medium</button>
-                <button class="filter-pill @(_filter == CardPriority.High ? "active" : "")" @onclick="() => _filter = CardPriority.High">High</button>
-                <button class="filter-pill @(_filter == CardPriority.Critical ? "active" : "")" @onclick="() => _filter = CardPriority.Critical">Critical</button>
+                <button class="filter-pill @(_filter == null ? "active" : "")" aria-pressed="@(_filter == null)" @onclick="() => _filter = null">All</button>
+                <button class="filter-pill @(_filter == CardPriority.Low ? "active" : "")" aria-pressed="@(_filter == CardPriority.Low)" @onclick="() => _filter = CardPriority.Low">Low</button>
+                <button class="filter-pill @(_filter == CardPriority.Medium ? "active" : "")" aria-pressed="@(_filter == CardPriority.Medium)" @onclick="() => _filter = CardPriority.Medium">Medium</button>
+                <button class="filter-pill @(_filter == CardPriority.High ? "active" : "")" aria-pressed="@(_filter == CardPriority.High)" @onclick="() => _filter = CardPriority.High">High</button>
+                <button class="filter-pill @(_filter == CardPriority.Critical ? "active" : "")" aria-pressed="@(_filter == CardPriority.Critical)" @onclick="() => _filter = CardPriority.Critical">Critical</button>
             </div>
         </div>
 
@@ -84,12 +85,12 @@ else
 @if (_editCard is not null)
 {
     <div class="modal-backdrop fade show" @onclick="CloseCard"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="card-detail-title">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@_editTitle</h5>
-                    <button class="btn-close" @onclick="CloseCard"></button>
+                    <h5 class="modal-title" id="card-detail-title">@_editTitle</h5>
+                    <button class="btn-close" aria-label="Close card details" @onclick="CloseCard"></button>
                 </div>
                 <div class="modal-body">
                     @if (_editCard is not null && _editCard.IsArchived)
@@ -133,10 +134,19 @@ else
                     </div>
                     <div class="mb-3 mt-3">
                         <label class="form-label">Color</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="color" class="form-control form-control-color"
-                                   value="@(_editColor ?? "#f8f5ed")"
-                                   @onchange="e => _editColor = e.Value?.ToString()" />
+                        <div class="color-swatch-grid" role="radiogroup" aria-label="Card color">
+                            @foreach (var color in PlanoraColors.SurfaceBackgroundColors)
+                            {
+                                <button type="button"
+                                        class="color-swatch @(IsSelectedSurfaceColor(_editColor, color) ? "color-swatch--selected" : "")"
+                                        style="@SwatchStyle(color)"
+                                        title="@color"
+                                        aria-label="Use card color @color"
+                                        aria-pressed="@IsSelectedSurfaceColor(_editColor, color)"
+                                        @onclick="() => _editColor = color"></button>
+                            }
+                        </div>
+                        <div class="mt-2">
                             <button type="button" class="btn btn-sm btn-secondary" @onclick="() => _editColor = null">Reset</button>
                         </div>
                     </div>
@@ -155,7 +165,7 @@ else
                                 var isActive = _editCardLabelIds.Contains(label.Id);
                                 <button type="button"
                                         class="label-chip @(isActive ? "label-chip--active" : "")"
-                                        style="background:@label.Color"
+                                        style="@LabelChipStyle(label.Color)"
                                         title="@label.Name"
                                         @onclick="() => ToggleLabel(label)">
                                     @label.Name
@@ -166,10 +176,19 @@ else
                         @if (_showLabelManager)
                         {
                             <div class="label-manager mt-2">
+                                <div class="label-swatch-row mb-2" role="radiogroup" aria-label="Label color">
+                                    @foreach (var color in PlanoraColors.LabelBackgroundColors)
+                                    {
+                                        <button type="button"
+                                                class="color-swatch color-swatch--sm @(IsSelectedHex(_newLabelColor, color) ? "color-swatch--selected" : "")"
+                                                style="@SwatchStyle(color)"
+                                                title="@color"
+                                                aria-label="Use label color @color"
+                                                aria-pressed="@IsSelectedHex(_newLabelColor, color)"
+                                                @onclick="() => _newLabelColor = color"></button>
+                                    }
+                                </div>
                                 <div class="d-flex gap-2 align-items-center">
-                                    <input type="color" class="form-control form-control-color form-control-sm"
-                                           style="width:40px;height:32px;padding:2px;"
-                                           @bind="_newLabelColor" />
                                     <input class="form-control form-control-sm"
                                            placeholder="Label name…"
                                            @bind="_newLabelName"
@@ -184,9 +203,9 @@ else
                                         @foreach (var label in _workspaceLabels)
                                         {
                                             <div class="label-manager-row">
-                                                <span class="label-manager-color" style="background:@label.Color"></span>
+                                                <span class="label-manager-color" style="@SwatchStyle(label.Color)"></span>
                                                 <span class="label-manager-name">@label.Name</span>
-                                                <button type="button" class="btn-icon-sm" @onclick="() => DeleteWorkspaceLabel(label)">✕</button>
+                                                <button type="button" class="btn-icon-sm" aria-label="Delete label @label.Name" @onclick="() => DeleteWorkspaceLabel(label)">✕</button>
                                             </div>
                                         }
                                     </div>
@@ -209,7 +228,7 @@ else
                                     <div class="checklist-header">
                                         <span class="checklist-title">@cl.Title</span>
                                         <span class="checklist-progress-label">@done/@total</span>
-                                        <button type="button" class="btn-icon-sm ms-auto" @onclick="() => DeleteChecklist(cl)">✕</button>
+                                        <button type="button" class="btn-icon-sm ms-auto" aria-label="Delete checklist @cl.Title" @onclick="() => DeleteChecklist(cl)">✕</button>
                                     </div>
                                     <div class="checklist-progress-bar mb-2">
                                         <div class="checklist-progress-fill @(pct == 100 ? "checklist-progress-fill--done" : "")"
@@ -223,7 +242,7 @@ else
                                                        checked="@item.IsCompleted"
                                                        @onchange="() => ToggleChecklistItem(cl, item)" />
                                                 <span class="checklist-item-text">@item.Text</span>
-                                                <button type="button" class="btn-icon-sm" @onclick="() => DeleteChecklistItem(cl, item)">✕</button>
+                                                <button type="button" class="btn-icon-sm" aria-label="Delete checklist item @item.Text" @onclick="() => DeleteChecklistItem(cl, item)">✕</button>
                                             </div>
                                         }
                                     </div>
@@ -280,7 +299,7 @@ else
                                                 <span class="comment-time">@TimeAgo(comment.CreatedAt)</span>
                                                 @if (comment.AuthorId == _currentUserId)
                                                 {
-                                                    <button class="comment-delete-btn" @onclick="() => DeleteComment(comment)">✕</button>
+                                                    <button class="comment-delete-btn" aria-label="Delete comment" @onclick="() => DeleteComment(comment)">✕</button>
                                                 }
                                             </div>
                                             <div class="comment-text">@comment.Text</div>
@@ -325,12 +344,12 @@ else
 @if (_showBoardSettings)
 {
     <div class="modal-backdrop fade show" @onclick="CloseBoardSettings"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="board-settings-title">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Board settings</h5>
-                    <button class="btn-close" @onclick="CloseBoardSettings"></button>
+                    <h5 class="modal-title" id="board-settings-title">Board settings</h5>
+                    <button class="btn-close" aria-label="Close board settings" @onclick="CloseBoardSettings"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -339,10 +358,17 @@ else
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Color</label>
-                        <div>
-                            <input type="color" class="form-control form-control-color"
-                                   value="@(_board.CoverColor ?? "#3d4d27")"
-                                   @onchange="SaveBoardColor" />
+                        <div class="color-swatch-grid" role="radiogroup" aria-label="Board color">
+                            @foreach (var color in PlanoraColors.BoardBackgroundColors)
+                            {
+                                <button type="button"
+                                        class="color-swatch color-swatch--board @(IsSelectedBoardColor(color) ? "color-swatch--selected" : "")"
+                                        style="@SwatchStyle(color)"
+                                        title="@color"
+                                        aria-label="Use board color @color"
+                                        aria-pressed="@IsSelectedBoardColor(color)"
+                                        @onclick="() => SaveBoardColor(color)"></button>
+                            }
                         </div>
                     </div>
                     @if (_showArchivedCards)
@@ -408,12 +434,12 @@ else
 @if (_confirmDeleteBoard)
 {
     <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-board-title">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Delete board?</h5>
-                    <button class="btn-close" @onclick="() => _confirmDeleteBoard = false"></button>
+                    <h5 class="modal-title" id="delete-board-title">Delete board?</h5>
+                    <button class="btn-close" aria-label="Close delete board dialog" @onclick="() => _confirmDeleteBoard = false"></button>
                 </div>
                 <div class="modal-body">
                     <p style="font-size:13px;color:var(--color-text-mid);">
@@ -483,7 +509,7 @@ else
     private HashSet<Guid> _editCardLabelIds = [];
     private bool _showLabelManager;
     private string _newLabelName = "";
-    private string _newLabelColor = "#94BFBE";
+    private string _newLabelColor = PlanoraColors.DefaultLabelColor;
 
     private List<ChecklistDto> _editChecklists = [];
     private bool _addingChecklist;
@@ -491,7 +517,32 @@ else
     private Dictionary<Guid, string> _newItemText = [];
 
     private string BoardBackgroundStyle =>
-        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, "#253018");
+        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, PlanoraColors.DefaultBoardColor);
+
+    private static string SwatchStyle(string color)
+    {
+        var background = PlanoraColors.NormalizeHexOrDefault(color, PlanoraColors.DefaultLabelColor);
+        return $"background:{background};";
+    }
+
+    private static string LabelChipStyle(string color)
+    {
+        var background = PlanoraColors.NormalizeHexOrDefault(color, PlanoraColors.DefaultLabelColor);
+        var text = PlanoraColors.TextColorFor(background);
+        var shadow = text == PlanoraColors.LightTextColor
+            ? "text-shadow:0 1px 2px rgba(0,0,0,.35);"
+            : "text-shadow:none;";
+        return $"background:{background};color:{text};{shadow}";
+    }
+
+    private static bool IsSelectedHex(string? current, string color) =>
+        string.Equals(PlanoraColors.NormalizeHexOrDefault(current, string.Empty), color, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSelectedSurfaceColor(string? current, string color) =>
+        string.Equals(PlanoraColors.SafeSurfaceBackgroundOrNull(current), color, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsSelectedBoardColor(string color) =>
+        string.Equals(PlanoraColors.SafeBoardBackgroundOrNull(_board?.CoverColor), color, StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -635,9 +686,8 @@ else
         if (updated is not null) _board.Name = updated.Name;
     }
 
-    private async Task SaveBoardColor(ChangeEventArgs e)
+    private async Task SaveBoardColor(string color)
     {
-        var color = e.Value?.ToString();
         if (string.IsNullOrWhiteSpace(color)) return;
         var updated = await BoardService.UpdateAsync(_board!.Id, new() { Name = _board.Name, Description = _board.Description, CoverColor = color });
         if (updated is not null) _board.CoverColor = updated.CoverColor;
@@ -749,7 +799,7 @@ else
         _editAssigneeId = card.AssigneeId ?? "";
         _editDue = card.DueDate?.ToLocalTime();
         _editPriority = card.Priority;
-        _editColor = card.Color;
+        _editColor = PlanoraColors.SafeSurfaceBackgroundOrNull(card.Color);
         _newCommentText = "";
         _comments = [];
         _editChecklists = [];
@@ -979,7 +1029,7 @@ else
         {
             _workspaceLabels.Add(created);
             _newLabelName = "";
-            _newLabelColor = "#94BFBE";
+            _newLabelColor = PlanoraColors.DefaultLabelColor;
         }
     }
 

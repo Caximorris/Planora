@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Shared.Constants;
 using Planora.Shared.DTOs.Column;
 
 namespace Planora.Api.Controllers;
@@ -73,7 +74,12 @@ public class ColumnsController : ControllerBase
         if (request.Title is not null) column.Title = request.Title;
         if (request.Position.HasValue) column.Position = request.Position.Value;
         if (request.ClearColor) column.Color = null;
-        else if (request.Color is not null) column.Color = request.Color;
+        else if (request.Color is not null)
+        {
+            if (!PlanoraColors.TryNormalizeSafeSurfaceBackground(request.Color, out var color))
+                return BadRequest("Color must be a readable card or column background color.");
+            column.Color = color;
+        }
 
         await _db.SaveChangesAsync();
         return Ok(column.ToDto());

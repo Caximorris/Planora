@@ -81,7 +81,7 @@ public class BoardsController : ControllerBase
         {
             Name = request.Name,
             Description = request.Description,
-            CoverColor = request.CoverColor,
+            CoverColor = PlanoraColors.SafeBoardBackgroundOrNull(request.CoverColor),
             WorkspaceId = request.WorkspaceId,
             Position = maxPosition + 1
         };
@@ -105,7 +105,12 @@ public class BoardsController : ControllerBase
         if (request.Name is not null) board.Name = request.Name;
         if (request.ClearDescription) board.Description = null;
         else if (request.Description is not null) board.Description = request.Description;
-        if (request.CoverColor is not null) board.CoverColor = request.CoverColor;
+        if (request.CoverColor is not null)
+        {
+            if (!PlanoraColors.TryNormalizeSafeBoardBackground(request.CoverColor, out var coverColor))
+                return BadRequest("CoverColor must be a readable board background color.");
+            board.CoverColor = coverColor;
+        }
         if (request.Position.HasValue) board.Position = request.Position.Value;
 
         await _db.SaveChangesAsync();

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Planora.Shared.Constants;
 using Planora.Shared.DTOs.Board;
 
 namespace Planora.Api.Application.Validators;
@@ -11,8 +12,8 @@ public class CreateBoardRequestValidator : AbstractValidator<CreateBoardRequest>
         RuleFor(x => x.Description).MaximumLength(500).When(x => x.Description is not null);
         RuleFor(x => x.WorkspaceId).NotEmpty();
         RuleFor(x => x.CoverColor)
-            .Matches(@"^#[0-9A-Fa-f]{6}$")
+            .Must(color => PlanoraColors.TryNormalizeSafeBoardBackground(color, out _))
             .When(x => x.CoverColor is not null)
-            .WithMessage("CoverColor must be a valid hex color (e.g. #FF5733).");
+            .WithMessage("CoverColor must be a readable board background color.");
     }
 }

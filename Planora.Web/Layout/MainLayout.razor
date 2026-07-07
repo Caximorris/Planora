@@ -3,47 +3,60 @@
 @using Planora.Shared.DTOs.Notification
 @using Planora.Web.Services
 
+<div class="app-shell">
 <AuthorizeView>
     <Authorized>
-        <header class="top-nav">
+        <nav class="side-nav" aria-label="Main navigation">
 
-            <a class="top-nav-brand" href="/home">
-                <svg class="top-nav-icon" viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <a class="side-nav-brand" href="/home" title="Planora — Home" aria-label="Planora home">
+                <svg viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <rect x="0"   y="2" width="6" height="14" rx="1.5" fill="currentColor"/>
                     <rect x="8"   y="2" width="6" height="9"  rx="1.5" fill="currentColor" opacity=".75"/>
                     <rect x="16"  y="2" width="6" height="11" rx="1.5" fill="currentColor" opacity=".55"/>
                 </svg>
-                Planora
             </a>
 
-            <nav class="top-nav-links">
-                <NavLink class="top-nav-link" href="/workspaces">Workspaces</NavLink>
-                <span class="top-nav-link top-nav-link--soon">
-                    Templates
-                    <span class="nav-soon-badge">Soon</span>
-                </span>
-                <span class="top-nav-link top-nav-link--soon">
-                    Analytics
-                    <span class="nav-soon-badge">Soon</span>
-                </span>
-            </nav>
+            <NavLink class="side-nav-item" href="/home">
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M3 9l7-6 7 6M5 8v8a1 1 0 001 1h8a1 1 0 001-1V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="side-nav-label">Home</span>
+            </NavLink>
 
-            <button class="top-nav-search-btn" @onclick="() => _search?.Open()" title="Search (Ctrl+K)">
-                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="16" height="16">
+            <NavLink class="side-nav-item" href="/workspaces">
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect x="2.5" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="2.5" y="11.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11.5" y="11.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <span class="side-nav-label">Spaces</span>
+            </NavLink>
+
+            <NavLink class="side-nav-item side-nav-item--rail-only" href="/calendar">
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M3 8h14M7 2.5v3M13 2.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span class="side-nav-label">Calendar</span>
+            </NavLink>
+
+            <button class="side-nav-item" @onclick="() => _search?.Open()" title="Search (Ctrl+K)" aria-label="Search">
+                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
                     <path d="M15 15l-3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
                 </svg>
+                <span class="side-nav-label">Search</span>
             </button>
-
-            <div class="top-nav-spacer"></div>
 
             @* Notification bell *@
             <div class="nav-notif-wrap">
-                <button class="nav-notif-btn" @onclick="ToggleNotifications" title="Notifications" aria-expanded="@_notifOpen">
-                    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="18" height="18">
+                <button class="side-nav-item" @onclick="ToggleNotifications" title="Notifications" aria-label="Notifications" aria-expanded="@_notifOpen">
+                    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5A1 1 0 003.5 15h13a1 1 0 00.87-1.5L16 11V8a6 6 0 00-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
                         <path d="M8 15.5a2 2 0 004 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                     </svg>
+                    <span class="side-nav-label">Alerts</span>
                     @if (NotificationService.UnreadCount > 0)
                     {
                         <span class="nav-notif-badge">@(NotificationService.UnreadCount > 9 ? "9+" : NotificationService.UnreadCount.ToString())</span>
@@ -75,13 +88,17 @@
                                 @foreach (var n in _notifications)
                                 {
                                     <div class="nav-notif-item @(n.IsRead ? "" : "nav-notif-item--unread")" @key="n.Id"
-                                         @onclick="() => OpenNotification(n)">
+                                         role="button"
+                                         tabindex="0"
+                                         aria-label="Open notification"
+                                         @onclick="() => OpenNotification(n)"
+                                         @onkeydown="e => NotificationKeyDown(e, n)">
                                         <div class="nav-notif-icon">@NotifIcon(n)</div>
                                         <div class="nav-notif-body">
                                             <div class="nav-notif-msg">@n.Message</div>
                                             <div class="nav-notif-time">@TimeAgo(n.CreatedAt)</div>
                                         </div>
-                                        <button class="nav-notif-dismiss" title="Dismiss"
+                                        <button class="nav-notif-dismiss" title="Dismiss" aria-label="Dismiss notification"
                                                 @onclick:stopPropagation="true"
                                                 @onclick="() => DismissNotification(n)">✕</button>
                                     </div>
@@ -93,15 +110,12 @@
                 }
             </div>
 
+            <div class="side-nav-spacer"></div>
+
             <div class="nav-user-wrap">
-                <button class="nav-user-btn" @onclick="ToggleMenu" aria-expanded="@_open">
-                    <div class="nav-avatar">
-                        @_initial
-                    </div>
-                    <span class="nav-name">@_displayName</span>
-                    <svg class="nav-chevron @(_open ? "nav-chevron--up" : "")" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                <button class="side-nav-item" @onclick="ToggleMenu" aria-label="Account menu" aria-expanded="@_open">
+                    <div class="nav-avatar">@_initial</div>
+                    <span class="side-nav-label">Account</span>
                 </button>
 
                 @if (_open)
@@ -143,7 +157,7 @@
                 }
             </div>
 
-        </header>
+        </nav>
         <SearchModal @ref="_search" />
     </Authorized>
 </AuthorizeView>
@@ -159,6 +173,7 @@
         </ErrorContent>
     </ErrorBoundary>
 </main>
+</div>
 
 @code {
     [Inject] AuthService AuthService { get; set; } = null!;
@@ -226,6 +241,12 @@
             Nav.NavigateTo($"/boards/{n.RelatedBoardId}");
         else if (n.RelatedWorkspaceId.HasValue)
             Nav.NavigateTo("/workspaces");
+    }
+
+    private async Task NotificationKeyDown(KeyboardEventArgs e, NotificationDto n)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar")
+            await OpenNotification(n);
     }
 
     private async Task MarkAllRead()

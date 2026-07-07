@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Shared.Constants;
 using Planora.Shared.DTOs.Label;
 
 namespace Planora.Api.Controllers;
@@ -46,11 +47,17 @@ public class LabelsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
+        var color = string.IsNullOrWhiteSpace(request.Color)
+            ? PlanoraColors.DefaultLabelColor
+            : request.Color;
+        if (!PlanoraColors.TryNormalizeHex(color, out var normalizedColor))
+            return BadRequest("Color must be a valid hex color.");
+
         var label = new WorkspaceLabel
         {
             WorkspaceId = workspaceId,
             Name = request.Name.Trim(),
-            Color = string.IsNullOrWhiteSpace(request.Color) ? "#94BFBE" : request.Color
+            Color = normalizedColor
         };
 
         _db.WorkspaceLabels.Add(label);
@@ -70,7 +77,12 @@ public class LabelsController : ControllerBase
         if (!isMember) return Forbid();
 
         if (request.Name is not null) label.Name = request.Name.Trim();
-        if (request.Color is not null) label.Color = request.Color;
+        if (request.Color is not null)
+        {
+            if (!PlanoraColors.TryNormalizeHex(request.Color, out var color))
+                return BadRequest("Color must be a valid hex color.");
+            label.Color = color;
+        }
 
         await _db.SaveChangesAsync();
         return Ok(label.ToDto());

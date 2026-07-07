@@ -1,18 +1,23 @@
 @using Planora.Shared.DTOs.Card
 @using Planora.Shared.DTOs.Workspace
+@using Planora.Shared.Constants
 @using Planora.Shared.Enums
 
 <div class="kanban-card @PriorityClass"
-     style="@(Card.Color is not null ? $"background:{Card.Color};" : "")"
+     style="@CardStyle"
      data-card-id="@Card.Id"
-     @onclick="() => OnClick.InvokeAsync()">
+     role="button"
+     tabindex="0"
+     aria-label="Open card @Card.Title"
+     @onclick="() => OnClick.InvokeAsync()"
+     @onkeydown="OnCardKeyDown">
 
     @if (Card.Labels.Count > 0)
     {
         <div class="card-labels">
             @foreach (var label in Card.Labels.Take(5))
             {
-                <span class="card-label-chip" style="background:@label.Color" title="@label.Name"></span>
+                <span class="card-label-chip" style="@LabelChipStyle(label.Color)" title="@label.Name"></span>
             }
         </div>
     }
@@ -58,7 +63,16 @@
     [CascadingParameter(Name = "BoardMembers")]
     public Dictionary<string, WorkspaceMemberDto>? BoardMembers { get; set; }
 
+    private string CardStyle =>
+        PlanoraColors.SafeSurfaceBackgroundOrNull(Card.Color) is { } color ? $"background:{color};" : "";
+
     private bool IsOverdue => Card.DueDate.HasValue && Card.DueDate.Value < DateTime.UtcNow;
+
+    private static string LabelChipStyle(string color)
+    {
+        var background = PlanoraColors.NormalizeHexOrDefault(color, PlanoraColors.DefaultLabelColor);
+        return $"background:{background};";
+    }
 
     private WorkspaceMemberDto? Assignee =>
         Card.AssigneeId is not null && BoardMembers?.TryGetValue(Card.AssigneeId, out var m) == true ? m : null;
@@ -81,4 +95,10 @@
         CardPriority.High     => "kanban-card--high",
         _                     => ""
     };
+
+    private async Task OnCardKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar")
+            await OnClick.InvokeAsync();
+    }
 }

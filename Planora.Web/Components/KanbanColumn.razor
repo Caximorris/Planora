@@ -1,20 +1,23 @@
 @using Planora.Shared.DTOs.Column
 @using Planora.Shared.DTOs.Card
+@using Planora.Shared.Constants
 @using Planora.Shared.Enums
 
 <div class="kanban-column"
-     style="@(Column.Color is not null ? $"background:{Column.Color};" : "")"
+     style="@ColumnStyle"
      data-column-id="@Column.Id">
 
     <div class="kanban-col-header" title="Drag to reorder">
         <span class="kanban-col-title">@Column.Title</span>
         <div class="kanban-col-actions">
             <span class="kanban-col-count">@VisibleCards.Count</span>
-            <button type="button" class="settings-gear-btn settings-gear-btn--sm" title="Column settings" @onclick="ToggleSettings">⚙️</button>
+            <button type="button" class="settings-gear-btn settings-gear-btn--sm" title="Column settings" aria-label="Column settings" @onclick="ToggleSettings">⚙️</button>
         </div>
     </div>
 
-    <div class="kanban-cards-list" data-column-id="@Column.Id">
+    <div class="kanban-cards-list"
+         data-column-id="@Column.Id"
+         data-dnd-disabled="@(Filter is not null ? "true" : "false")">
         @foreach (var card in VisibleCards)
         {
             <KanbanCard @key="card.Id" Card="card" OnClick="() => OnCardClick.InvokeAsync(card)" />
@@ -44,12 +47,12 @@
 @if (_showSettings)
 {
     <div class="modal-backdrop fade show" @onclick="CloseSettings"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="column-settings-title">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Column settings</h5>
-                    <button class="btn-close" @onclick="CloseSettings"></button>
+                    <h5 class="modal-title" id="column-settings-title">Column settings</h5>
+                    <button class="btn-close" aria-label="Close column settings" @onclick="CloseSettings"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -58,10 +61,19 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Color</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="color" class="form-control form-control-color"
-                                   value="@(Column.Color ?? "#f4f0e4")"
-                                   @onchange="OnColorPicked" />
+                        <div class="color-swatch-grid color-swatch-grid--compact" role="radiogroup" aria-label="Column color">
+                            @foreach (var color in PlanoraColors.SurfaceBackgroundColors)
+                            {
+                                <button type="button"
+                                        class="color-swatch @(IsSelectedColor(color) ? "color-swatch--selected" : "")"
+                                        style="@SwatchStyle(color)"
+                                        title="@color"
+                                        aria-label="Use column color @color"
+                                        aria-pressed="@IsSelectedColor(color)"
+                                        @onclick="() => PickColor(color)"></button>
+                            }
+                        </div>
+                        <div class="mt-2">
                             @if (Column.Color is not null)
                             {
                                 <button type="button" class="btn btn-sm btn-secondary" @onclick="ResetColor">Reset color</button>
@@ -83,12 +95,12 @@
 @if (_confirmDelete)
 {
     <div class="modal-backdrop fade show" @onclick="() => _confirmDelete = false"></div>
-    <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-column-title">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Delete column?</h5>
-                    <button class="btn-close" @onclick="() => _confirmDelete = false"></button>
+                    <h5 class="modal-title" id="delete-column-title">Delete column?</h5>
+                    <button class="btn-close" aria-label="Close delete column dialog" @onclick="() => _confirmDelete = false"></button>
                 </div>
                 <div class="modal-body">
                     <p style="font-size:13px;color:var(--color-text-mid);">
@@ -120,6 +132,9 @@
     private bool _confirmDelete;
     private string _titleDraft = "";
 
+    private string ColumnStyle =>
+        PlanoraColors.SafeSurfaceBackgroundOrNull(Column.Color) is { } color ? $"background:{color};" : "";
+
     // Column/card drag-and-drop reordering is handled by SortableJS (see wwwroot/js/board-sortable.js),
     // which talks directly to Board.razor via JS interop — this component no longer needs any
     // drag event wiring of its own.
@@ -143,12 +158,12 @@
         if (e.Key == "Escape") Cancel();
     }
 
-    private async Task OnColorPicked(ChangeEventArgs e)
-    {
-        var color = e.Value?.ToString();
-        if (!string.IsNullOrWhiteSpace(color))
-            await OnColorChange.InvokeAsync(color);
-    }
+    private static string SwatchStyle(string color) => $"background:{color};";
+
+    private bool IsSelectedColor(string color) =>
+        string.Equals(PlanoraColors.SafeSurfaceBackgroundOrNull(Column.Color), color, StringComparison.OrdinalIgnoreCase);
+
+    private async Task PickColor(string color) => await OnColorChange.InvokeAsync(color);
 
     private async Task ResetColor() => await OnColorChange.InvokeAsync(null);
 

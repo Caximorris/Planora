@@ -28,14 +28,20 @@ window.planoraInitColumnsSortable = function (dotnetRef) {
 
 window.planoraInitCardLists = function (dotnetRef) {
     document.querySelectorAll('.kanban-cards-list').forEach(function (el) {
+        var disabled = el.dataset.dndDisabled === 'true';
+        if (el._planoraSortable) {
+            el._planoraSortable.option('disabled', disabled);
+            return;
+        }
         if (el.dataset.sortableInit === 'true') return;
         el.dataset.sortableInit = 'true';
 
-        new Sortable(el, {
+        el._planoraSortable = new Sortable(el, {
             group: 'planora-cards',
             animation: 150,
             forceFallback: true,
             fallbackOnBody: true,
+            disabled: disabled,
             onEnd: function (evt) {
                 var cardId = evt.item.dataset.cardId;
                 var targetColumnId = evt.to.dataset.columnId;
