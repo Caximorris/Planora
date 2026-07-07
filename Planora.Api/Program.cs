@@ -14,6 +14,8 @@ using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Services;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Api.Infrastructure.HealthChecks;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -146,6 +148,10 @@ builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
 // ── Validation ────────────────────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
+// ── Health checks ─────────────────────────────────────────────────────────────
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+
 // ── API ───────────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -217,5 +223,18 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// ── Health probes (anonymous; used by Azure Container Apps) ────────────────────
+// Liveness: process is up and serving. Runs no checks so a slow/broken DB does
+// not cause the container to be killed and restart-looped.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+// Readiness: only route traffic when dependencies (the database) are reachable.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 app.Run();
