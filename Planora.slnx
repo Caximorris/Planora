@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Planora.Api/Planora.Api.csproj" />
   <Project Path="Planora.Shared/Planora.Shared.csproj" />
+  <Project Path="Planora.Tests/Planora.Tests.csproj" />
   <Project Path="Planora.Web/Planora.Web.csproj" />
 </Solution>
