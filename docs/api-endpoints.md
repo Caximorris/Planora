@@ -14,6 +14,14 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | POST | /auth/login | Progressive lockout: 3→5min, 5→15min, 8→1h, 10+→24h |
 | POST | /auth/refresh | Rotates pair; reuse of revoked token revokes ALL user tokens |
 | POST | /auth/logout | AllowAnonymous; accepts optional refreshToken body |
+| POST | /auth/demo | Creates a guest account + seeds a demo workspace; returns AuthResponse |
+
+## Health (no /api prefix, anonymous)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | /health/live | Liveness — no checks (process up); always 200 while serving |
+| GET | /health/ready | Readiness — DB `CanConnect` check; 200 healthy, 503 when DB unreachable |
 
 ## Workspaces
 

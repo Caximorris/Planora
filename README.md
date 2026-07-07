@@ -72,6 +72,22 @@ Migrations run automatically on API startup. Register with any invented email �
 
 > **Note:** never run `dotnet build` while a dev server is live — it causes 404 fingerprint errors on Blazor WASM assets.
 
+## Testing
+
+API integration tests live in `Planora.Tests` (xUnit). They boot the real API in-memory with
+`WebApplicationFactory<Program>` against a throwaway `planora_test` PostgreSQL database (created and
+dropped per run — no Docker required).
+
+```bash
+# Needs local Postgres running on 5433; stop the dev servers first (the API locks Planora.Shared.dll)
+dotnet test Planora.slnx
+```
+
+## Health Checks
+
+- `GET /health/live` — liveness (process up; runs no checks)
+- `GET /health/ready` — readiness (PostgreSQL connectivity; returns 503 when the DB is unreachable)
+
 ## Deployment
 
 - Push to `main` triggers CI for both targets automatically

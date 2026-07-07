@@ -346,12 +346,16 @@ These unblock multiple features and prevent one-off hacks:
 Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server running before any
 `dotnet build` (per CLAUDE.md hot-reload rule).
 
-1. **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`.
-   Risk: L. Validate: `dotnet build Planora.Api`; hit both endpoints, stop DB → ready=503. Deps: none.
-2. **Create test project.** Goal: `Planora.Tests` (xUnit) added to `Planora.slnx`, one trivial
-   passing test. Files: new `Planora.Tests/`, `Planora.slnx`. Risk: L. Validate: `dotnet test`. Deps: none.
-3. **`WebApplicationFactory` + test DB fixture.** Goal: boot API in-memory against disposable
-   Postgres. Files: `Planora.Tests/Fixtures/*`. Risk: M. Validate: `dotnet test` boots + seeds. Deps: 2.
+> **Status (2026-07-07):** Tasks 1–3 are ✅ done and committed locally. `/health/live` + `/health/ready`
+> shipped; `Planora.Tests` (xUnit) exists with `PlanoraWebAppFactory` (`WebApplicationFactory<Program>`)
+> against a throwaway `planora_test` Postgres DB, plus passing auth-flow + readiness tests. Next: Task 4.
+
+1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
+   `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
+2. ✅ **Create test project.** Goal: `Planora.Tests` (xUnit) added to `Planora.slnx`, one trivial
+   passing test. Files: new `Planora.Tests/`, `Planora.slnx`. Risk: L. Deps: none.
+3. ✅ **`WebApplicationFactory` + test DB fixture.** Goal: boot API in-memory against disposable
+   Postgres. Files: `Planora.Tests/Infrastructure/PlanoraWebAppFactory.cs`. Risk: M. Deps: 2.
 4. **IDOR/membership tests.** Goal: assert cross-workspace board/card access is denied. Files:
    `Planora.Tests/Security/*`. Risk: L. Validate: `dotnet test`. Deps: 3.
 5. **Lockout + refresh-reuse tests.** Goal: assert thresholds + reuse→revoke-all. Files:

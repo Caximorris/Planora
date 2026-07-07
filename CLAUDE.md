@@ -17,13 +17,16 @@ Planora.slnx
 ├── Planora.Api/      Controllers/  Domain/Entities/  Application/{Interfaces,Services,Mappers,Validators}
 │                     Infrastructure/Data/  Migrations/ (19)  wwwroot/uploads/  Dockerfile
 ├── Planora.Web/      Auth/  Pages/  Components/  Services/  Layout/  wwwroot/{css,js,lib,sample-data}
-└── Planora.Shared/   DTOs/<Domain>/  Enums/  Constants/BoardLimits.cs   (contract between Api+Web)
+├── Planora.Shared/   DTOs/<Domain>/  Enums/  Constants/BoardLimits.cs   (contract between Api+Web)
+└── Planora.Tests/    xUnit integration tests — Infrastructure/PlanoraWebAppFactory, AuthFlowTests
 ```
 - Entities: `Planora.Api/Domain/Entities/` (Workspace, WorkspaceMember, WorkspaceInvitation,
   WorkspaceLabel, Board, Column, Card, CardComment, CardLabel, Checklist, ChecklistItem,
   Notification, RefreshToken, AppUser, BaseEntity).
 - DbContext + migrations: `Planora.Api/Infrastructure/Data/` and `Planora.Api/Migrations/`.
-- **No test project exists** (solution has exactly the 3 projects above).
+- **Test project**: `Planora.Tests` (xUnit) — API integration tests via `WebApplicationFactory<Program>`
+  against a dedicated `planora_test` Postgres DB (dropped + re-migrated per run; no Docker/Testcontainers).
+  Solution has 4 projects.
 - Deploy/infra: `Planora.Api/Dockerfile`, `docker-compose.yml`, `railway.json`,
   `.github/workflows/{deploy-api.yml, azure-static-web-apps-*.yml}`, `.github/dependabot.yml`.
 - Deeper detail: [session.md](session.md), [docs/architecture.md](docs/architecture.md),
@@ -37,11 +40,13 @@ cd Planora.Web && dotnet watch run   # Web  → http://localhost:5076
 dotnet restore Planora.slnx
 dotnet build   Planora.slnx          # build check — NEVER while a dev server is live (see Hot reload)
 cd Planora.Api && dotnet ef migrations add <Name>   # applied automatically on API boot
+dotnet test Planora.slnx             # integration tests — needs local Postgres up; NOT while a dev server is live
 ```
 Local DB: PostgreSQL port **5433**, db `planora`, user `postgres`, pass `admin1234`.
 Dev JWT key: `dev-super-secret-key-minimum-32-characters-long!!` (in gitignored `appsettings.Development.json`).
 - `dotnet format Planora.slnx` — available but **no `.editorconfig`** exists (SDK defaults only); verify before relying on it.
-- `dotnet test` — no test project; a no-op until one is added.
+- `dotnet test` — runs `Planora.Tests`. Needs local Postgres reachable on 5433 (it creates/drops `planora_test`).
+  The API dev server locks `Planora.Shared.dll`, so stop it first (same rule as `dotnet build`).
 
 ## Critical rules (highest value — prevent breakage)
 
@@ -129,8 +134,11 @@ shared). `wwwroot/uploads/boards/` is gitignored.
 
 ## Testing expectations
 
-- No test project today. When adding one: xUnit + `WebApplicationFactory` for API integration,
-  bUnit for Blazor components (own feature/project, don't retrofit the whole app at once).
+- `Planora.Tests` (xUnit) exists for API integration tests via `WebApplicationFactory<Program>`.
+  Config is injected through env vars in `PlanoraWebAppFactory` (Program.cs reads `Jwt:Key` inline
+  before `Build()`, so `ConfigureAppConfiguration` applies too late). Tests share one booted host +
+  migrated DB via the `Integration` collection; keep tests independent using unique data (e.g. GUID
+  emails), not shared resets. Blazor component tests (bUnit) are not set up yet — add as its own feature.
 - **Require** tests for security-sensitive changes: IDOR/access checks, auth/token/lockout flows,
   refresh-token reuse. Also cover drag/drop ordering, workspace membership/roles, search, calendar,
   and notifications when you touch them.

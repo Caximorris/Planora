@@ -6,6 +6,7 @@
 cd Planora.Api  && dotnet watch run   # API → port 8080 (PORT env var, not launchSettings)
 cd Planora.Web  && dotnet watch run   # Web → http://localhost:5076
 dotnet build Planora.slnx             # build check (never while a dev server is live)
+dotnet test  Planora.slnx             # integration tests — needs local Postgres; stop dev servers first
 cd Planora.Api && dotnet ef migrations add <Name>   # migrations run on API boot automatically
 ```
 
@@ -21,7 +22,8 @@ Full stack, patterns and roadmap: [session.md](session.md)
 Planora.slnx
 ├── Planora.Api/     Controllers/ Domain/Entities/ Application/{Mappers,Services,Validators} Infrastructure/Data/ Migrations/
 ├── Planora.Web/     Auth/ Pages/ Components/ Services/ Layout/ wwwroot/{css,js,lib/sortablejs}
-└── Planora.Shared/  DTOs/ Enums/ Constants/BoardLimits.cs
+├── Planora.Shared/  DTOs/ Enums/ Constants/BoardLimits.cs
+└── Planora.Tests/   xUnit — Infrastructure/PlanoraWebAppFactory, AuthFlowTests
 ```
 
 ## Critical Rules
@@ -41,8 +43,11 @@ Planora.slnx
 - Push to `main` auto-deploys API (Azure Container Apps) and Web (Azure Static Web Apps). Ask before pushing.
 - `appsettings.Development.json` has real local credentials — never commit it.
 
-**No tests**
-- No test projects exist. If adding tests: own feature, WebApplicationFactory for API, bUnit for Blazor.
+**Tests**
+- `Planora.Tests` (xUnit) covers the API via `WebApplicationFactory<Program>` against a throwaway
+  `planora_test` Postgres DB (no Docker). Config injected via env vars in `PlanoraWebAppFactory`.
+- Run `dotnet test` only with dev servers stopped (the API locks `Planora.Shared.dll`).
+- bUnit for Blazor components is not set up yet — add as its own feature when needed.
 
 ## Auth & Authorization
 

@@ -48,10 +48,13 @@ Planora.slnx
 │       ├── css/app.css
 │       ├── js/               board-sortable.js, theme.js, search.js
 │       └── lib/sortablejs/
-└── Planora.Shared/
-    ├── DTOs/                 Request/response types for every entity + Search
-    ├── Enums/                Priority, NotificationType, SearchResultType, …
-    └── Constants/            BoardLimits.MaxCoverImageBytes
+├── Planora.Shared/
+│   ├── DTOs/                 Request/response types for every entity + Search
+│   ├── Enums/                Priority, NotificationType, SearchResultType, …
+│   └── Constants/            BoardLimits.MaxCoverImageBytes
+└── Planora.Tests/           xUnit integration tests
+    ├── Infrastructure/       PlanoraWebAppFactory (WebApplicationFactory<Program>)
+    └── AuthFlowTests.cs      register/login/lockout/readiness flows
 ```
 
 ---
@@ -92,6 +95,13 @@ Planora.slnx
 - `UserId` always from JWT claims, never from request body
 - HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - Structured audit logging with correlation IDs
+
+### Operational
+- **Health checks** — `GET /health/live` (liveness, no checks) and `GET /health/ready`
+  (readiness, DB `CanConnect` → 503 when DB down). For Azure Container Apps probes.
+- **Integration tests** — `Planora.Tests` (xUnit) boots the API via `WebApplicationFactory<Program>`
+  against a throwaway `planora_test` Postgres DB. Config injected via env vars (Program.cs reads
+  `Jwt:Key` inline before host build). Run `dotnet test` with dev servers stopped.
 
 ---
 
@@ -172,7 +182,8 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 - `Update*Request` validators not implemented (only `Create*`)
 - No rate limiting on cover image upload endpoint
 - SortableJS `evt.newIndex` is relative to filtered list when priority filter is active — reorder sends wrong position
-- No test projects (deliberate; if adding: WebApplicationFactory for API, bUnit for Blazor)
+- API integration tests exist (`Planora.Tests`); no bUnit Blazor component tests yet
+- `dotnet test` needs local Postgres up and dev servers stopped (API locks `Planora.Shared.dll`)
 - `appsettings.Development.json` not committed — contains local DB password and dev JWT key
 
 ---
@@ -203,4 +214,10 @@ DB:   Host=localhost;Port=5433;Database=planora;Username=postgres;Password=admin
 Migrations run automatically on API startup. Add with:
 ```bash
 cd Planora.Api && dotnet ef migrations add <Name>
+```
+
+Run integration tests (needs local Postgres on 5433; stop dev servers first — the API locks
+`Planora.Shared.dll`). Tests create and drop a separate `planora_test` database:
+```bash
+dotnet test Planora.slnx
 ```
