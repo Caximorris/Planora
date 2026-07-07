@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Components.Forms;
 using Planora.Shared.Constants;
+using Planora.Shared.DTOs.Activity;
 using Planora.Shared.DTOs.Board;
 
 namespace Planora.Web.Services;
@@ -28,6 +29,9 @@ public class BoardService
 
     public Task<List<BoardDto>?> GetByWorkspaceAsync(Guid workspaceId, bool includeArchived = false) =>
         _http.GetFromJsonAsync<List<BoardDto>>($"api/workspaces/{workspaceId}/boards?includeArchived={includeArchived}");
+
+    public Task<List<ActivityEventDto>?> GetActivityAsync(Guid boardId, int take = 30) =>
+        _http.GetFromJsonAsync<List<ActivityEventDto>>($"api/boards/{boardId}/activity?take={take}");
 
     public async Task<BoardDto?> ArchiveAsync(Guid id)
     {

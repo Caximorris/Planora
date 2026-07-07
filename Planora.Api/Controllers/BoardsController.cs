@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,7 @@ using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
 using Planora.Shared.Constants;
+using Planora.Shared.DTOs.Activity;
 using Planora.Shared.DTOs.Board;
 
 namespace Planora.Api.Controllers;
@@ -61,6 +63,42 @@ public class BoardsController : ControllerBase
         if (!isMember) return Forbid();
 
         return Ok(board.ToDetailDto());
+    }
+
+    [HttpGet("{id:guid}/activity")]
+    public async Task<IActionResult> GetActivity(Guid id, [FromQuery] int take = 30)
+    {
+        take = Math.Clamp(take, 1, 100);
+
+        var board = await _db.Boards
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id);
+        if (board is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        var events = await _db.ActivityEvents
+            .Include(e => e.Actor)
+            .Where(e => e.BoardId == id && e.WorkspaceId == board.WorkspaceId)
+            .OrderByDescending(e => e.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+
+        return Ok(events.Select(e => new ActivityEventDto
+        {
+            Id = e.Id,
+            ActorUserId = e.ActorUserId,
+            ActorDisplayName = e.Actor.DisplayName,
+            Verb = e.Verb,
+            TargetType = e.TargetType,
+            TargetId = e.TargetId,
+            WorkspaceId = e.WorkspaceId,
+            BoardId = e.BoardId,
+            Summary = BuildActivitySummary(e),
+            CreatedAt = e.CreatedAt
+        }));
     }
 
     [HttpPost]
@@ -237,4 +275,35 @@ public class BoardsController : ControllerBase
             && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
         _ => false,
     };
+
+    private static string BuildActivitySummary(ActivityEvent activity)
+    {
+        using var payload = JsonDocument.Parse(activity.PayloadJson);
+        var root = payload.RootElement;
+        var title = GetPayloadString(root, "title", "a card");
+
+        return activity.Verb switch
+        {
+            "card.created" => $"Created \"{title}\" in \"{GetPayloadString(root, "columnTitle", "a column")}\"",
+            "card.moved" when GetPayloadString(root, "fromColumnId") == GetPayloadString(root, "toColumnId")
+                => $"Reordered \"{title}\" in \"{GetPayloadString(root, "toColumnTitle", "a column")}\"",
+            "card.moved" => $"Moved \"{title}\" from \"{GetPayloadString(root, "fromColumnTitle", "a column")}\" to \"{GetPayloadString(root, "toColumnTitle", "another column")}\"",
+            _ => activity.Verb
+        };
+    }
+
+    private static string GetPayloadString(JsonElement payload, string name, string fallback = "")
+    {
+        if (!payload.TryGetProperty(name, out var value))
+            return fallback;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? fallback,
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => fallback
+        };
+    }
 }

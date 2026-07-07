@@ -15,6 +15,13 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | POST | /auth/refresh | Rotates pair; reuse of revoked token revokes ALL user tokens |
 | POST | /auth/logout | AllowAnonymous; accepts optional refreshToken body |
 | POST | /auth/demo | Creates a guest account + seeds a demo workspace; returns AuthResponse |
+| POST | /auth/forgot-password | Rate-limited; no account enumeration |
+| POST | /auth/reset-password | Single-use Identity token; revokes refresh tokens |
+| POST | /auth/confirm-email | Optional verification while local/console email is used |
+| POST | /auth/send-email-confirmation | Authorized; sends/resends verification |
+| POST | /auth/sessions | Authorized; lists active refresh-token sessions |
+| POST | /auth/sessions/revoke | Authorized; revokes one session by id |
+| POST | /auth/sessions/revoke-others | Authorized; keeps the current refresh-token session |
 
 ## Health (no /api prefix, anonymous)
 
@@ -28,9 +35,27 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | /workspaces | All workspaces user is member of |
+| GET | /workspaces/{id} | Member-gated |
 | POST | /workspaces | Creates workspace + seeds demo board |
+| PUT | /workspaces/{id} | Owner/Admin only |
+| GET | /workspaces/{id}/members | Member-gated |
+| DELETE | /workspaces/{id}/members/{userId} | Owner/Admin; cannot remove workspace owner |
+| PATCH | /workspaces/{id}/members/{userId} | Owner only; cannot assign Owner here |
 | GET | /workspaces/{id}/boards | Ordered by Position |
-| DELETE | /workspaces/{id} | Membership check |
+| GET | /workspaces/{id}/calendar | Member-gated due-date feed |
+| POST | /workspaces/{id}/invitations | Owner/Admin; creates pending invitation |
+| DELETE | /workspaces/{id}/invitations/{invitationId} | Owner/Admin; revokes pending invitation |
+| POST | /workspaces/{id}/transfer-ownership | Owner only; target must already be a member |
+| POST | /workspaces/{id}/leave | Member self-leave; current Owner must transfer first |
+| DELETE | /workspaces/{id} | Owner only |
+
+## Invitations
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | /invitations/{token} | Anonymous lookup; expires stale pending invitations |
+| POST | /invitations/{token}/accept | Authorized; invitee email must match |
+| POST | /invitations/{token}/decline | Authorized; invitee email must match |
 
 ## Boards
 
@@ -42,6 +67,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | DELETE | /boards/{id} | |
 | POST | /boards/{id}/cover-image | multipart/form-data; magic bytes + allowlist; max 5MB |
 | DELETE | /boards/{id}/cover-image | |
+| GET | /boards/{id}/activity | Member-gated board activity feed, newest first |
 
 ## Columns, Cards, Checklists, Labels
 

@@ -85,14 +85,16 @@ here is a flashy feature; all of it is what separates "serious" from "demo."
 - Test foundation: xUnit + `WebApplicationFactory`, seeded with the security-critical cases
   (IDOR, lockout, refresh reuse, membership).
 - GitHub Actions CI that builds the solution and runs those tests on every PR.
-- Password reset + email verification via an `IEmailSender` abstraction (console sink in dev).
+- Password reset + email verification via an `IEmailSender` abstraction (console/local sink until a real
+  sender domain/provider exists).
 
 **Why now:** #1 and #2 are active reliability/ops defects. Tests + CI must land early because every
 later phase changes security-adjacent code and you have no safety net today.
 
 **Implementation notes:** the storage interface is the keystone — attachments (Phase 2) depend on
 it. Keep `IEmailSender` a thin interface with a no-op/console dev implementation so you don't couple
-the portfolio to a paid email provider.
+the portfolio to a paid email provider. Until a sender domain/provider exists, email verification stays
+optional and login must not require `EmailConfirmed`.
 
 **Risks:** Blob migration must keep existing `CoverImageUrl` values resolvable (dual-read during
 transition). CI is low risk. Email flows touch `AuthController` — the most security-sensitive file —
@@ -244,8 +246,10 @@ revoke-all, membership required on board/card endpoints.
 **MVP scope:** `IEmailSender` (console dev sink), Identity token providers for reset + confirm,
 endpoints + rate limiting, minimal Blazor pages. Verification optional-but-encouraged, not enforced.
 **Don't build yet:** transactional email provider integration, templated HTML emails.
-**Acceptance:** reset token is single-use, expires, rotates `SecurityStamp` on password change.
-**Tests:** reset happy path, expired/replayed token rejected, lockout interaction.
+**Acceptance:** reset token is single-use, expires, rotates `SecurityStamp` on password change; email
+confirmation flips `EmailConfirmed` without blocking login for unverified accounts.
+**Tests:** reset happy path, expired/replayed token rejected, lockout interaction, confirm-email happy
+path and invalid token rejection.
 
 ### 6. Card attachments (P1)
 **Why:** highest "real product" signal; reuses #1 directly.
@@ -358,8 +362,21 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > behavior change; `Boards/CoverImageTests` added (upload/validation/scope). 20 tests green.
 > Tasks 8–9 (Azure Blob impl + dual-read) **paused** pending a deploy-target/SDK decision (Azure Blob
 > vs Railway; see Assumptions §storage). Task 10 ✅: `IEmailSender` + `ConsoleEmailSender` dev sink
-> registered in `Program.cs` (dev-only; must be replaced by a real provider in prod). Next: Task 11
-> (password reset flow) — builds on Task 10.
+> registered in `Program.cs` (dev-only; must be replaced by a real provider in prod). Task 11 ✅:
+> password reset request/confirm endpoints, Blazor forgot/reset pages, auth-client integration, and
+> `PasswordResetTests` are in place. Task 12 ✅: email verification remains opt-in while there is no
+> company sender domain/provider; register/resend/confirm endpoints, profile status/action, confirm page,
+> and `EmailVerificationTests` are in place. Tasks 13-14 ✅: `ActivityEvent` spine, migration, card
+> create/move emission, and board activity feed API/UI are in place with scoped tests. Task 15 ✅:
+> session/device management lists active refresh-token sessions, marks the current session, revokes
+> one session, and revokes all other sessions from Profile. Email verification remains optional while
+> there is no company sender domain/provider. `dotnet test Planora.slnx` passes with 38 tests; full
+> `dotnet build Planora.slnx` is clean. Chrome/Playwright verified register → profile sessions →
+> revoke others on desktop and mobile with no horizontal overflow. Task 16 ✅: workspace invitation
+> revocation, ownership transfer, and self-leave endpoints are in place with authorization guards and
+> lifecycle tests. `docs/api-endpoints.md` is updated for the new auth/workspace/invitation routes.
+> `dotnet test Planora.slnx` passes with 43 tests; full `dotnet build Planora.slnx` is clean. Next:
+> Task 17 (workspace settings + member/invite UI) or resume Tasks 8-9 after the deploy-target/SDK decision.
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -387,23 +404,39 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 10. ✅ **`IEmailSender` + console dev sink.** Goal: interface + no-op/console impl registered. Files:
     `Application/Interfaces/IEmailSender.cs`, `Infrastructure/Email/ConsoleEmailSender.cs`, `Program.cs`.
     Risk: L. Validated: `dotnet build` clean; dev sink logs the email (dev-only, replace in prod). Deps: none.
-11. **Password reset flow.** Goal: request/confirm endpoints (rate-limited) + Blazor pages. Files:
-    `AuthController`, `Planora.Web/Pages/Auth/*`, `AuthService`. Risk: M. Validate: token single-use,
-    expires, rotates SecurityStamp; tests. Deps: 10, 3.
-12. **Email verification (opt-in).** Goal: send on register, confirm endpoint, show status. Files:
-    `AuthController`, profile page. Risk: M. Validate: confirm flips `EmailConfirmed`; test. Deps: 10.
-13. **`ActivityEvent` entity + migration + emit on card create/move.** Goal: append-only events.
-    Files: new entity, `DbContext`, migration, `CardsController`/service. Risk: M. Validate:
-    `dotnet build Planora.Api`; moving a card writes one scoped event; test. Deps: 3.
-14. **Board activity feed (API + UI).** Goal: newest-first feed for a board. Files: `BoardsController`,
-    `Planora.Web` feed component/service. Risk: L. Validate: feed shows events, no cross-workspace
-    leak; test. Deps: 13.
-15. **Session management (list + revoke).** Goal: list refresh sessions, revoke one/others. Files:
-    `AuthController`, `RefreshTokenService`, profile UI. Risk: L. Validate: revoke invalidates
-    immediately; test. Deps: 3.
-16. **Invite revocation + transfer ownership + leave workspace.** Goal: three endpoints + guards.
-    Files: `InvitationsController`, `WorkspacesController`, services, `Planora.Shared` DTOs. Risk: M.
-    Validate: sole owner can't leave; revoked invite rejected; transfer is atomic; tests. Deps: 3.
+11. ✅ **Password reset flow.** Goal: request/confirm endpoints (rate-limited) + Blazor pages. Files:
+    `AuthController`, `Planora.Web/Pages/ForgotPassword.razor`,
+    `Planora.Web/Pages/ResetPassword.razor`, `AuthService`,
+    `Planora.Tests/Auth/PasswordResetTests.cs`. Risk: M. Validated: token single-use, invalid token
+    rejected, reset rotates SecurityStamp/invalidates old JWTs, lockout clears, unknown accounts are not
+    revealed; `dotnet test Planora.slnx` green (27 tests). Deps: 10, 3.
+12. ✅ **Email verification (opt-in).** Goal: send on register, confirm endpoint, show status. Files:
+    `AuthController`, `UsersController`, `Planora.Web/Pages/Profile.razor`,
+    `Planora.Web/Pages/ConfirmEmail.razor`, `AuthService`, `UserService`,
+    `Planora.Tests/Auth/EmailVerificationTests.cs`. Risk: M. Validated: confirmation flips
+    `EmailConfirmed`, invalid token rejected, resend works, unverified users can still log in while the
+    app uses console/local email delivery; `dotnet test Planora.slnx` green (31 tests) and full build
+    clean. Deps: 10.
+13. ✅ **`ActivityEvent` entity + migration + emit on card create/move.** Goal: append-only events.
+    Files: `Domain/Entities/ActivityEvent.cs`, `ActivityEventConfiguration`, `ApplicationDbContext`,
+    `20260707143508_AddActivityEvents`, `CardsController`. Risk: M. Validated: card create and
+    move/reorder write scoped events with JSON payload; tests. Deps: 3.
+14. ✅ **Board activity feed (API + UI).** Goal: newest-first feed for a board. Files:
+    `BoardsController`, `Planora.Shared/DTOs/Activity/ActivityEventDto.cs`, `BoardService`,
+    `Board.razor`, `app.css`. Risk: L. Validated: feed returns newest-first events and denies
+    non-members; `dotnet test Planora.slnx` green (34 tests), full build clean. Deps: 13.
+15. ✅ **Session management (list + revoke).** Goal: list refresh sessions, revoke one/others. Files:
+    `AuthController`, `RefreshTokenService`, auth session DTOs, `AuthService`, `Profile.razor`,
+    `app.css`, `Planora.Tests/Auth/RefreshTokenTests.cs`. Risk: L. Validated: current session is
+    flagged, revoking one token invalidates that token only, revoking others keeps the current session,
+    another user's session cannot be revoked, `dotnet test Planora.slnx` green (38 tests), full build
+    clean, and Chrome/Playwright verified the Profile session UI on desktop/mobile. Deps: 3.
+16. ✅ **Invite revocation + transfer ownership + leave workspace.** Goal: three endpoints + guards.
+    Files: `WorkspacesController`, `Planora.Shared/DTOs/Workspace/TransferWorkspaceOwnershipRequest.cs`,
+    `InvitationStatus`, `Planora.Tests/Workspaces/WorkspaceLifecycleTests.cs`,
+    `docs/api-endpoints.md`. Risk: M. Validated: owner can transfer ownership then leave, non-owner
+    cannot transfer, sole owner cannot leave, revoked invite token cannot be accepted, member cannot
+    revoke invitations; focused integration tests green. Deps: 3.
 17. **Workspace settings + member/invite UI.** Goal: surface members, roles, invites, the new verbs.
     Files: `Planora.Web/Pages/WorkspaceSettings.razor`, services. Risk: M. Validate: full lifecycle
     clickable; contract compiles both projects. Deps: 16.
@@ -480,8 +513,12 @@ software."
 - **Change-password** is assumed to already exist (CLAUDE.md states `SecurityStamp` rotates on
   password change); only *reset* (forgot-password, email-based) and *email verification* are treated
   as missing. Confirm the exact `AuthController` surface before scheduling task 11/12.
-- **Invite expiration enforcement:** `ExpiresAt` exists on `WorkspaceInvitation`; I did not verify the
-  accept path rejects expired tokens. Verify before building revocation (§task 16).
+- **Email provider:** no company sender email/domain exists yet. Keep email verification, password
+  reset, and future notification emails behind `IEmailSender`; do not require confirmed email for login
+  until a real provider is configured and monitored. If two-step auth is added before then, prefer app
+  authenticator/TOTP over email codes.
+- **Invite expiration enforcement:** the accept/lookup paths mark stale pending invitations as
+  `Expired`, and task 16 keeps revocation limited to still-pending invitations.
 - **Storage target** assumed to be Azure Blob (matches the Azure hosting). If deployment is actually
   Railway (a `railway.json` exists), swap the impl behind `IFileStorage` — the abstraction makes this
   a one-file decision.

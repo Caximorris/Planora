@@ -147,6 +147,62 @@ public class WorkspacesController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/transfer-ownership")]
+    public async Task<IActionResult> TransferOwnership(Guid id, [FromBody] TransferWorkspaceOwnershipRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewOwnerUserId))
+            return BadRequest("New owner is required.");
+
+        var workspace = await _db.Workspaces
+            .Include(w => w.Members)
+            .FirstOrDefaultAsync(w => w.Id == id);
+
+        if (workspace is null) return NotFound();
+
+        var callerMember = workspace.Members.FirstOrDefault(m => m.UserId == UserId);
+        if (callerMember is null) return Forbid();
+        if (workspace.OwnerId != UserId || callerMember.Role != WorkspaceRole.Owner)
+            return Forbid();
+
+        if (request.NewOwnerUserId == UserId)
+            return BadRequest("You already own this workspace.");
+
+        var newOwner = workspace.Members.FirstOrDefault(m => m.UserId == request.NewOwnerUserId);
+        if (newOwner is null)
+            return NotFound("New owner must already be a workspace member.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
+        workspace.OwnerId = newOwner.UserId;
+        newOwner.Role = WorkspaceRole.Owner;
+        callerMember.Role = WorkspaceRole.Admin;
+
+        await _db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        return Ok(workspace.ToDto());
+    }
+
+    [HttpPost("{id:guid}/leave")]
+    public async Task<IActionResult> Leave(Guid id)
+    {
+        var workspace = await _db.Workspaces
+            .Include(w => w.Members)
+            .FirstOrDefaultAsync(w => w.Id == id);
+
+        if (workspace is null) return NotFound();
+
+        var member = workspace.Members.FirstOrDefault(m => m.UserId == UserId);
+        if (member is null) return Forbid();
+
+        if (workspace.OwnerId == UserId)
+            return BadRequest("Transfer ownership before leaving this workspace.");
+
+        _db.WorkspaceMembers.Remove(member);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}/calendar")]
     public async Task<IActionResult> GetCalendar(Guid id, [FromQuery] string? month)
     {
@@ -263,6 +319,35 @@ public class WorkspacesController : ControllerBase
             ExpiresAt = invitation.ExpiresAt,
             Token = invitation.Token
         });
+    }
+
+    [HttpDelete("{id:guid}/invitations/{invitationId:guid}")]
+    public async Task<IActionResult> RevokeInvitation(Guid id, Guid invitationId)
+    {
+        var callerMember = await _db.WorkspaceMembers
+            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
+
+        if (callerMember is null || (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin))
+            return Forbid();
+
+        var invitation = await _db.WorkspaceInvitations
+            .FirstOrDefaultAsync(i => i.WorkspaceId == id && i.Id == invitationId);
+
+        if (invitation is null) return NotFound();
+
+        if (invitation.Status == InvitationStatus.Pending && invitation.ExpiresAt < DateTime.UtcNow)
+        {
+            invitation.Status = InvitationStatus.Expired;
+            await _db.SaveChangesAsync();
+            return BadRequest("This invitation is expired and can no longer be revoked.");
+        }
+
+        if (invitation.Status != InvitationStatus.Pending)
+            return BadRequest($"This invitation is already {invitation.Status.ToString().ToLower()}.");
+
+        invitation.Status = InvitationStatus.Revoked;
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost]

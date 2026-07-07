@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Planora.Api.Application.Interfaces;
 using Planora.Api.Infrastructure.Data;
 
 namespace Planora.Tests.Infrastructure;
@@ -38,6 +42,19 @@ public sealed class PlanoraWebAppFactory : WebApplicationFactory<Program>, IAsyn
         // suite fires many auth calls in one minute, so raise the limit to avoid spurious 429s.
         // Lockout still returns 429 through its own path, which these tests assert independently.
         Environment.SetEnvironmentVariable("RateLimiting__AuthPermitLimit", "10000");
+    }
+
+    /// <summary>Records emails the API "sends" so tests can assert on them.</summary>
+    public CapturingEmailSender EmailSender { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // Replace the console email sink with a capturing double for assertions.
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
+        });
     }
 
     public async Task InitializeAsync()

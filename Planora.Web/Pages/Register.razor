@@ -14,15 +14,15 @@
 
         <div class="mb-3">
             <label class="form-label">Display name</label>
-            <input class="form-control" @bind="_displayName" placeholder="Your name" />
+            <input class="form-control" @bind="_displayName" @bind:event="oninput" placeholder="Your name" />
         </div>
         <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" class="form-control" @bind="_email" placeholder="you@example.com" />
+            <input type="email" class="form-control" @bind="_email" @bind:event="oninput" placeholder="you@example.com" />
         </div>
         <div class="mb-3">
             <label class="form-label">Password</label>
-            <input type="password" class="form-control" @bind="_password" placeholder="At least 8 characters" />
+            <input type="password" class="form-control" @bind="_password" @bind:event="oninput" placeholder="At least 8 characters" />
         </div>
         <button class="btn btn-primary w-100" @onclick="HandleRegister" disabled="@_loading">
             @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }

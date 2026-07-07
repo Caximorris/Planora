@@ -44,10 +44,29 @@
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Email</div>
-                        <div class="profile-row-desc">Used to sign in</div>
+                        <div class="profile-row-desc">@(_emailConfirmed ? "Verified for account recovery" : "Not verified")</div>
                     </div>
-                    <input class="form-control profile-row-input" value="@(context.User.FindFirst("email")?.Value)" disabled />
+                    <div class="profile-email-actions">
+                        <input class="form-control profile-row-input" value="@_email" disabled />
+                        @if (_emailConfirmed)
+                        {
+                            <span class="profile-status-badge profile-status-badge--success">Verified</span>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="SendEmailConfirmation" disabled="@_sendingVerification">
+                                @if (_sendingVerification) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Send verification
+                            </button>
+                        }
+                    </div>
                 </div>
+                @if (_emailVerifyMessage is not null)
+                {
+                    <div class="alert @(_emailVerifySuccess == true ? "alert-success" : "alert-danger") py-1 mt-1" style="font-size:13px;">
+                        @_emailVerifyMessage
+                    </div>
+                }
             </div>
 
             <div class="profile-section">
@@ -116,8 +135,71 @@
                         <div class="profile-row-label">Active sessions</div>
                         <div class="profile-row-desc">See and manage where you're signed in</div>
                     </div>
-                    <button type="button" class="btn btn-secondary btn-sm" disabled>Manage <span class="profile-soon-badge">Soon</span></button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ToggleSessions">
+                        @(_showSessions ? "Hide" : "Manage")
+                    </button>
                 </div>
+                @if (_showSessions)
+                {
+                    <div class="session-panel">
+                        <div class="session-toolbar">
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => LoadSessions()" disabled="@_loadingSessions">
+                                @if (_loadingSessions) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Refresh
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="RevokeOtherSessions" disabled="@(_savingSessions || !_sessions.Any(s => !s.IsCurrent))">
+                                Revoke others
+                            </button>
+                        </div>
+                        @if (_sessionsMessage is not null)
+                        {
+                            <div class="alert @(_sessionsSuccess == true ? "alert-success" : "alert-danger") py-1 mb-2" style="font-size:13px;">
+                                @_sessionsMessage
+                            </div>
+                        }
+                        @if (_loadingSessions)
+                        {
+                            <div class="session-loading">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Loading sessions...
+                            </div>
+                        }
+                        else if (_sessions.Count == 0)
+                        {
+                            <div class="session-empty">No active sessions found.</div>
+                        }
+                        else
+                        {
+                            <div class="session-list">
+                                @foreach (var session in _sessions)
+                                {
+                                    <div class="session-item" @key="session.Id">
+                                        <div>
+                                            <div class="session-title">
+                                                @(session.IsCurrent ? "Current session" : "Signed-in session")
+                                            </div>
+                                            <div class="session-meta">
+                                                Created @FormatSessionTime(session.CreatedAt) · Expires @FormatSessionTime(session.ExpiresAt)
+                                            </div>
+                                        </div>
+                                        @if (session.IsCurrent)
+                                        {
+                                            <span class="profile-status-badge profile-status-badge--success">Current</span>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => RevokeSession(session.Id)"
+                                                    disabled="@_savingSessions">
+                                                Revoke
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             </div>
 
             <div class="profile-section">
@@ -155,14 +237,21 @@
 @code {
     [Inject] IJSRuntime JS { get; set; } = null!;
     [Inject] UserService UserService { get; set; } = null!;
+    [Inject] AuthService AuthService { get; set; } = null!;
     [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
 
     private string _theme = "light";
     private string _displayName = "";
+    private string _email = "";
+    private bool _emailConfirmed;
 
     private bool _savingName;
     private bool? _nameSuccess;
     private string? _nameMessage;
+
+    private bool _sendingVerification;
+    private bool? _emailVerifySuccess;
+    private string? _emailVerifyMessage;
 
     private bool _showChangePwd;
     private string _currentPwd = "";
@@ -172,11 +261,27 @@
     private bool? _pwdSuccess;
     private string? _pwdMessage;
 
+    private bool _showSessions;
+    private bool _loadingSessions;
+    private bool _savingSessions;
+    private bool? _sessionsSuccess;
+    private string? _sessionsMessage;
+    private List<RefreshSessionDto> _sessions = [];
+
     protected override async Task OnInitializedAsync()
     {
         _theme = await JS.InvokeAsync<string>("planoraGetTheme");
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         _displayName = state.User.FindFirst("displayName")?.Value ?? "";
+        _email = state.User.FindFirst("email")?.Value ?? "";
+
+        var (profile, _) = await UserService.GetProfileAsync();
+        if (profile is not null)
+        {
+            _displayName = profile.DisplayName;
+            _email = profile.Email;
+            _emailConfirmed = profile.EmailConfirmed;
+        }
     }
 
     private async Task SetTheme(string theme)
@@ -194,6 +299,84 @@
         _nameSuccess = ok;
         _nameMessage = ok ? "Display name updated." : (error ?? "Could not save.");
         _savingName = false;
+    }
+
+    private async Task SendEmailConfirmation()
+    {
+        if (_sendingVerification)
+            return;
+
+        _sendingVerification = true;
+        _emailVerifySuccess = null;
+        _emailVerifyMessage = null;
+
+        var (ok, error) = await AuthService.SendEmailConfirmationAsync();
+        _emailVerifySuccess = ok;
+        _emailVerifyMessage = ok
+            ? "Verification email sent."
+            : (error ?? "Could not send verification email.");
+
+        _sendingVerification = false;
+    }
+
+    private static string FormatSessionTime(DateTime value) =>
+        value.ToLocalTime().ToString("MMM d, HH:mm");
+
+    private async Task ToggleSessions()
+    {
+        _showSessions = !_showSessions;
+        if (_showSessions && _sessions.Count == 0)
+            await LoadSessions();
+    }
+
+    private async Task LoadSessions(bool clearMessage = true)
+    {
+        _loadingSessions = true;
+        if (clearMessage)
+        {
+            _sessionsMessage = null;
+            _sessionsSuccess = null;
+        }
+
+        var (sessions, error) = await AuthService.GetSessionsAsync();
+        _sessions = sessions;
+        if (error is not null)
+        {
+            _sessionsSuccess = false;
+            _sessionsMessage = error;
+        }
+
+        _loadingSessions = false;
+    }
+
+    private async Task RevokeSession(Guid sessionId)
+    {
+        _savingSessions = true;
+        _sessionsMessage = null;
+        _sessionsSuccess = null;
+
+        var (ok, error) = await AuthService.RevokeSessionAsync(sessionId);
+        _sessionsSuccess = ok;
+        _sessionsMessage = ok ? "Session revoked." : (error ?? "Could not revoke that session.");
+        if (ok)
+            await LoadSessions(clearMessage: false);
+
+        _savingSessions = false;
+    }
+
+    private async Task RevokeOtherSessions()
+    {
+        _savingSessions = true;
+        _sessionsMessage = null;
+        _sessionsSuccess = null;
+
+        var (ok, error) = await AuthService.RevokeOtherSessionsAsync();
+        _sessionsSuccess = ok;
+        _sessionsMessage = ok ? "Other sessions revoked." : (error ?? "Could not revoke other sessions.");
+        if (ok)
+            await LoadSessions(clearMessage: false);
+
+        _savingSessions = false;
     }
 
     private async Task ChangePassword()

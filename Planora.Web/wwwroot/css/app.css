@@ -411,6 +411,47 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
 .profile-row-desc { font-size: 12px; color: var(--color-text-mid); margin-top: 2px; }
 .profile-row-input { max-width: 260px; }
 .profile-row--danger .profile-row-label { color: var(--color-danger); }
+.profile-email-actions {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 0.5rem; min-width: 0; flex-wrap: wrap;
+}
+.profile-status-badge {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; border-radius: var(--radius-full); padding: 3px 8px;
+}
+.profile-status-badge--success {
+    color: var(--teal-800); background: var(--teal-100);
+    border: 1px solid var(--teal-200);
+}
+.session-panel {
+    border-top: 1px solid var(--color-border-lo);
+    padding-top: 0.9rem;
+}
+.session-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+}
+.session-list { display: flex; flex-direction: column; gap: 0.55rem; }
+.session-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.75rem; min-width: 0;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border-lo);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 0.85rem;
+}
+.session-item > div { min-width: 0; }
+.session-title { font-size: 13px; font-weight: 700; color: var(--color-text); }
+.session-meta {
+    font-size: 11px; color: var(--color-text-low); margin-top: 2px;
+    overflow-wrap: anywhere;
+}
+.session-loading,
+.session-empty {
+    color: var(--color-text-mid);
+    font-size: 13px;
+    padding: 0.75rem 0;
+}
 
 .profile-theme-options { display: flex; gap: 0.4rem; }
 .profile-theme-btn {
@@ -604,6 +645,22 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     font-size: 0.95rem; font-weight: 700;
     color: var(--mint-300); padding: 3px 4px; letter-spacing: -0.2px;
     min-width: 0; overflow-wrap: anywhere;
+}
+.board-header-action {
+    border: 1px solid rgba(226,232,240,0.22);
+    background: rgba(226,232,240,0.08);
+    color: rgba(226,232,240,0.78);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.board-header-action:hover {
+    background: rgba(226,232,240,0.16);
+    color: var(--mint-300);
+    border-color: rgba(34,211,238,0.45);
 }
 .board-filter { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
 .board-filter-label { font-size: 11px; color: rgba(226,232,240,0.45); }
@@ -825,6 +882,17 @@ html[data-theme="dark"] .card-desc-preview { color: var(--lav-400); }
 }
 .modal-body { padding: 1.25rem 1.5rem; overflow-y: auto; min-height: 0; overflow-wrap: anywhere; }
 .modal-title { font-size: 15px; font-weight: 700; color: var(--color-text); letter-spacing: -0.2px; }
+
+.activity-list { display: flex; flex-direction: column; gap: 0.85rem; }
+.activity-item { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+.activity-dot {
+    width: 8px; height: 8px; margin-top: 0.35rem; border-radius: 50%;
+    background: var(--teal); box-shadow: 0 0 0 3px var(--teal-100);
+}
+.activity-copy { min-width: 0; }
+.activity-summary { font-size: 13px; font-weight: 600; color: var(--color-text); line-height: 1.35; }
+.activity-meta { font-size: 11px; color: var(--color-text-low); margin-top: 2px; }
+.activity-empty { margin: 0; color: var(--color-text-mid); font-size: 13px; }
 .btn-close { opacity: 0.4; transition: opacity var(--transition); }
 .btn-close:hover { opacity: 1; }
 
@@ -1402,6 +1470,8 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
     .profile-root { padding: 1.25rem 1rem 2rem; }
     .profile-row { flex-wrap: wrap; }
     .profile-row-input { max-width: 100%; width: 100%; }
+    .profile-email-actions { width: 100%; justify-content: flex-start; }
+    .session-item { align-items: flex-start; flex-direction: column; }
 
     .board-header { padding: 0.5rem 0.75rem; gap: 0.3rem 0.5rem; }
     .board-breadcrumb { display: none; }

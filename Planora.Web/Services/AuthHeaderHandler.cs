@@ -31,17 +31,25 @@ public class AuthHeaderHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var token = await _localStorage.GetItemAsync<string>("authToken");
-        if (!string.IsNullOrWhiteSpace(token))
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        else
+        var isAnonymousAuthEndpoint = IsAnonymousAuthEndpoint(request);
+        if (isAnonymousAuthEndpoint)
+        {
             request.Headers.Authorization = null;
+        }
+        else
+        {
+            var token = await _localStorage.GetItemAsync<string>("authToken");
+            if (!string.IsNullOrWhiteSpace(token))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            else
+                request.Headers.Authorization = null;
+        }
 
         var response = await base.SendAsync(request, cancellationToken);
 
         // On 401 from a non-auth endpoint, attempt a silent token refresh
         if (response.StatusCode == HttpStatusCode.Unauthorized
-            && request.RequestUri?.PathAndQuery.Contains("/api/auth/") == false)
+            && !isAnonymousAuthEndpoint)
         {
             var newToken = await TrySilentRefreshAsync(cancellationToken);
             if (newToken is null)
@@ -54,6 +62,24 @@ public class AuthHeaderHandler : DelegatingHandler
         }
 
         return response;
+    }
+
+    private static bool IsAnonymousAuthEndpoint(HttpRequestMessage request)
+    {
+        var uri = request.RequestUri;
+        var path = uri is null
+            ? ""
+            : uri.IsAbsoluteUri
+                ? uri.AbsolutePath
+                : "/" + uri.OriginalString.TrimStart('/').Split('?', 2)[0];
+
+        return path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/refresh", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/demo", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/reset-password", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/auth/confirm-email", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<string?> TrySilentRefreshAsync(CancellationToken ct)

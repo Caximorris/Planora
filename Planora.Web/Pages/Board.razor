@@ -31,6 +31,7 @@ else
             </div>
             <div class="board-title-wrap">
                 <span class="board-title-display">@_board.Name</span>
+                <button type="button" class="board-header-action" @onclick="OpenActivity">Activity</button>
                 <button type="button" class="settings-gear-btn" title="Board settings" aria-label="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
             </div>
             <div class="board-filter">
@@ -340,6 +341,57 @@ else
     </div>
 }
 
+@* Activity modal *@
+@if (_showActivity)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseActivity"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="board-activity-title">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="board-activity-title">Board activity</h5>
+                    <button class="btn-close" aria-label="Close board activity" @onclick="CloseActivity"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_loadingActivity)
+                    {
+                        <div class="text-center py-3">
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            Loading activity...
+                        </div>
+                    }
+                    else if (_activityError is not null)
+                    {
+                        <div class="alert alert-danger py-2">@_activityError</div>
+                    }
+                    else if (_activity.Count == 0)
+                    {
+                        <p class="activity-empty">No activity yet.</p>
+                    }
+                    else
+                    {
+                        <div class="activity-list">
+                            @foreach (var item in _activity)
+                            {
+                                <div class="activity-item" @key="item.Id">
+                                    <div class="activity-dot" aria-hidden="true"></div>
+                                    <div class="activity-copy">
+                                        <div class="activity-summary">@item.Summary</div>
+                                        <div class="activity-meta">@item.ActorDisplayName · @FormatActivityTime(item.CreatedAt)</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseActivity">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @* Board settings *@
 @if (_showBoardSettings)
 {
@@ -494,10 +546,14 @@ else
 
     private string? _coverError;
     private bool _showBoardSettings;
+    private bool _showActivity;
     private bool _confirmDeleteBoard;
     private bool _showArchivedCards;
     private bool _loadingArchivedCards;
     private List<CardDto> _archivedCards = [];
+    private bool _loadingActivity;
+    private string? _activityError;
+    private List<ActivityEventDto> _activity = [];
 
     private List<CardCommentDto> _comments = [];
     private bool _loadingComments;
@@ -544,6 +600,9 @@ else
     private bool IsSelectedBoardColor(string color) =>
         string.Equals(PlanoraColors.SafeBoardBackgroundOrNull(_board?.CoverColor), color, StringComparison.OrdinalIgnoreCase);
 
+    private static string FormatActivityTime(DateTime createdAt) =>
+        createdAt.ToLocalTime().ToString("MMM d, HH:mm");
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -561,6 +620,31 @@ else
             _workspaceLabels = await LabelService.GetWorkspaceLabelsAsync(_board.WorkspaceId) ?? [];
         }
         _loading = false;
+    }
+
+    private async Task OpenActivity()
+    {
+        _showActivity = true;
+        _loadingActivity = true;
+        _activityError = null;
+
+        try
+        {
+            _activity = await BoardService.GetActivityAsync(Id) ?? [];
+        }
+        catch
+        {
+            _activity = [];
+            _activityError = "Could not load board activity.";
+        }
+
+        _loadingActivity = false;
+    }
+
+    private void CloseActivity()
+    {
+        _showActivity = false;
+        _activityError = null;
     }
 
     // Wires up SortableJS (wwwroot/js/board-sortable.js) on the rendered column/card lists so

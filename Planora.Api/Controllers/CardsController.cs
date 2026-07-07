@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,8 @@ namespace Planora.Api.Controllers;
 [Route("api/[controller]")]
 public class CardsController : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateCardRequest> _createValidator;
 
@@ -81,6 +84,22 @@ public class CardsController : ControllerBase
         };
 
         _db.Cards.Add(card);
+        _db.ActivityEvents.Add(new ActivityEvent
+        {
+            ActorUserId = UserId,
+            Verb = "card.created",
+            TargetType = "card",
+            TargetId = card.Id,
+            WorkspaceId = column.Board.WorkspaceId,
+            BoardId = column.BoardId,
+            PayloadJson = ToPayloadJson(new
+            {
+                title = card.Title,
+                columnId = card.ColumnId,
+                columnTitle = column.Title,
+                position = card.Position
+            })
+        });
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = card.Id }, card.ToDto());
@@ -101,6 +120,9 @@ public class CardsController : ControllerBase
         if (!isMember) return Forbid();
 
         var previousAssigneeId = card.AssigneeId;
+        var previousColumnId = card.ColumnId;
+        var previousColumnTitle = card.Column.Title;
+        var previousPosition = card.Position;
 
         if (request.Title is not null) card.Title = request.Title;
         if (request.ClearDescription) card.Description = null;
@@ -130,26 +152,47 @@ public class CardsController : ControllerBase
             card.Color = color;
         }
 
-        var previousColumnId = card.ColumnId;
+        Column? targetColumn = null;
         if (request.ColumnId.HasValue)
         {
-            var targetColumn = await _db.Columns
+            targetColumn = await _db.Columns
                 .FirstOrDefaultAsync(c => c.Id == request.ColumnId.Value && c.BoardId == card.Column.BoardId);
             if (targetColumn is null)
                 return BadRequest("Target column does not belong to the same board.");
             card.ColumnId = request.ColumnId.Value;
         }
 
+        var columnChanged = card.ColumnId != previousColumnId;
+        var positionChanged = card.Position != previousPosition;
+        if (columnChanged || positionChanged)
+        {
+            _db.ActivityEvents.Add(new ActivityEvent
+            {
+                ActorUserId = UserId,
+                Verb = "card.moved",
+                TargetType = "card",
+                TargetId = card.Id,
+                WorkspaceId = card.Column.Board.WorkspaceId,
+                BoardId = card.Column.BoardId,
+                PayloadJson = ToPayloadJson(new
+                {
+                    title = card.Title,
+                    fromColumnId = previousColumnId,
+                    fromColumnTitle = previousColumnTitle,
+                    toColumnId = card.ColumnId,
+                    toColumnTitle = targetColumn?.Title ?? previousColumnTitle,
+                    fromPosition = previousPosition,
+                    toPosition = card.Position
+                })
+            });
+        }
+
         // Notify the assignee when the card is moved to a different column (and they didn't move it themselves)
-        if (request.ColumnId.HasValue
-            && request.ColumnId.Value != previousColumnId
+        if (columnChanged
             && card.AssigneeId is not null
             && card.AssigneeId != UserId)
         {
-            var targetColumnName = await _db.Columns
-                .Where(c => c.Id == card.ColumnId)
-                .Select(c => c.Title)
-                .FirstOrDefaultAsync() ?? "another column";
+            var targetColumnName = targetColumn?.Title ?? "another column";
 
             _db.Notifications.Add(new Notification
             {
@@ -181,6 +224,8 @@ public class CardsController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(card.ToDto());
     }
+
+    private static string ToPayloadJson<T>(T payload) => JsonSerializer.Serialize(payload, JsonOptions);
 
     [HttpPatch("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id)

@@ -68,12 +68,55 @@ public class RefreshTokenService : IRefreshTokenService
         return rt?.UserId;
     }
 
+    public async Task<IReadOnlyList<RefreshToken>> GetActiveSessionsAsync(string userId) =>
+        await _db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > DateTime.UtcNow)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync();
+
     public async Task RevokeAsync(string token)
     {
         var rt = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == token);
         if (rt is null) return;
         rt.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+    }
+
+    public async Task<bool> RevokeSessionAsync(string userId, Guid sessionId)
+    {
+        var rt = await _db.RefreshTokens
+            .FirstOrDefaultAsync(t => t.Id == sessionId && t.UserId == userId && t.RevokedAt == null);
+        if (rt is null) return false;
+
+        rt.RevokedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RevokeOtherSessionsAsync(string userId, string currentRefreshToken)
+    {
+        var currentExists = await _db.RefreshTokens.AnyAsync(t =>
+            t.UserId == userId
+            && t.Token == currentRefreshToken
+            && t.RevokedAt == null
+            && t.ExpiresAt > DateTime.UtcNow);
+        if (!currentExists)
+            return false;
+
+        var active = await _db.RefreshTokens
+            .Where(t => t.UserId == userId
+                && t.RevokedAt == null
+                && t.ExpiresAt > DateTime.UtcNow
+                && t.Token != currentRefreshToken)
+            .ToListAsync();
+
+        foreach (var t in active)
+            t.RevokedAt = DateTime.UtcNow;
+
+        if (active.Count > 0)
+            await _db.SaveChangesAsync();
+
+        return true;
     }
 
     public async Task RevokeAllAsync(string userId)

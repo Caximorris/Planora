@@ -25,6 +25,20 @@ public class UsersController : ControllerBase
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
+    [HttpGet("profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var user = await _userManager.FindByIdAsync(UserId);
+        if (user is null) return NotFound();
+
+        return Ok(new UserProfileDto
+        {
+            DisplayName = user.DisplayName,
+            Email = user.Email ?? string.Empty,
+            EmailConfirmed = user.EmailConfirmed
+        });
+    }
+
     [HttpPut("profile")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)

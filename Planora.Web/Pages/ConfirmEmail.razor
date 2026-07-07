@@ -1,0 +1,66 @@
+@page "/confirm-email"
+@using System.Web
+@using Planora.Shared.DTOs.Auth
+
+<PageTitle>Verify your email - Planora</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <a class="auth-logo" href="/">Planora</a>
+        <h1 class="auth-title">Verify your email</h1>
+
+        @if (_loading)
+        {
+            <div class="text-center py-3">
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                Verifying...
+            </div>
+        }
+        else if (_success)
+        {
+            <div class="alert alert-success py-2">
+                Your email has been verified.
+            </div>
+            <a class="btn btn-primary w-100" href="/profile">Go to profile</a>
+        }
+        else
+        {
+            <div class="alert alert-danger py-2">
+                @_error
+            </div>
+            <p class="auth-switch"><a href="/profile">Back to profile</a></p>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] AuthService AuthService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private bool _loading = true;
+    private bool _success;
+    private string _error = "This verification link is invalid or incomplete.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        var userId = query["userId"] ?? "";
+        var token = query["token"] ?? "";
+
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
+        {
+            _loading = false;
+            return;
+        }
+
+        var (success, error) = await AuthService.ConfirmEmailAsync(new ConfirmEmailRequest
+        {
+            UserId = userId,
+            Token = token
+        });
+
+        _success = success;
+        _error = error ?? "This verification link is invalid or has expired.";
+        _loading = false;
+    }
+}

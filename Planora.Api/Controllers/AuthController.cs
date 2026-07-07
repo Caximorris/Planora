@@ -19,8 +19,12 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly IDemoWorkspaceSeeder _demoSeeder;
+    private readonly IEmailSender _emailSender;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly IValidator<LoginRequest> _loginValidator;
+    private readonly IValidator<ResetPasswordRequest> _resetPasswordValidator;
+    private readonly IValidator<ConfirmEmailRequest> _confirmEmailValidator;
+    private readonly IConfiguration _config;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -29,8 +33,12 @@ public class AuthController : ControllerBase
         ITokenService tokenService,
         IRefreshTokenService refreshTokenService,
         IDemoWorkspaceSeeder demoSeeder,
+        IEmailSender emailSender,
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator,
+        IValidator<ResetPasswordRequest> resetPasswordValidator,
+        IValidator<ConfirmEmailRequest> confirmEmailValidator,
+        IConfiguration config,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
@@ -38,8 +46,12 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
         _refreshTokenService = refreshTokenService;
         _demoSeeder = demoSeeder;
+        _emailSender = emailSender;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
+        _resetPasswordValidator = resetPasswordValidator;
+        _confirmEmailValidator = confirmEmailValidator;
+        _config = config;
         _logger = logger;
     }
 
@@ -69,6 +81,11 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("AUTH_REGISTER UserId={UserId} Email={Email} CorrelationId={CorrelationId}",
             user.Id, user.Email, HttpContext.Items["CorrelationId"]);
+
+        await SendEmailConfirmationAsync(
+            user,
+            HttpContext.Items["CorrelationId"] as string,
+            HttpContext.RequestAborted);
 
         return Ok(await BuildAuthResponseAsync(user));
     }
@@ -149,6 +166,191 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var correlationId = HttpContext.Items["CorrelationId"] as string;
+
+        // Always return the same response whether or not the email exists — no account enumeration.
+        if (!string.IsNullOrWhiteSpace(request.Email))
+        {
+            var user = await _userManager.FindByEmailAsync(request.Email);
+            if (user is not null && user.Email is not null)
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var link = $"{GetWebBaseUrl()}/reset-password" +
+                           $"?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
+
+                var emailSent = await TrySendEmailAsync(
+                    user.Email,
+                    "Reset your Planora password",
+                    $"<p>We received a request to reset your password.</p>" +
+                    $"<p><a href=\"{link}\">Reset your password</a></p>" +
+                    $"<p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>",
+                    HttpContext.RequestAborted);
+
+                _logger.LogInformation("AUTH_FORGOT_PASSWORD UserId={UserId} EmailSent={EmailSent} CorrelationId={CorrelationId}",
+                    user.Id, emailSent, correlationId);
+            }
+            else
+            {
+                _logger.LogInformation("AUTH_FORGOT_PASSWORD_UNKNOWN CorrelationId={CorrelationId}", correlationId);
+            }
+        }
+
+        return Ok(new { message = "If an account exists for that email, a reset link has been sent." });
+    }
+
+    [HttpPost("reset-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        var validation = await _resetPasswordValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
+        var correlationId = HttpContext.Items["CorrelationId"] as string;
+        var user = await _userManager.FindByEmailAsync(request.Email);
+
+        // Generic failure for a missing user / bad token so neither can be probed.
+        const string genericError = "This reset link is invalid or has expired. Please request a new one.";
+        if (user is null)
+            return BadRequest(genericError);
+
+        var result = await _userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            // Surface password-policy problems (actionable); keep token/user failures generic.
+            var passwordErrors = result.Errors
+                .Where(e => e.Code.StartsWith("Password", StringComparison.Ordinal))
+                .Select(e => e.Description)
+                .ToList();
+
+            _logger.LogWarning("AUTH_RESET_PASSWORD_FAILED CorrelationId={CorrelationId}", correlationId);
+            return BadRequest(passwordErrors.Count > 0 ? passwordErrors : [genericError]);
+        }
+
+        // ResetPasswordAsync rotates the SecurityStamp (invalidating existing JWTs). Also revoke
+        // refresh tokens and clear any lockout so the user can immediately sign in with the new password.
+        await _refreshTokenService.RevokeAllAsync(user.Id);
+        await _userManager.ResetAccessFailedCountAsync(user);
+        await _userManager.SetLockoutEndDateAsync(user, null);
+
+        _logger.LogInformation("AUTH_RESET_PASSWORD_SUCCESS UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, correlationId);
+
+        return Ok(new { message = "Your password has been reset. You can now sign in." });
+    }
+
+    [Authorize]
+    [HttpPost("send-email-confirmation")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> SendEmailConfirmation()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+            return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+            return NotFound();
+
+        if (user.EmailConfirmed)
+            return Ok(new { message = "Email is already verified." });
+
+        var sent = await SendEmailConfirmationAsync(
+            user,
+            HttpContext.Items["CorrelationId"] as string,
+            HttpContext.RequestAborted);
+
+        if (!sent)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                "Email delivery is not configured. Please try again later.");
+
+        return Ok(new { message = "Verification email sent." });
+    }
+
+    [HttpPost("confirm-email")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
+    {
+        var validation = await _confirmEmailValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
+        var correlationId = HttpContext.Items["CorrelationId"] as string;
+        var user = await _userManager.FindByIdAsync(request.UserId);
+        const string genericError = "This verification link is invalid or has expired. Please request a new one.";
+
+        if (user is null)
+            return BadRequest(genericError);
+
+        if (user.EmailConfirmed)
+            return Ok(new { message = "Email is already verified." });
+
+        var result = await _userManager.ConfirmEmailAsync(user, request.Token);
+        if (!result.Succeeded)
+        {
+            _logger.LogWarning("AUTH_CONFIRM_EMAIL_FAILED UserId={UserId} CorrelationId={CorrelationId}",
+                user.Id, correlationId);
+            return BadRequest(genericError);
+        }
+
+        _logger.LogInformation("AUTH_CONFIRM_EMAIL_SUCCESS UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, correlationId);
+
+        return Ok(new { message = "Email verified." });
+    }
+
+    [Authorize]
+    [HttpPost("sessions")]
+    public async Task<IActionResult> GetSessions([FromBody] SessionListRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+            return Unauthorized();
+
+        var sessions = await _refreshTokenService.GetActiveSessionsAsync(userId);
+        return Ok(sessions.Select(s => new RefreshSessionDto
+        {
+            Id = s.Id,
+            CreatedAt = s.CreatedAt,
+            ExpiresAt = s.ExpiresAt,
+            IsCurrent = !string.IsNullOrWhiteSpace(request.CurrentRefreshToken)
+                && s.Token == request.CurrentRefreshToken
+        }));
+    }
+
+    [Authorize]
+    [HttpPost("sessions/revoke")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> RevokeSession([FromBody] RevokeSessionRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+            return Unauthorized();
+
+        var revoked = await _refreshTokenService.RevokeSessionAsync(userId, request.SessionId);
+        return revoked ? NoContent() : NotFound();
+    }
+
+    [Authorize]
+    [HttpPost("sessions/revoke-others")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> RevokeOtherSessions([FromBody] RevokeOtherSessionsRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+            return Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(request.CurrentRefreshToken))
+            return BadRequest("Current session is required.");
+
+        var revoked = await _refreshTokenService.RevokeOtherSessionsAsync(userId, request.CurrentRefreshToken);
+        return revoked ? NoContent() : BadRequest("Current session is invalid or expired.");
+    }
+
     [HttpPost("demo")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Demo()
@@ -207,6 +409,69 @@ public class AuthController : ControllerBase
         _logger.LogInformation("AUTH_LOGOUT UserId={UserId} CorrelationId={CorrelationId}",
             userId ?? "unknown", correlationId);
         return NoContent();
+    }
+
+    private async Task<bool> SendEmailConfirmationAsync(AppUser user, string? correlationId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+            return false;
+
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var link = $"{GetWebBaseUrl()}/confirm-email" +
+                   $"?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}";
+
+        var sent = await TrySendEmailAsync(
+            user.Email,
+            "Verify your Planora email",
+            $"<p>Welcome to Planora.</p>" +
+            $"<p><a href=\"{link}\">Verify your email</a></p>" +
+            $"<p>This link expires in 1 hour. If you didn't create this account, you can ignore this email.</p>",
+            ct);
+
+        _logger.LogInformation("AUTH_SEND_EMAIL_CONFIRMATION UserId={UserId} EmailSent={EmailSent} CorrelationId={CorrelationId}",
+            user.Id, sent, correlationId);
+
+        return sent;
+    }
+
+    private async Task<bool> TrySendEmailAsync(string toEmail, string subject, string htmlBody, CancellationToken ct)
+    {
+        try
+        {
+            await _emailSender.SendAsync(toEmail, subject, htmlBody, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EMAIL_SEND_FAILED To={ToEmail} Subject={Subject}", toEmail, subject);
+            return false;
+        }
+    }
+
+    // Base URL of the Blazor client, used to build password-reset links. Prefer an explicit
+    // App:WebBaseUrl; otherwise fall back to the first configured CORS origin.
+    private string GetWebBaseUrl()
+    {
+        var explicitUrl = _config["App:WebBaseUrl"];
+        if (!string.IsNullOrWhiteSpace(explicitUrl))
+            return explicitUrl.TrimEnd('/');
+
+        var corsOrigin = _config.GetSection("Cors:AllowedOrigins")
+            .Get<string[]>()
+            ?.FirstOrDefault(origin => !string.IsNullOrWhiteSpace(origin));
+
+        if (string.IsNullOrWhiteSpace(corsOrigin))
+        {
+            corsOrigin = _config["Cors:AllowedOrigins"]
+                ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault(origin => !string.IsNullOrWhiteSpace(origin));
+        }
+
+        if (!string.IsNullOrWhiteSpace(corsOrigin))
+            return corsOrigin.TrimEnd('/');
+
+        var request = HttpContext.Request;
+        return $"{request.Scheme}://{request.Host}".TrimEnd('/');
     }
 
     private async Task<AuthResponse> BuildAuthResponseAsync(AppUser user) => new()

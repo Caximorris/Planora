@@ -67,6 +67,10 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
+// Shorten the lifespan of data-protection tokens (password reset, email confirmation)
+// from Identity's 1-day default to 1 hour.
+builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = TimeSpan.FromHours(1));
+
 // ── HSTS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddHsts(options =>
 {
