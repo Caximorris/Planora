@@ -353,7 +353,13 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > rotation + reuse detection (`Auth/RefreshTokenTests`) — 17 tests green in Debug and Release.
 > `.github/workflows/ci.yml` builds + tests on PR/push with a Postgres service container. The `auth`
 > rate limiter's `PermitLimit` is now config-driven (`RateLimiting:AuthPermitLimit`, default 10) so the
-> shared-host test suite doesn't trip the global window. Next: Task 7 (`IFileStorage`).
+> shared-host test suite doesn't trip the global window. Task 7 ✅: cover-image disk I/O extracted behind
+> `IFileStorage` (`LocalFileStorage`), registered in `Program.cs`, `BoardsController` refactored with no
+> behavior change; `Boards/CoverImageTests` added (upload/validation/scope). 20 tests green.
+> Tasks 8–9 (Azure Blob impl + dual-read) **paused** pending a deploy-target/SDK decision (Azure Blob
+> vs Railway; see Assumptions §storage). Task 10 ✅: `IEmailSender` + `ConsoleEmailSender` dev sink
+> registered in `Program.cs` (dev-only; must be replaced by a real provider in prod). Next: Task 11
+> (password reset flow) — builds on Task 10.
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -368,18 +374,19 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
    Validate: `dotnet test`. Deps: 3.
 6. ✅ **CI workflow.** Goal: build+test on PR/push with a Postgres service. Files:
    `.github/workflows/ci.yml`. Risk: L. Validate: green check on a PR. Deps: 2–5.
-7. **`IFileStorage` interface + local-disk impl.** Goal: extract current cover-image disk I/O behind
+7. ✅ **`IFileStorage` interface + local-disk impl.** Goal: extract current cover-image disk I/O behind
    interface, no behavior change. Files: `Planora.Api/Application/Interfaces/IFileStorage.cs`,
-   `Infrastructure/Storage/*`, `BoardsController`. Risk: M. Validate: `dotnet build`; cover upload
-   still works locally. Deps: none.
+   `Infrastructure/Storage/LocalFileStorage.cs`, `BoardsController`, `Program.cs`,
+   `Planora.Tests/Boards/CoverImageTests.cs`. Risk: M. Validated: `dotnet build` clean; cover
+   upload/validation/scope covered by tests (20 green). Deps: none.
 8. **Azure Blob impl + config.** Goal: Blob-backed `IFileStorage` selected by config. Files:
    `Infrastructure/Storage/BlobFileStorage.cs`, `Program.cs`, appsettings keys. Risk: M. Validate:
    upload → object in blob; restart container → image persists. Deps: 7.
 9. **Migrate cover-image URLs / dual-read.** Goal: serve old disk URLs + new blob URLs. Files:
    `BoardsController`, mapper. Risk: M. Validate: existing boards still show covers. Deps: 8.
-10. **`IEmailSender` + console dev sink.** Goal: interface + no-op/console impl registered. Files:
-    `Application/Interfaces/IEmailSender.cs`, `Infrastructure/Email/*`, `Program.cs`. Risk: L.
-    Validate: `dotnet build`; dev logs the email. Deps: none.
+10. ✅ **`IEmailSender` + console dev sink.** Goal: interface + no-op/console impl registered. Files:
+    `Application/Interfaces/IEmailSender.cs`, `Infrastructure/Email/ConsoleEmailSender.cs`, `Program.cs`.
+    Risk: L. Validated: `dotnet build` clean; dev sink logs the email (dev-only, replace in prod). Deps: none.
 11. **Password reset flow.** Goal: request/confirm endpoints (rate-limited) + Blazor pages. Files:
     `AuthController`, `Planora.Web/Pages/Auth/*`, `AuthService`. Risk: M. Validate: token single-use,
     expires, rotates SecurityStamp; tests. Deps: 10, 3.

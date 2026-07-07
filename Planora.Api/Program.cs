@@ -14,7 +14,9 @@ using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Services;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
+using Planora.Api.Infrastructure.Email;
 using Planora.Api.Infrastructure.HealthChecks;
+using Planora.Api.Infrastructure.Storage;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -146,6 +148,10 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
+// File storage: local disk today; production swaps in a durable backend (Azure Blob) behind IFileStorage.
+builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
+// Email: dev console sink today; production swaps in a real provider behind IEmailSender.
+builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
 
 // ── Validation ────────────────────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();

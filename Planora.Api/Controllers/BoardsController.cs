@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
@@ -29,13 +30,13 @@ public class BoardsController : ControllerBase
 
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateBoardRequest> _createValidator;
-    private readonly IWebHostEnvironment _env;
+    private readonly IFileStorage _storage;
 
-    public BoardsController(ApplicationDbContext db, IValidator<CreateBoardRequest> createValidator, IWebHostEnvironment env)
+    public BoardsController(ApplicationDbContext db, IValidator<CreateBoardRequest> createValidator, IFileStorage storage)
     {
         _db = db;
         _createValidator = createValidator;
-        _env = env;
+        _storage = storage;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -157,7 +158,7 @@ public class BoardsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
-        DeleteCoverImageFile(board.CoverImageUrl);
+        await _storage.DeleteAsync(board.CoverImageUrl);
         _db.Boards.Remove(board);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -192,18 +193,11 @@ public class BoardsController : ControllerBase
         if (!HasValidImageSignature(header, file.ContentType))
             return BadRequest("File content doesn't match a supported image format.");
 
-        var uploadsDir = Path.Combine(_env.WebRootPath, CoverImageRelativeDir);
-        Directory.CreateDirectory(uploadsDir);
-
-        // File name is always server-generated (GUID + allowlisted extension) — the
-        // client-supplied file name is never used for the path, so there's no traversal risk.
-        var fileName = $"{Guid.NewGuid()}{extension}";
-        var filePath = Path.Combine(uploadsDir, fileName);
-        await using (var stream = new FileStream(filePath, FileMode.Create))
-            await buffer.CopyToAsync(stream);
-
-        DeleteCoverImageFile(board.CoverImageUrl);
-        board.CoverImageUrl = $"/{CoverImageRelativeDir}/{fileName}";
+        // Write the new image first, then remove the previous one, so a failed write
+        // never leaves the board without its existing cover.
+        var newUrl = await _storage.SaveAsync(buffer, CoverImageRelativeDir, extension);
+        await _storage.DeleteAsync(board.CoverImageUrl);
+        board.CoverImageUrl = newUrl;
         await _db.SaveChangesAsync();
 
         return Ok(board.ToDto());
@@ -219,7 +213,7 @@ public class BoardsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
-        DeleteCoverImageFile(board.CoverImageUrl);
+        await _storage.DeleteAsync(board.CoverImageUrl);
         board.CoverImageUrl = null;
         await _db.SaveChangesAsync();
 
@@ -243,14 +237,4 @@ public class BoardsController : ControllerBase
             && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
         _ => false,
     };
-
-    private void DeleteCoverImageFile(string? relativeUrl)
-    {
-        if (string.IsNullOrWhiteSpace(relativeUrl)) return;
-        if (!relativeUrl.StartsWith($"/{CoverImageRelativeDir}/", StringComparison.Ordinal)) return;
-
-        var fileName = Path.GetFileName(relativeUrl);
-        var filePath = Path.Combine(_env.WebRootPath, CoverImageRelativeDir, fileName);
-        if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
-    }
 }
