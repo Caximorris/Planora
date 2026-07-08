@@ -1,6 +1,8 @@
 @page "/profile"
 @attribute [Authorize]
+@using System.Text.Json
 @using Planora.Shared.DTOs.Users
+@using Planora.Shared.DTOs.Account
 
 <PageTitle>Profile — Planora</PageTitle>
 
@@ -360,17 +362,56 @@
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Export your data</div>
-                        <div class="profile-row-desc">Download a copy of your workspaces and boards</div>
+                        <div class="profile-row-desc">Download a JSON copy of your workspaces, boards, and cards</div>
                     </div>
-                    <button type="button" class="btn btn-secondary btn-sm" disabled>Export <span class="profile-soon-badge">Soon</span></button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExportData" disabled="@_exporting">
+                        @if (_exporting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Export
+                    </button>
                 </div>
                 <div class="profile-row profile-row--danger">
                     <div>
                         <div class="profile-row-label">Delete account</div>
                         <div class="profile-row-desc">Permanently delete your account and all of your data</div>
                     </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm" disabled>Delete account <span class="profile-soon-badge">Soon</span></button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ToggleDelete">
+                        @(_showDelete ? "Cancel" : "Delete account")
+                    </button>
                 </div>
+                @if (_showDelete)
+                {
+                    <div class="twofa-panel" style="max-width:440px;">
+                        <p class="profile-row-desc">
+                            This permanently deletes your account and any workspaces where you are the only
+                            member, including all of their boards and cards. This cannot be undone.
+                        </p>
+                        @if (_deleteBlocked is { Count: > 0 })
+                        {
+                            <div class="alert alert-danger py-2 mb-2" style="font-size:13px;">
+                                You still own these workspaces with other members. Transfer ownership or
+                                delete them first:
+                                <ul class="mb-0 mt-1">
+                                    @foreach (var w in _deleteBlocked)
+                                    {
+                                        <li>@w.Name — @w.MemberCount members</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        else if (_deleteError is not null)
+                        {
+                            <div class="alert alert-danger py-1 mb-2" style="font-size:13px;">@_deleteError</div>
+                        }
+                        <input type="password" class="form-control form-control-sm mb-2"
+                               placeholder="Enter your password to confirm" @bind="_deletePassword" @bind:event="oninput" />
+                        <button class="btn btn-outline-danger btn-sm"
+                                @onclick="ConfirmDelete"
+                                disabled="@(_deleting || string.IsNullOrEmpty(_deletePassword))">
+                            @if (_deleting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Permanently delete my account
+                        </button>
+                    </div>
+                }
             </div>
         </div>
     </Authorized>
@@ -382,6 +423,7 @@
     [Inject] AuthService AuthService { get; set; } = null!;
     [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
     [Inject] ToastService Toast { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
 
     private NotificationPreferencesDto? _prefs;
     private bool _savingPrefs;
@@ -428,6 +470,14 @@
     private bool _disableUseRecovery;
     private bool _showRegen;
     private string _regenCode = "";
+
+    // Privacy: data export + account deletion
+    private bool _exporting;
+    private bool _showDelete;
+    private string _deletePassword = "";
+    private bool _deleting;
+    private string? _deleteError;
+    private List<BlockedWorkspaceDto>? _deleteBlocked;
 
     protected override async Task OnInitializedAsync()
     {
@@ -710,5 +760,62 @@
             _showChangePwd = false;
         }
         _savingPwd = false;
+    }
+
+    private async Task ExportData()
+    {
+        _exporting = true;
+        try
+        {
+            var (export, error) = await UserService.ExportDataAsync();
+            if (export is null)
+            {
+                Toast.Error(error ?? "Could not export your data.");
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+            var fileName = $"planora-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
+            await JS.InvokeVoidAsync("planoraDownloadFile", fileName, "application/json", json);
+            Toast.Success("Your data export has downloaded.");
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private void ToggleDelete()
+    {
+        _showDelete = !_showDelete;
+        _deletePassword = "";
+        _deleteError = null;
+        _deleteBlocked = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        _deleting = true;
+        _deleteError = null;
+        _deleteBlocked = null;
+        try
+        {
+            var (success, blocked, error) = await UserService.DeleteAccountAsync(_deletePassword);
+            if (success)
+            {
+                await AuthService.LogoutAsync();
+                Nav.NavigateTo("/", forceLoad: true);
+                return;
+            }
+
+            if (blocked is { Count: > 0 })
+                _deleteBlocked = blocked;
+            else
+                _deleteError = error ?? "Could not delete your account.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
     }
 }

@@ -154,6 +154,7 @@ builder.Services.AddRateLimiter(options =>
 // ── Application Services ──────────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
 // File storage: provider selected by config. Local disk today; production sets Storage:Provider
 // to "AzureBlob". The Blob backend is not implemented yet (see docs/azure-blob-storage.md) — this

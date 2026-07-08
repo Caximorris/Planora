@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Domain.Entities;
+using Planora.Shared.DTOs.Account;
 using Planora.Shared.DTOs.Users;
 
 namespace Planora.Api.Controllers;
@@ -16,11 +17,13 @@ public class UsersController : ControllerBase
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly IRefreshTokenService _refreshTokenService;
+    private readonly IAccountService _accountService;
 
-    public UsersController(UserManager<AppUser> userManager, IRefreshTokenService refreshTokenService)
+    public UsersController(UserManager<AppUser> userManager, IRefreshTokenService refreshTokenService, IAccountService accountService)
     {
         _userManager = userManager;
         _refreshTokenService = refreshTokenService;
+        _accountService = accountService;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -116,5 +119,39 @@ public class UsersController : ControllerBase
             EmailOnComment = user.EmailOnComment,
             EmailOnWorkspaceInvite = user.EmailOnWorkspaceInvite
         });
+    }
+
+    /// <summary>Downloads a full JSON export of the caller's profile and every workspace they belong to.</summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportData(CancellationToken ct)
+    {
+        var export = await _accountService.BuildExportAsync(UserId, ct);
+        return export is null ? NotFound() : Ok(export);
+    }
+
+    /// <summary>
+    /// Permanently deletes the caller's account after re-authenticating with their password.
+    /// Solo-owned workspaces are removed with it; owning a workspace with other members blocks
+    /// deletion (409) until it is transferred or deleted.
+    /// </summary>
+    [HttpPost("delete-account")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest("Your password is required to delete your account.");
+
+        var result = await _accountService.DeleteAccountAsync(UserId, request.Password, ct);
+        return result.Status switch
+        {
+            AccountDeletionStatus.Success => NoContent(),
+            AccountDeletionStatus.WrongPassword => BadRequest("Incorrect password."),
+            AccountDeletionStatus.Blocked => Conflict(new AccountDeletionBlockedResponse
+            {
+                BlockedWorkspaces = result.BlockedWorkspaces?.ToList() ?? []
+            }),
+            AccountDeletionStatus.NotFound => NotFound(),
+            _ => StatusCode(StatusCodes.Status500InternalServerError, result.Error ?? "Account deletion failed.")
+        };
     }
 }
