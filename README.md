@@ -14,6 +14,7 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 | Validation | FluentValidation |
 | Drag & Drop | SortableJS (columns/cards) + HTML5 DnD (board tiles) |
 | Storage | `IFileStorage` abstraction — local disk (dev); Azure Blob backend scaffolded, not yet implemented ([docs](docs/azure-blob-storage.md)) |
+| Email | `IEmailSender` abstraction — console sink locally, Resend in production from `notifications@planora.website` |
 | Hosting | Azure Container Apps (API) + Azure Static Web Apps (frontend) |
 
 ## Features
@@ -31,7 +32,8 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 - **Notifications** — in-app bell, unread badge, 30 s polling, mark-read, dismiss
 - **Calendar view** — cards with due dates shown on a calendar
 - **Dark mode** — persisted in localStorage
-- **Profile page** — display name, theme switcher
+- **Profile page** — display name, theme switcher, email status, notification preferences
+- **Transactional email** — verification, password reset, workspace invites, card assignment/comment notifications
 - **Demo workspace** — auto-created on first login with sample board
 
 ### Security
@@ -52,12 +54,28 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5433;Database=planora;Username=postgres;Password=yourpassword"
+    "Default": "Host=localhost;Port=5433;Database=planora;Username=postgres;Password=yourpassword"
   },
   "Jwt": { "Key": "dev-super-secret-key-minimum-32-characters-long!!" },
-  "ApiBaseUrl": "http://localhost:8080"
+  "App": { "WebBaseUrl": "http://localhost:5076" },
+  "Cors": { "AllowedOrigins": "http://localhost:5076" },
+  "Email": {
+    "Provider": "Console",
+    "From": {
+      "Address": "notifications@planora.website",
+      "Name": "Planora"
+    },
+    "Resend": {
+      "ApiKey": ""
+    }
+  }
 }
 ```
+
+For a local real-send smoke test, switch `Email:Provider` to `Resend` in the gitignored
+development settings and set `Email:Resend:ApiKey` to your Resend API key. Production uses the
+GitHub `RESEND_API_KEY` secret; the deploy workflow stores it as an Azure Container Apps secret and
+sets `Email__Resend__ApiKey=secretref:resend-api-key`.
 
 2. Run both projects:
 
@@ -93,6 +111,9 @@ dotnet test Planora.slnx
 
 - Push to `main` triggers CI for both targets automatically
 - `API_BASE_URL` secret is injected into `appsettings.json` at build time
+- API email delivery uses Resend. Required production settings are `Email__Provider=Resend`,
+  `Email__From__Address=notifications@planora.website`, `App__WebBaseUrl=https://planora.website`,
+  and the GitHub `RESEND_API_KEY` secret.
 - File storage is selected by `Storage:Provider` (`Local` by default). **Known limitation:** on
   Container Apps the local disk is ephemeral, so board cover images do **not** survive a restart or
   scale-out yet — the durable Azure Blob backend is scaffolded but not implemented
@@ -101,7 +122,7 @@ dotnet test Planora.slnx
 ## Roadmap
 
 - [ ] Real-time updates (SignalR)
-- [ ] Email delivery for invitations
+- [x] Email delivery for invitations and account recovery
 - [ ] Board templates
 - [ ] Analytics dashboard
 - [ ] Settings page (password change, 2FA, account deletion)

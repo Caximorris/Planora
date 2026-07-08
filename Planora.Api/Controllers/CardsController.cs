@@ -34,12 +34,18 @@ public class CardsController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateCardRequest> _createValidator;
     private readonly IFileStorage _storage;
+    private readonly IActivityEmailNotifier _emailNotifier;
 
-    public CardsController(ApplicationDbContext db, IValidator<CreateCardRequest> createValidator, IFileStorage storage)
+    public CardsController(
+        ApplicationDbContext db,
+        IValidator<CreateCardRequest> createValidator,
+        IFileStorage storage,
+        IActivityEmailNotifier emailNotifier)
     {
         _db = db;
         _createValidator = createValidator;
         _storage = storage;
+        _emailNotifier = emailNotifier;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -224,6 +230,7 @@ public class CardsController : ControllerBase
         }
 
         // Notify the new assignee if it changed (and they didn't assign themselves)
+        string? assigneeToEmail = null;
         if (card.AssigneeId is not null
             && card.AssigneeId != previousAssigneeId
             && card.AssigneeId != UserId)
@@ -237,6 +244,7 @@ public class CardsController : ControllerBase
                 RelatedBoardId = card.Column.BoardId,
                 RelatedWorkspaceId = card.Column.Board.WorkspaceId
             });
+            assigneeToEmail = card.AssigneeId;
         }
 
         try
@@ -247,6 +255,9 @@ public class CardsController : ControllerBase
         {
             return Conflict(new { message = "Card was modified by another request. Reload and try again." });
         }
+
+        if (assigneeToEmail is not null)
+            await _emailNotifier.NotifyCardAssignedAsync(assigneeToEmail, card.Title, card.Column.BoardId, HttpContext.RequestAborted);
 
         return Ok(card.ToDto());
     }

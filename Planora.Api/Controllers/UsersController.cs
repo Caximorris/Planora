@@ -81,4 +81,40 @@ public class UsersController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpGet("notification-preferences")]
+    public async Task<IActionResult> GetNotificationPreferences()
+    {
+        var user = await _userManager.FindByIdAsync(UserId);
+        if (user is null) return NotFound();
+
+        return Ok(new NotificationPreferencesDto
+        {
+            EmailOnAssigned = user.EmailOnAssigned,
+            EmailOnComment = user.EmailOnComment,
+            EmailOnWorkspaceInvite = user.EmailOnWorkspaceInvite
+        });
+    }
+
+    [HttpPut("notification-preferences")]
+    public async Task<IActionResult> UpdateNotificationPreferences([FromBody] NotificationPreferencesDto request)
+    {
+        var user = await _userManager.FindByIdAsync(UserId);
+        if (user is null) return NotFound();
+
+        user.EmailOnAssigned = request.EmailOnAssigned;
+        user.EmailOnComment = request.EmailOnComment;
+        user.EmailOnWorkspaceInvite = request.EmailOnWorkspaceInvite;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(result.Errors.Select(e => e.Description));
+
+        return Ok(new NotificationPreferencesDto
+        {
+            EmailOnAssigned = user.EmailOnAssigned,
+            EmailOnComment = user.EmailOnComment,
+            EmailOnWorkspaceInvite = user.EmailOnWorkspaceInvite
+        });
+    }
 }

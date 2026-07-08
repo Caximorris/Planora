@@ -173,8 +173,25 @@ switch (storageOptions.Provider.Trim().ToLowerInvariant())
         throw new NotSupportedException(
             $"Unknown Storage:Provider '{storageOptions.Provider}'. Use 'Local' or 'AzureBlob'.");
 }
-// Email: dev console sink today; production swaps in a real provider behind IEmailSender.
-builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+// Email: provider selected by config. Console dev sink by default; production sets Email:Provider to
+// "Resend" (API key comes from env/secret, never source).
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()
+    ?? new EmailOptions();
+switch (emailOptions.Provider.Trim().ToLowerInvariant())
+{
+    case "console":
+        builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+        break;
+    case "resend":
+        ValidateResendEmailOptions(emailOptions);
+        builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>();
+        break;
+    default:
+        throw new NotSupportedException(
+            $"Unknown Email:Provider '{emailOptions.Provider}'. Use 'Console' or 'Resend'.");
+}
+builder.Services.AddScoped<IActivityEmailNotifier, ActivityEmailNotifier>();
 
 // Background cleanup: purges expired refresh tokens/invitations and trash past retention.
 builder.Services.AddScoped<DataCleanupRunner>();
@@ -273,6 +290,22 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.Run();
+
+static void ValidateResendEmailOptions(EmailOptions options)
+{
+    var missing = new List<string>();
+
+    if (string.IsNullOrWhiteSpace(options.From.Address))
+        missing.Add("Email:From:Address");
+    if (string.IsNullOrWhiteSpace(options.Resend.ApiKey))
+        missing.Add("Email:Resend:ApiKey");
+
+    if (missing.Count > 0)
+    {
+        throw new InvalidOperationException(
+            $"Email:Provider is Resend but required setting(s) are missing: {string.Join(", ", missing)}.");
+    }
+}
 
 // Exposed so the integration test project can reference the entry point via
 // WebApplicationFactory<Program>. Top-level statements otherwise emit an

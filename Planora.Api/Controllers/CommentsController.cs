@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Planora.Api.Application.Interfaces;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
 using Planora.Shared.DTOs.Card;
@@ -15,7 +16,13 @@ namespace Planora.Api.Controllers;
 public class CommentsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public CommentsController(ApplicationDbContext db) => _db = db;
+    private readonly IActivityEmailNotifier _emailNotifier;
+
+    public CommentsController(ApplicationDbContext db, IActivityEmailNotifier emailNotifier)
+    {
+        _db = db;
+        _emailNotifier = emailNotifier;
+    }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -75,11 +82,12 @@ public class CommentsController : ControllerBase
         _db.CardComments.Add(comment);
 
         // Notify the card's assignee if they're not the one commenting
-        if (card.AssigneeId is not null && card.AssigneeId != UserId)
+        var notifyAssignee = card.AssigneeId is not null && card.AssigneeId != UserId;
+        if (notifyAssignee)
         {
             _db.Notifications.Add(new Notification
             {
-                UserId = card.AssigneeId,
+                UserId = card.AssigneeId!,
                 Type = NotificationType.NewComment,
                 Message = $"{author.DisplayName} commented on \"{card.Title}\"",
                 RelatedCardId = cardId,
@@ -89,6 +97,10 @@ public class CommentsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        if (notifyAssignee)
+            await _emailNotifier.NotifyNewCommentAsync(
+                card.AssigneeId!, card.Title, author.DisplayName, card.Column.BoardId, HttpContext.RequestAborted);
 
         return Ok(new CardCommentDto
         {

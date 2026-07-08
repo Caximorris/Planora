@@ -312,13 +312,47 @@
 
             <div class="profile-section">
                 <h2 class="profile-section-title">Notifications</h2>
-                <div class="profile-row">
-                    <div>
-                        <div class="profile-row-label">Email notifications</div>
-                        <div class="profile-row-desc">Get notified about activity on your boards</div>
+                @if (_prefs is null)
+                {
+                    <div class="profile-row"><span class="spinner-border spinner-border-sm"></span></div>
+                }
+                else
+                {
+                    <div class="profile-row">
+                        <div>
+                            <div class="profile-row-label">Assigned to a card</div>
+                            <div class="profile-row-desc">Email me when someone assigns me to a card</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" @bind="_prefs.EmailOnAssigned" />
+                        </div>
                     </div>
-                    <span class="profile-soon-badge">Soon</span>
-                </div>
+                    <div class="profile-row">
+                        <div>
+                            <div class="profile-row-label">Comments on my cards</div>
+                            <div class="profile-row-desc">Email me when someone comments on a card I'm assigned to</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" @bind="_prefs.EmailOnComment" />
+                        </div>
+                    </div>
+                    <div class="profile-row">
+                        <div>
+                            <div class="profile-row-label">Workspace invitations</div>
+                            <div class="profile-row-desc">Email me when I'm invited to a workspace</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" @bind="_prefs.EmailOnWorkspaceInvite" />
+                        </div>
+                    </div>
+                    <div class="profile-row" style="border-bottom:none;">
+                        <div></div>
+                        <button class="btn btn-primary btn-sm" @onclick="SaveNotificationPreferences" disabled="@_savingPrefs">
+                            @if (_savingPrefs) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Save preferences
+                        </button>
+                    </div>
+                }
             </div>
 
             <div class="profile-section">
@@ -347,6 +381,10 @@
     [Inject] UserService UserService { get; set; } = null!;
     [Inject] AuthService AuthService { get; set; } = null!;
     [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
+    [Inject] ToastService Toast { get; set; } = null!;
+
+    private NotificationPreferencesDto? _prefs;
+    private bool _savingPrefs;
 
     private string _theme = "light";
     private string _displayName = "";
@@ -407,6 +445,19 @@
         }
 
         await LoadTwoFactorStatus();
+
+        var (prefs, _) = await UserService.GetNotificationPreferencesAsync();
+        _prefs = prefs ?? new NotificationPreferencesDto();
+    }
+
+    private async Task SaveNotificationPreferences()
+    {
+        if (_prefs is null) return;
+        _savingPrefs = true;
+        var (ok, error) = await UserService.UpdateNotificationPreferencesAsync(_prefs);
+        _savingPrefs = false;
+        if (ok) Toast.Success("Notification preferences saved.");
+        else Toast.Error(error ?? "Could not save preferences.");
     }
 
     private async Task LoadTwoFactorStatus()

@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
@@ -20,11 +21,16 @@ public class WorkspacesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateWorkspaceRequest> _createValidator;
+    private readonly IActivityEmailNotifier _emailNotifier;
 
-    public WorkspacesController(ApplicationDbContext db, IValidator<CreateWorkspaceRequest> createValidator)
+    public WorkspacesController(
+        ApplicationDbContext db,
+        IValidator<CreateWorkspaceRequest> createValidator,
+        IActivityEmailNotifier emailNotifier)
     {
         _db = db;
         _createValidator = createValidator;
+        _emailNotifier = emailNotifier;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -349,6 +355,9 @@ public class WorkspacesController : ControllerBase
 
         _db.WorkspaceInvitations.Add(invitation);
         await _db.SaveChangesAsync();
+
+        await _emailNotifier.NotifyWorkspaceInviteAsync(
+            email, workspace.Name, inviter?.DisplayName ?? "Someone", invitation.Token, HttpContext.RequestAborted);
 
         return Ok(new InvitationDto
         {

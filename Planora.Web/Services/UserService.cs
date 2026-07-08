@@ -33,4 +33,20 @@ public class UserService
         var body = await res.Content.ReadAsStringAsync();
         return (false, string.IsNullOrWhiteSpace(body) ? "Could not change password." : body.Trim('"'));
     }
+
+    public async Task<(NotificationPreferencesDto? Preferences, string? Error)> GetNotificationPreferencesAsync()
+    {
+        var res = await _http.GetAsync("api/users/notification-preferences");
+        if (res.IsSuccessStatusCode)
+            return (await res.Content.ReadFromJsonAsync<NotificationPreferencesDto>(), null);
+        return (null, "Could not load notification preferences.");
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateNotificationPreferencesAsync(NotificationPreferencesDto request)
+    {
+        var res = await _http.PutAsJsonAsync("api/users/notification-preferences", request);
+        if (res.IsSuccessStatusCode) return (true, null);
+        var body = await res.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(body) ? "Could not update preferences." : body.Trim('"'));
+    }
 }
