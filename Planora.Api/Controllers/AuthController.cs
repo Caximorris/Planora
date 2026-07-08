@@ -20,7 +20,7 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly IDemoWorkspaceSeeder _demoSeeder;
-    private readonly IEmailSender _emailSender;
+    private readonly ITransactionalEmailService _email;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IValidator<ResetPasswordRequest> _resetPasswordValidator;
@@ -34,7 +34,7 @@ public class AuthController : ControllerBase
         ITokenService tokenService,
         IRefreshTokenService refreshTokenService,
         IDemoWorkspaceSeeder demoSeeder,
-        IEmailSender emailSender,
+        ITransactionalEmailService email,
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator,
         IValidator<ResetPasswordRequest> resetPasswordValidator,
@@ -47,7 +47,7 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
         _refreshTokenService = refreshTokenService;
         _demoSeeder = demoSeeder;
-        _emailSender = emailSender;
+        _email = email;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
         _resetPasswordValidator = resetPasswordValidator;
@@ -203,13 +203,7 @@ public class AuthController : ControllerBase
                 var link = $"{GetWebBaseUrl()}/reset-password" +
                            $"?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
 
-                var emailSent = await TrySendEmailAsync(
-                    user.Email,
-                    "Reset your Planora password",
-                    $"<p>We received a request to reset your password.</p>" +
-                    $"<p><a href=\"{link}\">Reset your password</a></p>" +
-                    $"<p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>",
-                    HttpContext.RequestAborted);
+                var emailSent = await _email.SendPasswordResetAsync(user.Email, link, HttpContext.RequestAborted);
 
                 _logger.LogInformation("AUTH_FORGOT_PASSWORD UserId={UserId} EmailSent={EmailSent} CorrelationId={CorrelationId}",
                     user.Id, emailSent, correlationId);
@@ -257,6 +251,10 @@ public class AuthController : ControllerBase
         await _refreshTokenService.RevokeAllAsync(user.Id);
         await _userManager.ResetAccessFailedCountAsync(user);
         await _userManager.SetLockoutEndDateAsync(user, null);
+
+        // Notify the account owner of the change so an unauthorized reset can't go unnoticed.
+        if (user.Email is not null)
+            await _email.SendPasswordChangedAsync(user.Email, DateTimeOffset.UtcNow, HttpContext.RequestAborted);
 
         _logger.LogInformation("AUTH_RESET_PASSWORD_SUCCESS UserId={UserId} CorrelationId={CorrelationId}",
             user.Id, correlationId);
@@ -492,6 +490,9 @@ public class AuthController : ControllerBase
         await _userManager.SetTwoFactorEnabledAsync(user, true);
         var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
 
+        if (user.Email is not null)
+            await _email.SendTwoFactorChangedAsync(user.Email, enabled: true, DateTimeOffset.UtcNow, HttpContext.RequestAborted);
+
         _logger.LogInformation("AUTH_2FA_ENABLED UserId={UserId} CorrelationId={CorrelationId}",
             user.Id, HttpContext.Items["CorrelationId"]);
 
@@ -515,6 +516,9 @@ public class AuthController : ControllerBase
 
         await _userManager.SetTwoFactorEnabledAsync(user, false);
         await _userManager.ResetAuthenticatorKeyAsync(user);
+
+        if (user.Email is not null)
+            await _email.SendTwoFactorChangedAsync(user.Email, enabled: false, DateTimeOffset.UtcNow, HttpContext.RequestAborted);
 
         _logger.LogInformation("AUTH_2FA_DISABLED UserId={UserId} CorrelationId={CorrelationId}",
             user.Id, HttpContext.Items["CorrelationId"]);
@@ -637,32 +641,12 @@ public class AuthController : ControllerBase
         var link = $"{GetWebBaseUrl()}/confirm-email" +
                    $"?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}";
 
-        var sent = await TrySendEmailAsync(
-            user.Email,
-            "Verify your Planora email",
-            $"<p>Welcome to Planora.</p>" +
-            $"<p><a href=\"{link}\">Verify your email</a></p>" +
-            $"<p>This link expires in 1 hour. If you didn't create this account, you can ignore this email.</p>",
-            ct);
+        var sent = await _email.SendEmailVerificationAsync(user.Email, link, ct);
 
         _logger.LogInformation("AUTH_SEND_EMAIL_CONFIRMATION UserId={UserId} EmailSent={EmailSent} CorrelationId={CorrelationId}",
             user.Id, sent, correlationId);
 
         return sent;
-    }
-
-    private async Task<bool> TrySendEmailAsync(string toEmail, string subject, string htmlBody, CancellationToken ct)
-    {
-        try
-        {
-            await _emailSender.SendAsync(toEmail, subject, htmlBody, ct);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "EMAIL_SEND_FAILED To={ToEmail} Subject={Subject}", toEmail, subject);
-            return false;
-        }
     }
 
     // Base URL of the Blazor client, used to build password-reset links. Prefer an explicit

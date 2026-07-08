@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Planora.Api.Application.Emails;
 using Planora.Api.Application.Options;
 using Planora.Api.Infrastructure.Email;
 
@@ -23,7 +24,13 @@ public class ResendEmailSenderTests
             Resend = new ResendOptions { ApiKey = "re_test_key" }
         }));
 
-        await sender.SendAsync("matias@example.com", "Subject", "<p>Hello</p>");
+        await sender.SendAsync(new EmailMessage
+        {
+            To = "matias@example.com",
+            Subject = "Subject",
+            HtmlBody = "<p>Hello</p>",
+            TextBody = "Hello"
+        });
 
         Assert.Equal(HttpMethod.Post, handler.Method);
         Assert.Equal("https://api.resend.com/emails", handler.RequestUri?.ToString());
@@ -34,10 +41,34 @@ public class ResendEmailSenderTests
 
         using var json = JsonDocument.Parse(handler.Body!);
         var root = json.RootElement;
+        // No From on the message → falls back to the default configured sender.
         Assert.Equal("Planora <notifications@planora.website>", root.GetProperty("from").GetString());
         Assert.Equal("matias@example.com", root.GetProperty("to")[0].GetString());
         Assert.Equal("Subject", root.GetProperty("subject").GetString());
         Assert.Equal("<p>Hello</p>", root.GetProperty("html").GetString());
+        Assert.Equal("Hello", root.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task SendAsync_uses_message_from_when_provided()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK, "{\"id\":\"email_123\"}");
+        var sender = new ResendEmailSender(new HttpClient(handler), Options.Create(new EmailOptions
+        {
+            From = new EmailFromOptions { Address = "notifications@planora.website", Name = "Planora" },
+            Resend = new ResendOptions { ApiKey = "re_test_key" }
+        }));
+
+        await sender.SendAsync(new EmailMessage
+        {
+            To = "matias@example.com",
+            Subject = "Alert",
+            HtmlBody = "<p>Hi</p>",
+            From = new EmailAddress("security@planora.website", "Planora Security")
+        });
+
+        using var json = JsonDocument.Parse(handler.Body!);
+        Assert.Equal("Planora Security <security@planora.website>", json.RootElement.GetProperty("from").GetString());
     }
 
     [Fact]
@@ -51,7 +82,12 @@ public class ResendEmailSenderTests
         }));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sender.SendAsync("matias@example.com", "Subject", "<p>Hello</p>"));
+            () => sender.SendAsync(new EmailMessage
+            {
+                To = "matias@example.com",
+                Subject = "Subject",
+                HtmlBody = "<p>Hello</p>"
+            }));
 
         Assert.Contains("422", ex.Message);
         Assert.Contains("Invalid from", ex.Message);

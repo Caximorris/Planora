@@ -1,3 +1,4 @@
+using Planora.Api.Application.Emails;
 using Planora.Api.Application.Interfaces;
 
 namespace Planora.Api.Infrastructure.Email;
@@ -15,10 +16,11 @@ public sealed class ConsoleEmailSender : IEmailSender
 
     public ConsoleEmailSender(ILogger<ConsoleEmailSender> logger) => _logger = logger;
 
-    public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
+    public Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "EMAIL_DEV_SINK To={To} Subject={Subject}\n{Body}", toEmail, subject, htmlBody);
+            "EMAIL_DEV_SINK From={From} To={To} Subject={Subject}\n{Body}",
+            message.From?.Format() ?? "(default)", message.To, message.Subject, message.HtmlBody);
         return Task.CompletedTask;
     }
 }

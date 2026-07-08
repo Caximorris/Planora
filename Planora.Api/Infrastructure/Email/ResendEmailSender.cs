@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Planora.Api.Application.Emails;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Options;
 
@@ -27,20 +28,23 @@ public sealed class ResendEmailSender : IEmailSender
         _options = options.Value;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
+    public async Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
-        var from = string.IsNullOrWhiteSpace(_options.From.Name)
-            ? _options.From.Address
-            : $"{_options.From.Name} <{_options.From.Address}>";
+        // Prefer the message's contextual sender; fall back to the default configured From identity.
+        var from = message.From?.Format()
+            ?? (string.IsNullOrWhiteSpace(_options.From.Name)
+                ? _options.From.Address
+                : $"{_options.From.Name} <{_options.From.Address}>");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, SendUrl)
         {
             Content = JsonContent.Create(new
             {
                 from,
-                to = new[] { toEmail },
-                subject,
-                html = htmlBody
+                to = new[] { message.To },
+                subject = message.Subject,
+                html = message.HtmlBody,
+                text = message.TextBody
             }, options: JsonOptions)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Resend.ApiKey);

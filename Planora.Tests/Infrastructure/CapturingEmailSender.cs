@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Planora.Api.Application.Emails;
 using Planora.Api.Application.Interfaces;
 
 namespace Planora.Tests.Infrastructure;
@@ -13,11 +14,17 @@ public sealed class CapturingEmailSender : IEmailSender
 
     public IReadOnlyCollection<SentEmail> Sent => _sent.ToArray();
 
-    public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
+    public Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
-        _sent.Enqueue(new SentEmail(toEmail, subject, htmlBody));
+        _sent.Enqueue(new SentEmail(
+            message.To,
+            message.Subject,
+            message.HtmlBody,
+            message.TextBody,
+            message.From?.Address,
+            message.From?.Format()));
         return Task.CompletedTask;
     }
 
-    public record SentEmail(string To, string Subject, string Body);
+    public record SentEmail(string To, string Subject, string Body, string? TextBody = null, string? FromAddress = null, string? From = null);
 }

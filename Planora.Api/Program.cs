@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using FluentValidation;
+using Planora.Api.Application.Emails;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Options;
 using Planora.Api.Application.Services;
@@ -191,6 +192,9 @@ switch (emailOptions.Provider.Trim().ToLowerInvariant())
         throw new NotSupportedException(
             $"Unknown Email:Provider '{emailOptions.Provider}'. Use 'Console' or 'Resend'.");
 }
+// Contextual sender mapping (no-reply@/security@/invites@/…) + high-level transactional composer.
+builder.Services.AddSingleton<IEmailSenderResolver, EmailSenderResolver>();
+builder.Services.AddScoped<ITransactionalEmailService, TransactionalEmailService>();
 builder.Services.AddScoped<IActivityEmailNotifier, ActivityEmailNotifier>();
 
 // Background cleanup: purges expired refresh tokens/invitations and trash past retention.
