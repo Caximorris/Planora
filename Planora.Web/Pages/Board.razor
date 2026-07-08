@@ -452,6 +452,35 @@ else
                             }
                         </div>
                     }
+                    @if (_showTrashCards)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">🗑 Trash</label>
+                            @if (_loadingTrashCards)
+                            {
+                                <div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>
+                            }
+                            else if (_trashedCards.Count == 0)
+                            {
+                                <p style="font-size:13px;color:var(--color-text-mid)">Trash is empty.</p>
+                            }
+                            else
+                            {
+                                <div class="archived-cards-list">
+                                    @foreach (var card in _trashedCards)
+                                    {
+                                        <div class="archived-card-row" @key="card.Id">
+                                            <span class="archived-card-title">@card.Title</span>
+                                            <div class="d-flex gap-1">
+                                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => RestoreTrashedCard(card)">Restore</button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => PermanentDeleteCard(card)">Delete forever</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Cover image</label>
                         <div class="d-flex align-items-center gap-2">
@@ -474,6 +503,9 @@ else
                     <button class="btn btn-outline-danger btn-sm me-auto" @onclick="ConfirmDeleteBoard">Delete board</button>
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ToggleArchivedCards">
                         @(_showArchivedCards ? "Hide archived" : "View archived cards")
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ToggleTrashCards">
+                        @(_showTrashCards ? "Hide trash" : "🗑 Trash")
                     </button>
                     <button class="btn btn-secondary btn-sm" @onclick="CloseBoardSettings">Close</button>
                 </div>
@@ -551,6 +583,9 @@ else
     private bool _showArchivedCards;
     private bool _loadingArchivedCards;
     private List<CardDto> _archivedCards = [];
+    private bool _showTrashCards;
+    private bool _loadingTrashCards;
+    private List<CardDto> _trashedCards = [];
     private bool _loadingActivity;
     private string? _activityError;
     private List<ActivityEventDto> _activity = [];
@@ -807,6 +842,8 @@ else
         _showBoardSettings = false;
         _showArchivedCards = false;
         _archivedCards = [];
+        _showTrashCards = false;
+        _trashedCards = [];
     }
 
     private void ConfirmDeleteBoard()
@@ -814,6 +851,8 @@ else
         _showBoardSettings = false;
         _showArchivedCards = false;
         _archivedCards = [];
+        _showTrashCards = false;
+        _trashedCards = [];
         _confirmDeleteBoard = true;
     }
 
@@ -1045,10 +1084,51 @@ else
         col?.Cards.Add(updated);
     }
 
+    // Soft delete: moves an archived card to the board's Trash (recoverable).
     private async Task DeleteArchivedCard(CardDto card)
     {
         if (!await CardService.DeleteAsync(card.Id)) return;
         _archivedCards.Remove(card);
+        if (_showTrashCards) _trashedCards.Insert(0, card);
+    }
+
+    private async Task ToggleTrashCards()
+    {
+        _showTrashCards = !_showTrashCards;
+        if (_showTrashCards)
+            await LoadTrashCardsAsync();
+    }
+
+    private async Task LoadTrashCardsAsync()
+    {
+        if (_board is null) return;
+        _loadingTrashCards = true;
+        _trashedCards = await CardService.GetTrashAsync(_board.Id) ?? [];
+        _loadingTrashCards = false;
+    }
+
+    private async Task RestoreTrashedCard(CardDto card)
+    {
+        var updated = await CardService.RestoreAsync(card.Id);
+        if (updated is null) return;
+        _trashedCards.Remove(card);
+        // Restore only clears DeletedAt; a card that was archived when trashed stays archived.
+        if (updated.IsArchived)
+        {
+            if (_showArchivedCards) _archivedCards.Add(updated);
+        }
+        else
+        {
+            var col = _board!.Columns.FirstOrDefault(c => c.Id == updated.ColumnId);
+            col?.Cards.Add(updated);
+        }
+    }
+
+    // Permanent (irreversible) delete of a trashed card.
+    private async Task PermanentDeleteCard(CardDto card)
+    {
+        if (!await CardService.DeletePermanentAsync(card.Id)) return;
+        _trashedCards.Remove(card);
     }
 
     private async Task DeleteCard()

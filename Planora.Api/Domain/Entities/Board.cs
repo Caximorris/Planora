@@ -9,6 +9,9 @@ public class Board : BaseEntity
     public int Position { get; set; }
     public bool IsArchived { get; set; }
 
+    // Soft-delete (trash): null = live, non-null = trashed. Distinct from IsArchived (put-aside).
+    public DateTime? DeletedAt { get; set; }
+
     public Guid WorkspaceId { get; set; }
     public Workspace Workspace { get; set; } = null!;
 

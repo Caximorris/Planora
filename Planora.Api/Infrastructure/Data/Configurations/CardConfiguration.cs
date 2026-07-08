@@ -31,8 +31,11 @@ public class CardConfiguration : IEntityTypeConfiguration<Card>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(c => new { c.ColumnId, c.Position });
+        // Supports the per-board trash listing (cards where DeletedAt != null)
+        builder.HasIndex(c => new { c.ColumnId, c.DeletedAt });
 
-        // Soft-delete filter: archived cards are hidden by default
-        builder.HasQueryFilter(c => !c.IsArchived);
+        // Global filter hides both archived (put-aside) and trashed (soft-deleted) cards by
+        // default. Both fold into one predicate — EF Core allows a single query filter per entity.
+        builder.HasQueryFilter(c => !c.IsArchived && c.DeletedAt == null);
     }
 }

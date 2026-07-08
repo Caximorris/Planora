@@ -26,7 +26,8 @@ public class ColumnConfiguration : IEntityTypeConfiguration<Column>
 
         builder.HasIndex(c => new { c.BoardId, c.Position });
 
-        // Mirrors Board's global query filter so EF never returns orphaned columns
-        builder.HasQueryFilter(c => !c.Board.IsArchived);
+        // Mirrors Board's global query filter (archived + trashed) so EF never returns
+        // columns belonging to a hidden board.
+        builder.HasQueryFilter(c => !c.Board.IsArchived && c.Board.DeletedAt == null);
     }
 }

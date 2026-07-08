@@ -65,7 +65,10 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | GET | /boards/{id} | Full detail with columns/cards |
 | POST | /boards | CoverColor validated as `^#[0-9A-Fa-f]{6}$` |
 | PUT | /boards/{id} | Does NOT accept CoverImageUrl — use upload endpoint |
-| DELETE | /boards/{id} | |
+| DELETE | /boards/{id} | **Soft delete** — moves the board to the workspace trash (recoverable) |
+| GET | /boards/trash?workspaceId={id} | Member-gated list of trashed boards, newest-deleted first |
+| PATCH | /boards/{id}/restore | Restores a trashed board (clears DeletedAt) |
+| DELETE | /boards/{id}/permanent | Hard delete — only a trashed board; cascades + removes cover image |
 | POST | /boards/{id}/cover-image | multipart/form-data; magic bytes + allowlist; max 5MB |
 | DELETE | /boards/{id}/cover-image | |
 | GET | /boards/{id}/activity | Member-gated board activity feed, newest first |
@@ -73,3 +76,15 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 ## Columns, Cards, Checklists, Labels
 
 Standard CRUD — all workspace-member gated. See controllers for full signatures.
+
+Cards additionally support soft-delete / trash, mirroring boards:
+
+| Method | Path | Notes |
+|--------|------|-------|
+| DELETE | /cards/{id} | **Soft delete** — moves the card to its board's trash (recoverable) |
+| GET | /cards/trash?boardId={id} | Member-gated list of trashed cards for a board, newest-deleted first |
+| PATCH | /cards/{id}/restore | Restores a trashed card (clears DeletedAt) |
+| DELETE | /cards/{id}/permanent | Hard delete — only a trashed card |
+
+Trash is orthogonal to archive: a board/card can be archived and/or trashed. The global EF query
+filter hides both archived and trashed rows from all normal reads (lists, GetById, search, calendar).

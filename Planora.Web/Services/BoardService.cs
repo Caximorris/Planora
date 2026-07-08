@@ -45,8 +45,22 @@ public class BoardService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
     }
 
+    /// Soft-delete: moves the board to the workspace trash (recoverable).
     public async Task<bool> DeleteAsync(Guid id) =>
         (await _http.DeleteAsync($"api/boards/{id}")).IsSuccessStatusCode;
+
+    public Task<List<BoardDto>?> GetTrashAsync(Guid workspaceId) =>
+        _http.GetFromJsonAsync<List<BoardDto>>($"api/boards/trash?workspaceId={workspaceId}");
+
+    public async Task<BoardDto?> RestoreAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/boards/{id}/restore", null);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
+    }
+
+    /// Permanent (irreversible) delete — only valid for a board already in the trash.
+    public async Task<bool> DeletePermanentAsync(Guid id) =>
+        (await _http.DeleteAsync($"api/boards/{id}/permanent")).IsSuccessStatusCode;
 
     public async Task<BoardDto?> UploadCoverImageAsync(Guid boardId, IBrowserFile file)
     {

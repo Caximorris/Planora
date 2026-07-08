@@ -18,6 +18,7 @@ public class CardDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsArchived { get; set; }
+    public DateTime? DeletedAt { get; set; }
     public List<LabelDto> Labels { get; set; } = [];
     public List<ChecklistDto> Checklists { get; set; } = [];
 }

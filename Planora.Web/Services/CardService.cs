@@ -35,6 +35,20 @@ public class CardService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
     }
 
+    /// Soft-delete: moves the card to its board's trash (recoverable).
     public async Task<bool> DeleteAsync(Guid id) =>
         (await _http.DeleteAsync($"api/cards/{id}")).IsSuccessStatusCode;
+
+    public Task<List<CardDto>?> GetTrashAsync(Guid boardId) =>
+        _http.GetFromJsonAsync<List<CardDto>>($"api/cards/trash?boardId={boardId}");
+
+    public async Task<CardDto?> RestoreAsync(Guid id)
+    {
+        var res = await _http.PatchAsync($"api/cards/{id}/restore", null);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
+    }
+
+    /// Permanent (irreversible) delete — only valid for a card already in the trash.
+    public async Task<bool> DeletePermanentAsync(Guid id) =>
+        (await _http.DeleteAsync($"api/cards/{id}/permanent")).IsSuccessStatusCode;
 }

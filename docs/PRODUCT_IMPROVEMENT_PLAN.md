@@ -389,6 +389,18 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > `docs/azure-blob-storage.md` documents the exact remaining steps (SDK package, `BlobFileStorage`,
 > dual-read, Azure provisioning). Build clean; no behavior change (still local disk). Next: implement
 > Task 8 (`BlobFileStorage`) + Task 9 (dual-read), or pick Task 19 (soft-delete + trash/restore).
+> **Task 19 ✅ (2026-07-08):** soft-delete/trash for boards + cards. `DeletedAt` added to `Board`/`Card`
+> (+ DTOs, Mapperly auto-maps); folded into the existing archive query filters as one predicate
+> (`!IsArchived && DeletedAt == null`) on Board/Card/Column configs; every `IgnoreQueryFilters` read
+> path (board GetById/GetActivity/Unarchive, card Unarchive, workspace board list, archived view)
+> guarded so trashed rows never leak. `DELETE /api/boards|cards/{id}` now soft-delete; added
+> `/restore`, `/permanent`, and `trash?workspaceId=|boardId=` endpoints (per-workspace board trash,
+> per-board card trash). Migration `AddSoftDeleteToBoardsAndCards` (+ indexes). Frontend: workspace
+> Trash view (Restore / Delete-forever) + soft-delete modal reworded to "Move to Trash"; per-board
+> card Trash panel in board settings. `Planora.Tests/Boards/SoftDeleteTests.cs` (9 tests) pins
+> trash/restore/permanent + filter consistency (search/calendar/GetById) + cross-workspace guards;
+> `dotnet test Planora.slnx` green (54 tests), full build clean, and Chrome verified both trash flows
+> end-to-end with no console errors. Scope: boards + cards only (workspace recoverable-delete deferred).
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -459,9 +471,11 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 18. **Card attachments.** Goal: `CardAttachment` entity + endpoints + card-modal UI on `IFileStorage`.
     Files: new entity, migration, `CardsController`/service, card modal. Risk: M. Validate:
     validation + scope + cascade tests. Deps: 8.
-19. **Soft-delete + trash/restore (boards, cards).** Goal: `DeletedAt` + global filter + trash view.
-    Files: entities, `DbContext` query filters, migration, controllers, UI. Risk: M. Validate:
-    soft-deleted excluded from list/search/calendar; restore works; tests. Deps: 3.
+19. ✅ **Soft-delete + trash/restore (boards, cards).** Goal: `DeletedAt` + global filter + trash view.
+    Files: entities, Board/Card/Column configs, `AddSoftDeleteToBoardsAndCards` migration,
+    Boards/Cards controllers, `BoardService`/`CardService`, `Workspaces.razor`/`Board.razor`,
+    `SoftDeleteTests.cs`. Risk: M. Validated: soft-deleted excluded from list/search/calendar/GetById;
+    restore + permanent-delete work; cross-workspace guards; 54 tests green; Chrome-verified. Deps: 3.
 20. **Background cleanup job.** Goal: `BackgroundService` purging expired refresh tokens/invites (and
     old trash). Files: `Infrastructure/Jobs/*`, `Program.cs`. Risk: L. Validate: job removes only
     expired rows; test the predicate. Deps: 19.

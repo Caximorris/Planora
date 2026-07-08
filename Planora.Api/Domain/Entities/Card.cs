@@ -12,6 +12,9 @@ public class Card : BaseEntity
     public string? Color { get; set; }
     public bool IsArchived { get; set; }
 
+    // Soft-delete (trash): null = live, non-null = trashed. Distinct from IsArchived (put-aside).
+    public DateTime? DeletedAt { get; set; }
+
     public Guid ColumnId { get; set; }
     public Column Column { get; set; } = null!;
 

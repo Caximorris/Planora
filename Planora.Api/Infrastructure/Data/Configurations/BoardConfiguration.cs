@@ -30,8 +30,11 @@ public class BoardConfiguration : IEntityTypeConfiguration<Board>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(b => new { b.WorkspaceId, b.Position });
+        // Supports the workspace trash listing (boards where DeletedAt != null)
+        builder.HasIndex(b => new { b.WorkspaceId, b.DeletedAt });
 
-        // Soft-delete filter: archived boards are hidden by default
-        builder.HasQueryFilter(b => !b.IsArchived);
+        // Global filter hides both archived (put-aside) and trashed (soft-deleted) boards by
+        // default. Both fold into one predicate — EF Core allows a single query filter per entity.
+        builder.HasQueryFilter(b => !b.IsArchived && b.DeletedAt == null);
     }
 }

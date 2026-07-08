@@ -61,6 +61,9 @@
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleArchivedBoards">
                         @(_showArchivedBoards ? "Hide archived" : "Show archived")
                     </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleTrashBoards">
+                        @(_showTrashBoards ? "Hide trash" : "🗑 Trash")
+                    </button>
                     <button class="btn btn-sm btn-primary" @onclick="() => _showCreateBoard = true">+ New board</button>
                 </div>
             </div>
@@ -139,11 +142,41 @@
                     }
                 </div>
             }
+
+            @if (_showTrashBoards)
+            {
+                <div class="mt-4">
+                    <h6 style="font-size:13px;color:var(--text-secondary);margin-bottom:0.5rem;">🗑 Trash</h6>
+                    @if (_loadingTrashBoards)
+                    {
+                        <div class="text-center py-2"><span class="spinner-border spinner-border-sm"></span></div>
+                    }
+                    else if (_trashedBoards.Count == 0)
+                    {
+                        <p style="font-size:13px;color:var(--text-secondary)">Trash is empty.</p>
+                    }
+                    else
+                    {
+                        <div class="boards-grid boards-grid--archived">
+                            @foreach (var board in _trashedBoards)
+                            {
+                                <div class="board-tile board-tile--archived" @key="board.Id" style="@TileStyle(board)">
+                                    <span class="board-tile-name">@board.Name</span>
+                                    <div class="board-tile-archived-actions">
+                                        <button class="btn btn-sm btn-light" @onclick="() => RestoreBoard(board)">Restore</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmPermanentDeleteBoard(board)">Delete forever</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
         }
     </div>
 </div>
 
-@* Delete board confirmation *@
+@* Move-to-trash confirmation (soft delete, recoverable) *@
 @if (_deleteBoardTarget is not null)
 {
     <div class="modal-backdrop fade show"></div>
@@ -151,17 +184,42 @@
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="delete-board-title">Delete board?</h5>
+                    <h5 class="modal-title" id="delete-board-title">Move board to Trash?</h5>
                     <button class="btn-close" aria-label="Close delete board dialog" @onclick="() => _deleteBoardTarget = null"></button>
                 </div>
                 <div class="modal-body">
                     <p style="font-size:13px;color:var(--color-text-mid);">
-                        "<strong>@_deleteBoardTarget.Name</strong>" and all its data will be permanently deleted.
+                        "<strong>@_deleteBoardTarget.Name</strong>" will be moved to the Trash. You can restore it later.
                     </p>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary btn-sm" @onclick="() => _deleteBoardTarget = null">Cancel</button>
-                    <button class="btn btn-danger btn-sm" @onclick="DeleteArchivedBoard" disabled="@_saving">Delete</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteArchivedBoard" disabled="@_saving">Move to Trash</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Permanent delete confirmation (irreversible) *@
+@if (_permanentDeleteBoardTarget is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="perma-delete-board-title">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="perma-delete-board-title">Delete board forever?</h5>
+                    <button class="btn-close" aria-label="Close permanent delete dialog" @onclick="() => _permanentDeleteBoardTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">
+                        "<strong>@_permanentDeleteBoardTarget.Name</strong>" and all its data will be permanently deleted. This cannot be undone.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _permanentDeleteBoardTarget = null">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="PermanentDeleteBoard" disabled="@_saving">Delete forever</button>
                 </div>
             </div>
         </div>
@@ -291,6 +349,11 @@
     private List<BoardDto> _archivedBoards = [];
     private BoardDto? _deleteBoardTarget;
 
+    private bool _showTrashBoards;
+    private bool _loadingTrashBoards;
+    private List<BoardDto> _trashedBoards = [];
+    private BoardDto? _permanentDeleteBoardTarget;
+
     protected override async Task OnInitializedAsync()
     {
         _workspaces = await WorkspaceService.GetAllAsync() ?? [];
@@ -304,6 +367,8 @@
         _selected = ws;
         _showArchivedBoards = false;
         _archivedBoards = [];
+        _showTrashBoards = false;
+        _trashedBoards = [];
         _loadingBoards = true;
         _boards = await WorkspaceService.GetBoardsAsync(ws.Id) ?? [];
         _loadingBoards = false;
@@ -340,6 +405,7 @@
 
     private void ConfirmDeleteBoard(BoardDto board) => _deleteBoardTarget = board;
 
+    // Soft delete: moves an archived board to the workspace Trash (recoverable).
     private async Task DeleteArchivedBoard()
     {
         if (_deleteBoardTarget is null) return;
@@ -347,6 +413,46 @@
         if (await BoardService.DeleteAsync(_deleteBoardTarget.Id))
             _archivedBoards.RemoveAll(b => b.Id == _deleteBoardTarget.Id);
         _deleteBoardTarget = null;
+        _saving = false;
+    }
+
+    private async Task ToggleTrashBoards()
+    {
+        _showTrashBoards = !_showTrashBoards;
+        if (_showTrashBoards && _selected is not null)
+        {
+            _loadingTrashBoards = true;
+            _trashedBoards = await BoardService.GetTrashAsync(_selected.Id) ?? [];
+            _loadingTrashBoards = false;
+        }
+    }
+
+    private async Task RestoreBoard(BoardDto board)
+    {
+        var restored = await BoardService.RestoreAsync(board.Id);
+        if (restored is null) return;
+        _trashedBoards.RemoveAll(b => b.Id == board.Id);
+        // Restore only clears DeletedAt; the board keeps its archived state, so put it back where
+        // it belongs (boards are trashed from the archived view, so this is normally the archive).
+        if (restored.IsArchived)
+        {
+            if (_showArchivedBoards) _archivedBoards.Add(restored);
+        }
+        else
+        {
+            _boards.Add(restored);
+        }
+    }
+
+    private void ConfirmPermanentDeleteBoard(BoardDto board) => _permanentDeleteBoardTarget = board;
+
+    private async Task PermanentDeleteBoard()
+    {
+        if (_permanentDeleteBoardTarget is null) return;
+        _saving = true;
+        if (await BoardService.DeletePermanentAsync(_permanentDeleteBoardTarget.Id))
+            _trashedBoards.RemoveAll(b => b.Id == _permanentDeleteBoardTarget.Id);
+        _permanentDeleteBoardTarget = null;
         _saving = false;
     }
 

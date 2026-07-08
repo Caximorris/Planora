@@ -62,7 +62,8 @@ public class WorkspacesController : ControllerBase
         if (!isMember) return Forbid();
 
         var boardsQuery = includeArchived
-            ? _db.Boards.IgnoreQueryFilters().Where(b => b.WorkspaceId == id)
+            // Show archived boards too, but never trashed ones (those live in the workspace trash).
+            ? _db.Boards.IgnoreQueryFilters().Where(b => b.WorkspaceId == id && b.DeletedAt == null)
             : _db.Boards.Where(b => b.WorkspaceId == id);
 
         var boards = await boardsQuery.OrderBy(b => b.Position).ToListAsync();

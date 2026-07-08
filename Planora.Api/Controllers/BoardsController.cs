@@ -50,13 +50,15 @@ public class BoardsController : ControllerBase
             .IgnoreQueryFilters()
             .Include(b => b.Columns.OrderBy(c => c.Position))
                 .ThenInclude(c => c.Cards
-                    .Where(card => includeArchived || !card.IsArchived)
+                    // Trashed cards are never returned; archived ones only when asked for.
+                    .Where(card => (includeArchived || !card.IsArchived) && card.DeletedAt == null)
                     .OrderBy(card => card.Position))
                     .ThenInclude(card => card.Labels)
                         .ThenInclude(cl => cl.Label)
             .FirstOrDefaultAsync(b => b.Id == id);
 
-        if (board is null) return NotFound();
+        // IgnoreQueryFilters also un-hides trashed boards — a trashed board must read as gone.
+        if (board is null || board.DeletedAt is not null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
@@ -73,7 +75,7 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(b => b.Id == id);
-        if (board is null) return NotFound();
+        if (board is null || board.DeletedAt is not null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
@@ -174,7 +176,9 @@ public class BoardsController : ControllerBase
     [HttpPatch("{id:guid}/unarchive")]
     public async Task<IActionResult> Unarchive(Guid id)
     {
-        var board = await _db.Boards.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Id == id);
+        // DeletedAt == null: a trashed board is restored via /restore, not unarchived here.
+        var board = await _db.Boards.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null);
         if (board is null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers
@@ -186,10 +190,62 @@ public class BoardsController : ControllerBase
         return Ok(board.ToDto());
     }
 
+    // Soft delete: move the board to the workspace trash (recoverable). The cover image is kept
+    // on storage so a restore is lossless — it's only cleaned up on permanent delete.
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var board = await _db.Boards.IgnoreQueryFilters().FirstOrDefaultAsync(b => b.Id == id);
+        var board = await _db.Boards.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null);
+        if (board is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        board.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("trash")]
+    public async Task<IActionResult> GetTrash([FromQuery] Guid workspaceId)
+    {
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        var boards = await _db.Boards
+            .IgnoreQueryFilters()
+            .Where(b => b.WorkspaceId == workspaceId && b.DeletedAt != null)
+            .OrderByDescending(b => b.DeletedAt)
+            .ToListAsync();
+
+        return Ok(boards.ToDtoList());
+    }
+
+    [HttpPatch("{id:guid}/restore")]
+    public async Task<IActionResult> Restore(Guid id)
+    {
+        var board = await _db.Boards.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt != null);
+        if (board is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        board.DeletedAt = null;
+        await _db.SaveChangesAsync();
+        return Ok(board.ToDto());
+    }
+
+    // Hard delete — only a trashed board can be permanently removed. Cascades to columns/cards/etc.
+    [HttpDelete("{id:guid}/permanent")]
+    public async Task<IActionResult> DeletePermanent(Guid id)
+    {
+        var board = await _db.Boards.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt != null);
         if (board is null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers

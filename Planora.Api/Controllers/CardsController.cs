@@ -249,11 +249,12 @@ public class CardsController : ControllerBase
     [HttpPatch("{id:guid}/unarchive")]
     public async Task<IActionResult> Unarchive(Guid id)
     {
+        // DeletedAt == null: a trashed card is restored via /restore, not unarchived here.
         var card = await _db.Cards
             .IgnoreQueryFilters()
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
-            .FirstOrDefaultAsync(c => c.Id == id);
+            .FirstOrDefaultAsync(c => c.Id == id && c.DeletedAt == null);
 
         if (card is null) return NotFound();
 
@@ -266,6 +267,7 @@ public class CardsController : ControllerBase
         return Ok(card.ToDto());
     }
 
+    // Soft delete: move the card to its board's trash (recoverable).
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -273,7 +275,72 @@ public class CardsController : ControllerBase
             .IgnoreQueryFilters()
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
-            .FirstOrDefaultAsync(c => c.Id == id);
+            .FirstOrDefaultAsync(c => c.Id == id && c.DeletedAt == null);
+
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        card.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("trash")]
+    public async Task<IActionResult> GetTrash([FromQuery] Guid boardId)
+    {
+        var workspaceId = await _db.Boards
+            .IgnoreQueryFilters()
+            .Where(b => b.Id == boardId)
+            .Select(b => (Guid?)b.WorkspaceId)
+            .FirstOrDefaultAsync();
+        if (workspaceId is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        var cards = await _db.Cards
+            .IgnoreQueryFilters()
+            .Include(c => c.Labels).ThenInclude(cl => cl.Label)
+            .Where(c => c.Column.BoardId == boardId && c.DeletedAt != null)
+            .OrderByDescending(c => c.DeletedAt)
+            .ToListAsync();
+
+        return Ok(cards.Select(c => c.ToDto()).ToList());
+    }
+
+    [HttpPatch("{id:guid}/restore")]
+    public async Task<IActionResult> Restore(Guid id)
+    {
+        var card = await _db.Cards
+            .IgnoreQueryFilters()
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == id && c.DeletedAt != null);
+
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        card.DeletedAt = null;
+        await _db.SaveChangesAsync();
+        return Ok(card.ToDto());
+    }
+
+    // Hard delete — only a trashed card can be permanently removed.
+    [HttpDelete("{id:guid}/permanent")]
+    public async Task<IActionResult> DeletePermanent(Guid id)
+    {
+        var card = await _db.Cards
+            .IgnoreQueryFilters()
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == id && c.DeletedAt != null);
 
         if (card is null) return NotFound();
 
