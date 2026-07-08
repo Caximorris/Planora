@@ -1723,6 +1723,57 @@ select:focus-visible,
     }
 }
 
+/* ── Two-factor authentication ──────────────────────────────── */
+.auth-subtitle {
+    color: var(--color-text-mid);
+    font-size: 0.9rem;
+    margin: -4px 0 16px;
+}
+.twofa-panel {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-top: 10px;
+}
+.twofa-steps {
+    margin: 0 0 10px;
+    padding-left: 18px;
+    font-size: 0.88rem;
+    color: var(--color-text-mid);
+}
+.twofa-key-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+}
+.twofa-key {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1rem; letter-spacing: 0.12em;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    color: var(--color-text);
+    user-select: all;
+}
+.twofa-recovery-head { margin-bottom: 10px; }
+.twofa-recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+.twofa-recovery-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    text-align: center;
+    color: var(--color-text);
+    user-select: all;
+}
+
 /* ── Empty states ───────────────────────────────────────────── */
 .empty-state {
     display: flex; flex-direction: column; align-items: center;

@@ -11,7 +11,8 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | Method | Path | Notes |
 |--------|------|-------|
 | POST | /auth/register | Returns AuthResponse (token + refreshToken) |
-| POST | /auth/login | Progressive lockout: 3→5min, 5→15min, 8→1h, 10+→24h |
+| POST | /auth/login | Progressive lockout: 3→5min, 5→15min, 8→1h, 10+→24h. If 2FA is on, returns AuthResponse{RequiresTwoFactor=true} with no tokens |
+| POST | /auth/login/2fa | Completes login for a 2FA account: re-verifies password (same lockout) + TOTP or recovery code |
 | POST | /auth/refresh | Rotates pair; reuse of revoked token revokes ALL user tokens |
 | POST | /auth/logout | AllowAnonymous; accepts optional refreshToken body |
 | POST | /auth/demo | Creates a guest account + seeds a demo workspace; returns AuthResponse |
@@ -22,6 +23,11 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | POST | /auth/sessions | Authorized; lists active refresh-token sessions |
 | POST | /auth/sessions/revoke | Authorized; revokes one session by id |
 | POST | /auth/sessions/revoke-others | Authorized; keeps the current refresh-token session |
+| GET  | /auth/2fa/status | Authorized; { enabled, recoveryCodesRemaining } |
+| POST | /auth/2fa/setup | Authorized; returns shared key + otpauth URI (does not enable yet) |
+| POST | /auth/2fa/enable | Authorized; verifies TOTP, enables 2FA, returns 10 one-time recovery codes |
+| POST | /auth/2fa/disable | Authorized; requires a valid TOTP/recovery code to disable |
+| POST | /auth/2fa/recovery-codes | Authorized; regenerates recovery codes (requires a valid code) |
 
 ## Health (no /api prefix, anonymous)
 

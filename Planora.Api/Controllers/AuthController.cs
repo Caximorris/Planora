@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -103,44 +104,64 @@ public class AuthController : ControllerBase
         if (user is null)
             return Unauthorized("Invalid credentials.");
 
-        if (await _userManager.IsLockedOutAsync(user))
-        {
-            _logger.LogWarning("AUTH_LOGIN_BLOCKED Email={Email} CorrelationId={CorrelationId}",
-                request.Email, correlationId);
+        var check = await CheckPasswordWithLockoutAsync(user, request.Password, correlationId);
+        if (check == CredentialCheck.LockedOut)
             return StatusCode(StatusCodes.Status429TooManyRequests, "Account temporarily locked. Please try again later.");
-        }
-
-        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
-
-        if (!result.Succeeded)
-        {
-            var failCountBefore = user.AccessFailedCount;
-            await _userManager.AccessFailedAsync(user);
-            var failCount = failCountBefore + 1;
-
-            if (failCount >= 3)
-            {
-                var duration = failCount switch
-                {
-                    >= 10 => TimeSpan.FromHours(24),
-                    >= 8  => TimeSpan.FromHours(1),
-                    >= 5  => TimeSpan.FromMinutes(15),
-                    _     => TimeSpan.FromMinutes(5)
-                };
-                // Re-fetch to avoid EF tracking conflicts after AccessFailedAsync
-                var freshUser = await _userManager.FindByIdAsync(user.Id);
-                await _userManager.SetLockoutEndDateAsync(freshUser!, DateTimeOffset.UtcNow.Add(duration));
-            }
-
-            _logger.LogWarning("AUTH_LOGIN_FAILED Email={Email} Attempts={Attempts} CorrelationId={CorrelationId}",
-                request.Email, failCount, correlationId);
+        if (check == CredentialCheck.InvalidCredentials)
             return Unauthorized("Invalid credentials.");
+
+        // Password is correct. If the account has 2FA, stop here — no tokens are issued until the
+        // second factor is verified via POST /api/auth/login/2fa. Don't reset the failed-attempt
+        // counter yet, so brute-forcing the code still accrues toward lockout.
+        if (await _userManager.GetTwoFactorEnabledAsync(user))
+        {
+            _logger.LogInformation("AUTH_LOGIN_2FA_REQUIRED UserId={UserId} CorrelationId={CorrelationId}",
+                user.Id, correlationId);
+            return Ok(new AuthResponse { RequiresTwoFactor = true });
         }
 
         await _userManager.ResetAccessFailedCountAsync(user);
 
         _logger.LogInformation("AUTH_LOGIN_SUCCESS UserId={UserId} Email={Email} CorrelationId={CorrelationId}",
             user.Id, request.Email, correlationId);
+
+        return Ok(await BuildAuthResponseAsync(user));
+    }
+
+    [HttpPost("login/2fa")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LoginTwoFactor([FromBody] TwoFactorLoginRequest request)
+    {
+        var correlationId = HttpContext.Items["CorrelationId"] as string;
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user is null)
+            return Unauthorized("Invalid credentials.");
+
+        // Re-verify the password (with the same lockout) so this endpoint can't be used as a
+        // password-less way to test recovery/TOTP codes.
+        var check = await CheckPasswordWithLockoutAsync(user, request.Password, correlationId);
+        if (check == CredentialCheck.LockedOut)
+            return StatusCode(StatusCodes.Status429TooManyRequests, "Account temporarily locked. Please try again later.");
+        if (check == CredentialCheck.InvalidCredentials)
+            return Unauthorized("Invalid credentials.");
+
+        // If 2FA isn't actually enabled, treat this as a normal completed login.
+        if (await _userManager.GetTwoFactorEnabledAsync(user))
+        {
+            var codeValid = await VerifySecondFactorAsync(user, request.Code, request.IsRecoveryCode);
+            if (!codeValid)
+            {
+                await ApplyFailedAttemptAsync(user);
+                _logger.LogWarning("AUTH_LOGIN_2FA_FAILED UserId={UserId} CorrelationId={CorrelationId}",
+                    user.Id, correlationId);
+                return Unauthorized("Invalid credentials.");
+            }
+        }
+
+        await _userManager.ResetAccessFailedCountAsync(user);
+
+        _logger.LogInformation("AUTH_LOGIN_2FA_SUCCESS UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, correlationId);
 
         return Ok(await BuildAuthResponseAsync(user));
     }
@@ -410,6 +431,202 @@ public class AuthController : ControllerBase
             userId ?? "unknown", correlationId);
         return NoContent();
     }
+
+    [Authorize]
+    [HttpGet("2fa/status")]
+    public async Task<IActionResult> TwoFactorStatus()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null) return Unauthorized();
+
+        return Ok(new TwoFactorStatusResponse
+        {
+            Enabled = await _userManager.GetTwoFactorEnabledAsync(user),
+            RecoveryCodesRemaining = await _userManager.CountRecoveryCodesAsync(user)
+        });
+    }
+
+    [Authorize]
+    [HttpPost("2fa/setup")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> TwoFactorSetup()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null) return Unauthorized();
+
+        if (await _userManager.GetTwoFactorEnabledAsync(user))
+            return BadRequest("Two-factor authentication is already enabled.");
+
+        // Ensure an authenticator key exists (generating one rotates the SecurityStamp; harmless here
+        // since 2FA isn't enabled yet and the client auto-refreshes on the next request).
+        var key = await _userManager.GetAuthenticatorKeyAsync(user);
+        if (string.IsNullOrEmpty(key))
+        {
+            await _userManager.ResetAuthenticatorKeyAsync(user);
+            key = await _userManager.GetAuthenticatorKeyAsync(user);
+        }
+
+        return Ok(new TwoFactorSetupResponse
+        {
+            SharedKey = FormatKey(key!),
+            AuthenticatorUri = BuildAuthenticatorUri(user.Email!, key!)
+        });
+    }
+
+    [Authorize]
+    [HttpPost("2fa/enable")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> TwoFactorEnable([FromBody] EnableTwoFactorRequest request)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null) return Unauthorized();
+
+        if (await _userManager.GetTwoFactorEnabledAsync(user))
+            return BadRequest("Two-factor authentication is already enabled.");
+
+        var valid = await _userManager.VerifyTwoFactorTokenAsync(
+            user, TokenOptions.DefaultAuthenticatorProvider, Sanitize(request.Code));
+        if (!valid)
+            return BadRequest("That code is invalid or expired. Please try again.");
+
+        await _userManager.SetTwoFactorEnabledAsync(user, true);
+        var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+
+        _logger.LogInformation("AUTH_2FA_ENABLED UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, HttpContext.Items["CorrelationId"]);
+
+        return Ok(new TwoFactorRecoveryCodesResponse { RecoveryCodes = recoveryCodes?.ToList() ?? [] });
+    }
+
+    [Authorize]
+    [HttpPost("2fa/disable")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> TwoFactorDisable([FromBody] DisableTwoFactorRequest request)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null) return Unauthorized();
+
+        if (!await _userManager.GetTwoFactorEnabledAsync(user))
+            return BadRequest("Two-factor authentication is not enabled.");
+
+        // Re-verify a second factor so a stolen access token can't silently weaken the account.
+        if (!await VerifySecondFactorAsync(user, request.Code, request.IsRecoveryCode))
+            return BadRequest("That code is invalid or expired. Please try again.");
+
+        await _userManager.SetTwoFactorEnabledAsync(user, false);
+        await _userManager.ResetAuthenticatorKeyAsync(user);
+
+        _logger.LogInformation("AUTH_2FA_DISABLED UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, HttpContext.Items["CorrelationId"]);
+
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpPost("2fa/recovery-codes")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> RegenerateRecoveryCodes([FromBody] DisableTwoFactorRequest request)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null) return Unauthorized();
+
+        if (!await _userManager.GetTwoFactorEnabledAsync(user))
+            return BadRequest("Two-factor authentication is not enabled.");
+
+        if (!await VerifySecondFactorAsync(user, request.Code, request.IsRecoveryCode))
+            return BadRequest("That code is invalid or expired. Please try again.");
+
+        var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+
+        _logger.LogInformation("AUTH_2FA_RECOVERY_REGENERATED UserId={UserId} CorrelationId={CorrelationId}",
+            user.Id, HttpContext.Items["CorrelationId"]);
+
+        return Ok(new TwoFactorRecoveryCodesResponse { RecoveryCodes = recoveryCodes?.ToList() ?? [] });
+    }
+
+    private enum CredentialCheck { Ok, InvalidCredentials, LockedOut }
+
+    // Shared password + progressive-lockout gate used by both the password step and the 2FA step, so
+    // lockout behavior can never diverge between them.
+    private async Task<CredentialCheck> CheckPasswordWithLockoutAsync(AppUser user, string password, string? correlationId)
+    {
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            _logger.LogWarning("AUTH_LOGIN_BLOCKED Email={Email} CorrelationId={CorrelationId}",
+                user.Email, correlationId);
+            return CredentialCheck.LockedOut;
+        }
+
+        var result = await _signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: false);
+        if (!result.Succeeded)
+        {
+            await ApplyFailedAttemptAsync(user);
+            _logger.LogWarning("AUTH_LOGIN_FAILED Email={Email} CorrelationId={CorrelationId}",
+                user.Email, correlationId);
+            return CredentialCheck.InvalidCredentials;
+        }
+
+        return CredentialCheck.Ok;
+    }
+
+    // Records a failed attempt and applies the manual progressive lockout (3–4 → 5m, 5–7 → 15m,
+    // 8–9 → 1h, 10+ → 24h). Shared by wrong-password and wrong-2FA-code paths.
+    private async Task ApplyFailedAttemptAsync(AppUser user)
+    {
+        var failCountBefore = user.AccessFailedCount;
+        await _userManager.AccessFailedAsync(user);
+        var failCount = failCountBefore + 1;
+
+        if (failCount >= 3)
+        {
+            var duration = failCount switch
+            {
+                >= 10 => TimeSpan.FromHours(24),
+                >= 8  => TimeSpan.FromHours(1),
+                >= 5  => TimeSpan.FromMinutes(15),
+                _     => TimeSpan.FromMinutes(5)
+            };
+            // Re-fetch to avoid EF tracking conflicts after AccessFailedAsync
+            var freshUser = await _userManager.FindByIdAsync(user.Id);
+            await _userManager.SetLockoutEndDateAsync(freshUser!, DateTimeOffset.UtcNow.Add(duration));
+        }
+    }
+
+    private async Task<bool> VerifySecondFactorAsync(AppUser user, string code, bool isRecoveryCode)
+    {
+        if (isRecoveryCode)
+            // Recovery codes are stored with their exact formatting (e.g. "xxxxx-xxxxx"); only trim
+            // surrounding whitespace so the value still matches what was issued.
+            return (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, (code ?? string.Empty).Trim())).Succeeded;
+
+        return await _userManager.VerifyTwoFactorTokenAsync(
+            user, TokenOptions.DefaultAuthenticatorProvider, Sanitize(code));
+    }
+
+    private async Task<AppUser?> GetCurrentUserAsync()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return userId is null ? null : await _userManager.FindByIdAsync(userId);
+    }
+
+    private static string Sanitize(string? code) =>
+        (code ?? string.Empty).Replace(" ", string.Empty).Replace("-", string.Empty);
+
+    // Group the base32 secret into 4-char chunks for readable manual entry.
+    private static string FormatKey(string unformattedKey)
+    {
+        var result = new StringBuilder();
+        for (var i = 0; i < unformattedKey.Length; i += 4)
+        {
+            if (i > 0) result.Append(' ');
+            result.Append(unformattedKey.AsSpan(i, Math.Min(4, unformattedKey.Length - i)));
+        }
+        return result.ToString().ToUpperInvariant();
+    }
+
+    private static string BuildAuthenticatorUri(string email, string unformattedKey) =>
+        $"otpauth://totp/{Uri.EscapeDataString("Planora")}:{Uri.EscapeDataString(email)}" +
+        $"?secret={unformattedKey}&issuer={Uri.EscapeDataString("Planora")}&digits=6";
 
     private async Task<bool> SendEmailConfirmationAsync(AppUser user, string? correlationId, CancellationToken ct)
     {

@@ -126,10 +126,118 @@
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Two-factor authentication</div>
-                        <div class="profile-row-desc">Add an extra layer of security to your account</div>
+                        <div class="profile-row-desc">Require a code from your authenticator app when signing in</div>
                     </div>
-                    <span class="profile-soon-badge">Soon</span>
+                    <div class="d-flex gap-2 align-items-center">
+                        @if (_twoFaLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else if (_twoFaEnabled)
+                        {
+                            <span class="profile-status-badge profile-status-badge--success">Enabled</span>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="ToggleRegen" disabled="@_twoFaBusy">Recovery codes</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ToggleDisable" disabled="@_twoFaBusy">Disable</button>
+                        }
+                        else if (_setup is null && _recoveryCodes is null)
+                        {
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="StartSetup" disabled="@_twoFaBusy">
+                                @if (_twoFaBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Enable
+                            </button>
+                        }
+                    </div>
                 </div>
+
+                @if (_twoFaError is not null)
+                {
+                    <div class="alert alert-danger py-1 mt-1" style="font-size:13px;">@_twoFaError</div>
+                }
+
+                @* Enrollment: QR + manual key + confirm code *@
+                @if (_setup is not null)
+                {
+                    <div class="twofa-panel">
+                        <ol class="twofa-steps">
+                            <li>In Google Authenticator, Authy, or 1Password, add an account by entering this key:</li>
+                        </ol>
+                        <div class="twofa-key-row">
+                            <code class="twofa-key">@_setup.SharedKey</code>
+                            <a class="btn btn-secondary btn-sm" href="@_setup.AuthenticatorUri">Open in authenticator app</a>
+                        </div>
+                        <div class="twofa-enroll-form mt-2">
+                            <label class="form-label" style="font-size:13px;">Then enter the 6-digit code it shows</label>
+                            <input class="form-control form-control-sm" @bind="_enableCode" inputmode="numeric"
+                                   autocomplete="one-time-code" placeholder="123456" style="max-width:180px;" />
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" @onclick="ConfirmEnable" disabled="@_twoFaBusy">
+                                    @if (_twoFaBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    Verify &amp; enable
+                                </button>
+                                <button class="btn btn-secondary btn-sm" @onclick="CancelSetup" disabled="@_twoFaBusy">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* Recovery codes — shown once after enable / regenerate *@
+                @if (_recoveryCodes is not null)
+                {
+                    <div class="twofa-panel">
+                        <div class="twofa-recovery-head">
+                            <strong>Save your recovery codes</strong>
+                            <p class="profile-row-desc">
+                                Store these somewhere safe. Each can be used once to sign in if you lose your device.
+                                They won't be shown again.
+                            </p>
+                        </div>
+                        <div class="twofa-recovery-grid">
+                            @foreach (var rc in _recoveryCodes)
+                            {
+                                <code class="twofa-recovery-code" @key="rc">@rc</code>
+                            }
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-2" @onclick="DismissRecoveryCodes">I've saved these</button>
+                    </div>
+                }
+
+                @* Disable — requires a code *@
+                @if (_showDisable)
+                {
+                    <div class="twofa-panel" style="max-width:380px;">
+                        <label class="form-label" style="font-size:13px;">Enter a code to confirm disabling 2FA</label>
+                        <input class="form-control form-control-sm" @bind="_disableCode"
+                               autocomplete="one-time-code" placeholder="@(_disableUseRecovery ? "recovery code" : "123456")" />
+                        <div class="form-check mt-2" style="font-size:13px;">
+                            <input class="form-check-input" type="checkbox" id="disableRecovery" @bind="_disableUseRecovery" />
+                            <label class="form-check-label" for="disableRecovery">I'm using a recovery code</label>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-outline-danger btn-sm" @onclick="ConfirmDisable" disabled="@_twoFaBusy">
+                                @if (_twoFaBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Disable 2FA
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="ToggleDisable" disabled="@_twoFaBusy">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* Regenerate recovery codes — requires a TOTP *@
+                @if (_showRegen)
+                {
+                    <div class="twofa-panel" style="max-width:380px;">
+                        <label class="form-label" style="font-size:13px;">Enter your current authenticator code to get new recovery codes</label>
+                        <input class="form-control form-control-sm" @bind="_regenCode" inputmode="numeric"
+                               autocomplete="one-time-code" placeholder="123456" />
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-primary btn-sm" @onclick="ConfirmRegen" disabled="@_twoFaBusy">
+                                @if (_twoFaBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Regenerate
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="ToggleRegen" disabled="@_twoFaBusy">Cancel</button>
+                        </div>
+                    </div>
+                }
                 <div class="profile-row">
                     <div>
                         <div class="profile-row-label">Active sessions</div>
@@ -268,6 +376,21 @@
     private string? _sessionsMessage;
     private List<RefreshSessionDto> _sessions = [];
 
+    // Two-factor authentication
+    private bool _twoFaLoading = true;
+    private bool _twoFaEnabled;
+    private int _recoveryRemaining;
+    private bool _twoFaBusy;
+    private string? _twoFaError;
+    private TwoFactorSetupResponse? _setup;
+    private string _enableCode = "";
+    private List<string>? _recoveryCodes;
+    private bool _showDisable;
+    private string _disableCode = "";
+    private bool _disableUseRecovery;
+    private bool _showRegen;
+    private string _regenCode = "";
+
     protected override async Task OnInitializedAsync()
     {
         _theme = await JS.InvokeAsync<string>("planoraGetTheme");
@@ -282,6 +405,123 @@
             _email = profile.Email;
             _emailConfirmed = profile.EmailConfirmed;
         }
+
+        await LoadTwoFactorStatus();
+    }
+
+    private async Task LoadTwoFactorStatus()
+    {
+        _twoFaLoading = true;
+        var (status, _) = await AuthService.Get2faStatusAsync();
+        if (status is not null)
+        {
+            _twoFaEnabled = status.Enabled;
+            _recoveryRemaining = status.RecoveryCodesRemaining;
+        }
+        _twoFaLoading = false;
+    }
+
+    private async Task StartSetup()
+    {
+        _twoFaBusy = true;
+        _twoFaError = null;
+        var (setup, error) = await AuthService.Setup2faAsync();
+        if (setup is not null)
+        {
+            _setup = setup;
+            _enableCode = "";
+        }
+        else _twoFaError = error;
+        _twoFaBusy = false;
+    }
+
+    private void CancelSetup()
+    {
+        _setup = null;
+        _enableCode = "";
+        _twoFaError = null;
+    }
+
+    private async Task ConfirmEnable()
+    {
+        if (string.IsNullOrWhiteSpace(_enableCode))
+        {
+            _twoFaError = "Enter the code from your authenticator app.";
+            return;
+        }
+        _twoFaBusy = true;
+        _twoFaError = null;
+        var (codes, error) = await AuthService.Enable2faAsync(_enableCode);
+        if (codes is not null)
+        {
+            _recoveryCodes = codes;
+            _setup = null;
+            _twoFaEnabled = true;
+            _recoveryRemaining = codes.Count;
+        }
+        else _twoFaError = error;
+        _twoFaBusy = false;
+    }
+
+    private void DismissRecoveryCodes() => _recoveryCodes = null;
+
+    private void ToggleDisable()
+    {
+        _showDisable = !_showDisable;
+        _showRegen = false;
+        _disableCode = "";
+        _disableUseRecovery = false;
+        _twoFaError = null;
+    }
+
+    private async Task ConfirmDisable()
+    {
+        if (string.IsNullOrWhiteSpace(_disableCode))
+        {
+            _twoFaError = "Enter a code to confirm.";
+            return;
+        }
+        _twoFaBusy = true;
+        _twoFaError = null;
+        var (ok, error) = await AuthService.Disable2faAsync(_disableCode, _disableUseRecovery);
+        if (ok)
+        {
+            _twoFaEnabled = false;
+            _showDisable = false;
+            _disableCode = "";
+            _recoveryRemaining = 0;
+        }
+        else _twoFaError = error;
+        _twoFaBusy = false;
+    }
+
+    private void ToggleRegen()
+    {
+        _showRegen = !_showRegen;
+        _showDisable = false;
+        _regenCode = "";
+        _twoFaError = null;
+    }
+
+    private async Task ConfirmRegen()
+    {
+        if (string.IsNullOrWhiteSpace(_regenCode))
+        {
+            _twoFaError = "Enter your current code to confirm.";
+            return;
+        }
+        _twoFaBusy = true;
+        _twoFaError = null;
+        var (codes, error) = await AuthService.RegenerateRecoveryCodesAsync(_regenCode, false);
+        if (codes is not null)
+        {
+            _recoveryCodes = codes;
+            _showRegen = false;
+            _regenCode = "";
+            _recoveryRemaining = codes.Count;
+        }
+        else _twoFaError = error;
+        _twoFaBusy = false;
     }
 
     private async Task SetTheme(string theme)

@@ -508,6 +508,20 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     trash/restore raise success toasts (correct `--color-success` border, ✓ icon, `role=status` +
     `aria-live=polite` dismiss button), toast auto-dismisses at exactly 4.0s, `EmptyState` renders in
     the Trash panel, console clean (no errors/warnings). Deps: none.
+23. ✅ **2FA / TOTP + recovery codes (P2 auth hardening).** Goal: authenticator-app second factor with
+    recovery codes; enroll/verify/disable + gated login. Files: `AuthController` (login split into
+    `/login` + `/login/2fa` sharing one `CheckPasswordWithLockoutAsync` helper; `2fa/status|setup|enable|
+    disable|recovery-codes`), 6 new `Planora.Shared/DTOs/Auth/*` (+`AuthResponse.RequiresTwoFactor`),
+    `AuthService`, `Login.razor` (2FA step + recovery toggle), `Profile.razor` (enroll/recovery/disable
+    panel), `app.css`, `Planora.Tests/Auth/TwoFactorTests.cs` (10 tests). **Also fixed `AuthHeaderHandler`
+    to retry once after a silent refresh** — needed because enabling 2FA rotates the SecurityStamp, so
+    without a retry the first authorized call after enrollment would 401. Built on Identity's authenticator
+    provider — **no external TOTP lib and no EF migration** (`TwoFactorEnabled` + `AspNetUserTokens` already
+    exist). QR *image* deferred (needs a vendored JS lib fetched with network access); manual key + otpauth
+    link ship now. Risk: M (login path). Validated: `dotnet test Planora.slnx` green (74 tests); Chrome
+    DevTools live pass — enroll (first-click, stamp rotation transparent), recovery codes shown once,
+    logout→login→password→TOTP→authenticated, console clean. Deps: 3, 15.
+    Note: recovery codes keep Identity's `xxxxx-xxxxx` format (not sanitized) so redemption matches.
 
 ---
 

@@ -45,14 +45,28 @@ public class AuthHeaderHandler : DelegatingHandler
                 request.Headers.Authorization = null;
         }
 
+        // Buffer the body up-front so the request can be safely replayed after a silent refresh.
+        byte[]? bufferedBody = null;
+        if (!isAnonymousAuthEndpoint && request.Content is not null)
+            bufferedBody = await request.Content.ReadAsByteArrayAsync(cancellationToken);
+
         var response = await base.SendAsync(request, cancellationToken);
 
-        // On 401 from a non-auth endpoint, attempt a silent token refresh
+        // On 401 from a non-auth endpoint, attempt a silent token refresh. A 401 means the token was
+        // rejected in OnTokenValidated *before* the action ran (e.g. the SecurityStamp rotated after
+        // enabling 2FA), so replaying the request once with the fresh token is safe and transparent.
         if (response.StatusCode == HttpStatusCode.Unauthorized
             && !isAnonymousAuthEndpoint)
         {
             var newToken = await TrySilentRefreshAsync(cancellationToken);
-            if (newToken is null)
+            if (newToken is not null)
+            {
+                var retry = CloneRequest(request, bufferedBody);
+                retry.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
+                response.Dispose();
+                response = await base.SendAsync(retry, cancellationToken);
+            }
+            else
             {
                 await _localStorage.RemoveItemAsync("authToken");
                 await _localStorage.RemoveItemAsync("refreshToken");
@@ -62,6 +76,27 @@ public class AuthHeaderHandler : DelegatingHandler
         }
 
         return response;
+    }
+
+    // Rebuilds a request so it can be re-sent after a token refresh (an HttpRequestMessage and its
+    // content stream can each only be sent once).
+    private static HttpRequestMessage CloneRequest(HttpRequestMessage request, byte[]? body)
+    {
+        var clone = new HttpRequestMessage(request.Method, request.RequestUri) { Version = request.Version };
+
+        if (body is not null)
+        {
+            var content = new ByteArrayContent(body);
+            if (request.Content?.Headers is not null)
+                foreach (var header in request.Content.Headers)
+                    content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            clone.Content = content;
+        }
+
+        foreach (var header in request.Headers)
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+        return clone;
     }
 
     private static bool IsAnonymousAuthEndpoint(HttpRequestMessage request)

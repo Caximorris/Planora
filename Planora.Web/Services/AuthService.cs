@@ -20,16 +20,104 @@ public class AuthService
         _authState = authState;
     }
 
-    public async Task<(bool Success, string? Error)> LoginAsync(LoginRequest request)
+    public async Task<(bool Success, bool RequiresTwoFactor, string? Error)> LoginAsync(LoginRequest request)
     {
         HttpResponseMessage res;
         try { res = await _http.PostAsJsonAsync("api/auth/login", request); }
+        catch { return (false, false, "Couldn't reach the server. Please try again."); }
+
+        if (!res.IsSuccessStatusCode) return (false, false, "Invalid email or password.");
+
+        var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
+        if (auth is { RequiresTwoFactor: true })
+            return (false, true, null);
+
+        var (ok, err) = await StoreAuthAsync(auth);
+        return (ok, false, err);
+    }
+
+    // Second step of login for accounts with 2FA enabled. The password is re-verified server-side.
+    public async Task<(bool Success, string? Error)> LoginTwoFactorAsync(string email, string password, string code, bool isRecoveryCode)
+    {
+        HttpResponseMessage res;
+        try
+        {
+            res = await _http.PostAsJsonAsync("api/auth/login/2fa", new TwoFactorLoginRequest
+            {
+                Email = email,
+                Password = password,
+                Code = code,
+                IsRecoveryCode = isRecoveryCode
+            });
+        }
         catch { return (false, "Couldn't reach the server. Please try again."); }
 
-        if (!res.IsSuccessStatusCode) return (false, "Invalid email or password.");
+        if (!res.IsSuccessStatusCode)
+            return (false, res.StatusCode == HttpStatusCode.TooManyRequests
+                ? "Too many attempts. Please wait a minute and try again."
+                : "That code is invalid or expired. Please try again.");
 
         var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
         return await StoreAuthAsync(auth);
+    }
+
+    public async Task<(TwoFactorStatusResponse? Status, string? Error)> Get2faStatusAsync()
+    {
+        try
+        {
+            var res = await _http.GetAsync("api/auth/2fa/status");
+            if (!res.IsSuccessStatusCode) return (null, await ReadErrorAsync(res, "Could not load 2FA status."));
+            return (await res.Content.ReadFromJsonAsync<TwoFactorStatusResponse>(), null);
+        }
+        catch { return (null, "Couldn't reach the server. Please try again."); }
+    }
+
+    public async Task<(TwoFactorSetupResponse? Setup, string? Error)> Setup2faAsync()
+    {
+        try
+        {
+            var res = await _http.PostAsync("api/auth/2fa/setup", null);
+            if (!res.IsSuccessStatusCode) return (null, await ReadErrorAsync(res, "Could not start 2FA setup."));
+            return (await res.Content.ReadFromJsonAsync<TwoFactorSetupResponse>(), null);
+        }
+        catch { return (null, "Couldn't reach the server. Please try again."); }
+    }
+
+    public async Task<(List<string>? RecoveryCodes, string? Error)> Enable2faAsync(string code)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/auth/2fa/enable", new EnableTwoFactorRequest { Code = code });
+            if (!res.IsSuccessStatusCode) return (null, await ReadErrorAsync(res, "Could not enable 2FA."));
+            var body = await res.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesResponse>();
+            return (body?.RecoveryCodes ?? [], null);
+        }
+        catch { return (null, "Couldn't reach the server. Please try again."); }
+    }
+
+    public async Task<(bool Success, string? Error)> Disable2faAsync(string code, bool isRecoveryCode)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/auth/2fa/disable",
+                new DisableTwoFactorRequest { Code = code, IsRecoveryCode = isRecoveryCode });
+            if (res.IsSuccessStatusCode) return (true, null);
+            return (false, await ReadErrorAsync(res, "Could not disable 2FA."));
+        }
+        catch { return (false, "Couldn't reach the server. Please try again."); }
+    }
+
+    public async Task<(List<string>? RecoveryCodes, string? Error)> RegenerateRecoveryCodesAsync(string code, bool isRecoveryCode)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/auth/2fa/recovery-codes",
+                new DisableTwoFactorRequest { Code = code, IsRecoveryCode = isRecoveryCode });
+            if (!res.IsSuccessStatusCode) return (null, await ReadErrorAsync(res, "Could not regenerate recovery codes."));
+            var body = await res.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesResponse>();
+            return (body?.RecoveryCodes ?? [], null);
+        }
+        catch { return (null, "Couldn't reach the server. Please try again."); }
     }
 
     public async Task<(bool Success, string? Error)> RegisterAsync(RegisterRequest request)

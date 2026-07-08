@@ -5,28 +5,73 @@
 <div class="auth-page">
     <div class="auth-card">
         <a class="auth-logo" href="/">Planora</a>
-        <h1 class="auth-title">Sign in</h1>
 
-        @if (_error is not null)
+        @if (!_twoFactorStep)
         {
-            <div class="alert alert-danger py-2">@_error</div>
+            <h1 class="auth-title">Sign in</h1>
+
+            @if (_error is not null)
+            {
+                <div class="alert alert-danger py-2">@_error</div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" @bind="_email" @bind:event="oninput" placeholder="you@example.com" @onkeydown="OnKeyDown" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" @bind="_password" @bind:event="oninput" placeholder="••••••••" @onkeydown="OnKeyDown" />
+            </div>
+            <button class="btn btn-primary w-100" @onclick="HandleLogin" disabled="@_loading">
+                @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                Sign in
+            </button>
+
+            <p class="auth-switch mb-1"><a href="/forgot-password">Forgot your password?</a></p>
+            <p class="auth-switch">Don't have an account? <a href="/register">Sign up</a></p>
         }
+        else
+        {
+            <h1 class="auth-title">Two-factor authentication</h1>
+            <p class="auth-subtitle">
+                @if (!_useRecoveryCode)
+                {
+                    <text>Enter the 6-digit code from your authenticator app.</text>
+                }
+                else
+                {
+                    <text>Enter one of your saved recovery codes.</text>
+                }
+            </p>
 
-        <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input type="email" class="form-control" @bind="_email" @bind:event="oninput" placeholder="you@example.com" @onkeydown="OnKeyDown" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input type="password" class="form-control" @bind="_password" @bind:event="oninput" placeholder="••••••••" @onkeydown="OnKeyDown" />
-        </div>
-        <button class="btn btn-primary w-100" @onclick="HandleLogin" disabled="@_loading">
-            @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
-            Sign in
-        </button>
+            @if (_error is not null)
+            {
+                <div class="alert alert-danger py-2">@_error</div>
+            }
 
-        <p class="auth-switch mb-1"><a href="/forgot-password">Forgot your password?</a></p>
-        <p class="auth-switch">Don't have an account? <a href="/register">Sign up</a></p>
+            <div class="mb-3">
+                <label class="form-label">@(_useRecoveryCode ? "Recovery code" : "Authentication code")</label>
+                <input class="form-control" @bind="_code" @bind:event="oninput"
+                       inputmode="@(_useRecoveryCode ? "text" : "numeric")"
+                       autocomplete="one-time-code"
+                       placeholder="@(_useRecoveryCode ? "xxxxx-xxxxx" : "123456")"
+                       @onkeydown="OnTwoFactorKeyDown" />
+            </div>
+            <button class="btn btn-primary w-100" @onclick="HandleTwoFactor" disabled="@_loading">
+                @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                Verify
+            </button>
+
+            <p class="auth-switch mb-1">
+                <a href="#" @onclick="ToggleRecovery" @onclick:preventDefault="true">
+                    @(_useRecoveryCode ? "Use your authenticator app instead" : "Use a recovery code instead")
+                </a>
+            </p>
+            <p class="auth-switch">
+                <a href="#" @onclick="BackToPassword" @onclick:preventDefault="true">Back to sign in</a>
+            </p>
+        }
     </div>
 </div>
 
@@ -39,6 +84,10 @@
     private string? _error;
     private bool _loading;
 
+    private bool _twoFactorStep;
+    private bool _useRecoveryCode;
+    private string _code = "";
+
     private async Task HandleLogin()
     {
         if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
@@ -48,14 +97,61 @@
         }
         _loading = true;
         _error = null;
-        var (success, error) = await AuthService.LoginAsync(new() { Email = _email, Password = _password });
+        var (success, requiresTwoFactor, error) = await AuthService.LoginAsync(new() { Email = _email, Password = _password });
+        _loading = false;
+
+        if (success)
+        {
+            Nav.NavigateTo("/workspaces");
+        }
+        else if (requiresTwoFactor)
+        {
+            _twoFactorStep = true;
+            _code = "";
+        }
+        else
+        {
+            _error = error;
+        }
+    }
+
+    private async Task HandleTwoFactor()
+    {
+        if (string.IsNullOrWhiteSpace(_code))
+        {
+            _error = "Please enter your code.";
+            return;
+        }
+        _loading = true;
+        _error = null;
+        var (success, error) = await AuthService.LoginTwoFactorAsync(_email, _password, _code, _useRecoveryCode);
         _loading = false;
         if (success) Nav.NavigateTo("/workspaces");
         else _error = error;
     }
 
+    private void ToggleRecovery()
+    {
+        _useRecoveryCode = !_useRecoveryCode;
+        _code = "";
+        _error = null;
+    }
+
+    private void BackToPassword()
+    {
+        _twoFactorStep = false;
+        _useRecoveryCode = false;
+        _code = "";
+        _error = null;
+    }
+
     private void OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter") _ = HandleLogin();
+    }
+
+    private void OnTwoFactorKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = HandleTwoFactor();
     }
 }
