@@ -152,7 +152,9 @@ shared). `wwwroot/uploads/boards/` is gitignored.
   Web → Azure Static Web Apps. **Ask before pushing.**
 - Config keys (`appsettings.json`, empty in repo — real values via env/secrets):
   `ConnectionStrings:Default`, `Jwt:{Key,Issuer,Audience,ExpirationMinutes,RefreshTokenDays}`,
-  `Cors:AllowedOrigins`. Container Apps overrides `Cors__AllowedOrigins` from a secret.
+  `Cors:AllowedOrigins`, `Storage:{Provider,Blob:{ConnectionString,ContainerName,PublicBaseUrl}}`
+  (`Provider` defaults to `Local`; `AzureBlob` is scaffolded but **not implemented** — see
+  `docs/azure-blob-storage.md`). Container Apps overrides `Cors__AllowedOrigins` from a secret.
 - `appsettings.Development.json` holds real local credentials — **never commit it**. No secrets in source.
 
 ## AI collaboration rules

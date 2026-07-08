@@ -13,6 +13,7 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 | Mapping | Mapperly (source-generated) |
 | Validation | FluentValidation |
 | Drag & Drop | SortableJS (columns/cards) + HTML5 DnD (board tiles) |
+| Storage | `IFileStorage` abstraction — local disk (dev); Azure Blob backend scaffolded, not yet implemented ([docs](docs/azure-blob-storage.md)) |
 | Hosting | Azure Container Apps (API) + Azure Static Web Apps (frontend) |
 
 ## Features
@@ -92,7 +93,10 @@ dotnet test Planora.slnx
 
 - Push to `main` triggers CI for both targets automatically
 - `API_BASE_URL` secret is injected into `appsettings.json` at build time
-- Board cover images are volume-mounted and survive container restarts
+- File storage is selected by `Storage:Provider` (`Local` by default). **Known limitation:** on
+  Container Apps the local disk is ephemeral, so board cover images do **not** survive a restart or
+  scale-out yet — the durable Azure Blob backend is scaffolded but not implemented
+  ([docs/azure-blob-storage.md](docs/azure-blob-storage.md))
 
 ## Roadmap
 

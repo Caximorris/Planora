@@ -381,9 +381,14 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > `GET /api/workspaces/{id}/invitations` endpoint (Owner/Admin; marks stale pendings Expired) backs the
 > invite list; `WorkspaceService` gained update/transfer/leave/revoke/list-invitations methods. The old
 > Members modal in `Workspaces.razor` was removed in favor of a `⚙ Settings` link (no duplicate member UI).
-> `dotnet test Planora.slnx` passes with 45 tests; full `dotnet build Planora.slnx` is clean. Next:
-> Task 18 (card attachments) depends on Tasks 8-9 (Blob storage), so resume Tasks 8-9 after the
-> deploy-target/SDK decision, or pick Task 19 (soft-delete + trash/restore).
+> `dotnet test Planora.slnx` passes with 45 tests; full `dotnet build Planora.slnx` is clean.
+> **Tasks 8-9 groundwork (2026-07-08):** deploy-target decision settled — **Azure Blob**. Prepared
+> (not implemented): `StorageOptions` binds a `Storage` config section; `appsettings.json` carries an
+> empty `Storage` block (`Provider: "Local"`); `Program.cs` selects the `IFileStorage` backend by
+> `Storage:Provider` (`Local` → `LocalFileStorage`; `AzureBlob` throws until implemented);
+> `docs/azure-blob-storage.md` documents the exact remaining steps (SDK package, `BlobFileStorage`,
+> dual-read, Azure provisioning). Build clean; no behavior change (still local disk). Next: implement
+> Task 8 (`BlobFileStorage`) + Task 9 (dual-read), or pick Task 19 (soft-delete + trash/restore).
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.

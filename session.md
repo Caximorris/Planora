@@ -18,7 +18,7 @@ Planora is a Kanban project management SaaS. Full-stack .NET 10 monorepo: REST A
 | Mapping | Mapperly (source-generated, zero-reflection) |
 | Validation | FluentValidation (Create* requests only) |
 | Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards; HTML5 DnD — board tiles |
-| Storage | Local volume / Azure Files — board cover images |
+| Storage | `IFileStorage` — local disk (dev); Azure Blob backend scaffolded, not implemented (see `docs/azure-blob-storage.md`) |
 | CI/CD | GitHub Actions → Docker → Azure Container Apps (API), Azure Static Web Apps (Web) |
 
 ---
@@ -37,7 +37,7 @@ Planora.slnx
 │   │   └── Interfaces/
 │   ├── Infrastructure/Data/  ApplicationDbContext, EF config
 │   ├── Migrations/
-│   └── wwwroot/uploads/      Board cover images (volume-mounted in prod)
+│   └── wwwroot/uploads/      Board cover images (local disk; ephemeral in prod until Blob lands)
 ├── Planora.Web/
 │   ├── Auth/                 PlanorAuthStateProvider, AuthHeaderHandler
 │   ├── Pages/                Landing, Login, Register, Home, Workspaces, Board, Profile, Notifications

@@ -11,6 +11,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using FluentValidation;
 using Planora.Api.Application.Interfaces;
+using Planora.Api.Application.Options;
 using Planora.Api.Application.Services;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
@@ -152,8 +153,25 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
-// File storage: local disk today; production swaps in a durable backend (Azure Blob) behind IFileStorage.
-builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
+// File storage: provider selected by config. Local disk today; production sets Storage:Provider
+// to "AzureBlob". The Blob backend is not implemented yet (see docs/azure-blob-storage.md) — this
+// seam is the only wiring that remains, so implementing it is a single new class + this switch arm.
+var storageOptions = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
+    ?? new StorageOptions();
+switch (storageOptions.Provider.Trim().ToLowerInvariant())
+{
+    case "local":
+        builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
+        break;
+    case "azureblob":
+        // TODO(Task 8-9): register BlobFileStorage(storageOptions.Blob) here once implemented.
+        throw new NotSupportedException(
+            "Storage:Provider 'AzureBlob' is not implemented yet. See docs/azure-blob-storage.md. " +
+            "Set Storage:Provider to 'Local' until BlobFileStorage lands.");
+    default:
+        throw new NotSupportedException(
+            $"Unknown Storage:Provider '{storageOptions.Provider}'. Use 'Local' or 'AzureBlob'.");
+}
 // Email: dev console sink today; production swaps in a real provider behind IEmailSender.
 builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
 
