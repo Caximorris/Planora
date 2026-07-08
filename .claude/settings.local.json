@@ -125,7 +125,8 @@
       "Bash(dotnet add *)",
       "Bash(dotnet test *)",
       "Bash(dotnet list *)",
-      "PowerShell($p = Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.StartTime } ; if \\($p\\) { $p | Select-Object Id, StartTime, @{n='CmdWindow';e={$_.MainWindowTitle}} | Format-Table -AutoSize | Out-String } else { \"no dotnet processes\" })"
+      "PowerShell($p = Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.StartTime } ; if \\($p\\) { $p | Select-Object Id, StartTime, @{n='CmdWindow';e={$_.MainWindowTitle}} | Format-Table -AutoSize | Out-String } else { \"no dotnet processes\" })",
+      "Bash(powershell.exe -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='dotnet.exe'\\\\\" | Select-Object ProcessId,CommandLine | Format-List\")"
     ]
   }
 }

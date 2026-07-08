@@ -18,7 +18,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | POST | /auth/demo | Creates a guest account + seeds a demo workspace; returns AuthResponse |
 | POST | /auth/forgot-password | Rate-limited; no account enumeration |
 | POST | /auth/reset-password | Single-use Identity token; revokes refresh tokens |
-| POST | /auth/confirm-email | Optional verification while local/console email is used |
+| POST | /auth/confirm-email | Optional verification; login does not require confirmed email |
 | POST | /auth/send-email-confirmation | Authorized; sends/resends verification |
 | POST | /auth/sessions | Authorized; lists active refresh-token sessions |
 | POST | /auth/sessions/revoke | Authorized; revokes one session by id |
@@ -50,7 +50,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | GET | /workspaces/{id}/boards | Ordered by Position |
 | GET | /workspaces/{id}/calendar | Member-gated due-date feed |
 | GET | /workspaces/{id}/invitations | Owner/Admin; lists pending invitations (marks stale pendings Expired) |
-| POST | /workspaces/{id}/invitations | Owner/Admin; creates pending invitation |
+| POST | /workspaces/{id}/invitations | Owner/Admin; creates pending invitation and sends invite email when configured |
 | DELETE | /workspaces/{id}/invitations/{invitationId} | Owner/Admin; revokes pending invitation |
 | POST | /workspaces/{id}/transfer-ownership | Owner only; target must already be a member |
 | POST | /workspaces/{id}/leave | Member self-leave; current Owner must transfer first |
@@ -63,6 +63,16 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | GET | /invitations/{token} | Anonymous lookup; expires stale pending invitations |
 | POST | /invitations/{token}/accept | Authorized; invitee email must match |
 | POST | /invitations/{token}/decline | Authorized; invitee email must match |
+
+## Users
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | /users/profile | Authorized; display name, email, email-confirmed state |
+| PUT | /users/profile | Authorized + auth rate limit; update display name |
+| POST | /users/change-password | Authorized + auth rate limit; rotates security stamp and revokes refresh tokens |
+| GET | /users/notification-preferences | Authorized; returns email toggles |
+| PUT | /users/notification-preferences | Authorized; updates assignment/comment/workspace-invite email toggles |
 
 ## Boards
 
@@ -94,6 +104,10 @@ Cards additionally support soft-delete / trash, mirroring boards:
 | DELETE | /cards/{id}/permanent | Hard delete — only a trashed card |
 | POST | /cards/{id}/attachments | multipart/form-data; member-gated; allowlisted PNG/JPEG/WEBP/GIF/PDF/TXT; max 10MB |
 | DELETE | /cards/{id}/attachments/{attachmentId} | Member-gated; deletes attachment row + stored file |
+
+Card updates email a newly assigned member when assignment changes. New comments email the card
+assignee when the commenter is someone else. Both paths respect notification preferences and swallow
+provider failures after logging.
 
 Trash is orthogonal to archive: a board/card can be archived and/or trashed. The global EF query
 filter hides both archived and trashed rows from all normal reads (lists, GetById, search, calendar).

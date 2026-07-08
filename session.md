@@ -19,6 +19,7 @@ Planora is a Kanban project management SaaS. Full-stack .NET 10 monorepo: REST A
 | Validation | FluentValidation (Create* requests only) |
 | Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards; HTML5 DnD — board tiles |
 | Storage | `IFileStorage` — local disk (dev); Azure Blob backend scaffolded, not implemented (see `docs/azure-blob-storage.md`) |
+| Email | `IEmailSender` — console sink locally; Resend in production from `notifications@planora.website` |
 | CI/CD | GitHub Actions → Docker → Azure Container Apps (API), Azure Static Web Apps (Web) |
 
 ---
@@ -37,7 +38,7 @@ Planora.slnx
 │   │   └── Interfaces/
 │   ├── Infrastructure/Data/  ApplicationDbContext, EF config
 │   ├── Migrations/
-│   └── wwwroot/uploads/      Board cover images (local disk; ephemeral in prod until Blob lands)
+│   └── wwwroot/uploads/      Board covers + card attachments (local disk; ephemeral in prod until Blob lands)
 ├── Planora.Web/
 │   ├── Auth/                 PlanorAuthStateProvider, AuthHeaderHandler
 │   ├── Pages/                Landing, Login, Register, Home, Workspaces, Board, Profile, Notifications
@@ -75,6 +76,8 @@ Planora.slnx
 - **Card comments** — create and delete own comments with time-ago display
 - **Labels** — create/assign custom labels per board
 - **Checklists** — create checklist items per card
+- **Transactional email** — email verification, password reset, workspace invites, card assignment emails, and assigned-card comment emails
+- **Notification preferences** — profile toggles for assignment/comment/workspace-invite emails
 
 ### Discovery & UX
 - **Public landing page** — minimal hero with instant demo CTA
@@ -82,7 +85,7 @@ Planora.slnx
 - **Global search (Ctrl+K)** — full-text ILIKE search across cards and boards in all user workspaces; debounced 300 ms; keyboard navigation (↑↓ Enter Esc)
 - **Notifications** — in-app bell, 30 s polling, unread badge, mark-all-read, dismiss
 - **Dark mode** — `data-theme="dark"` on `<html>`, persisted in localStorage; kanban canvas excluded (pastel card colors need light text)
-- **Profile page** — display name edit, theme switcher
+- **Profile page** — display name edit, email verification status/resend, theme switcher, password change, 2FA, sessions, notification preferences
 - **Calendar view** — cards with due dates shown in a calendar on the Board page
 
 ### Security (hardened)
@@ -93,6 +96,7 @@ Planora.slnx
 - SecurityStamp validated on every request (`OnTokenValidated`)
 - IDOR prevention: every controller verifies `WorkspaceMembers` before returning data
 - `UserId` always from JWT claims, never from request body
+- Password reset and email verification use short-lived Identity tokens; reset rotates `SecurityStamp` and revokes refresh tokens
 - HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - Structured audit logging with correlation IDs
 
@@ -102,6 +106,9 @@ Planora.slnx
 - **Integration tests** — `Planora.Tests` (xUnit) boots the API via `WebApplicationFactory<Program>`
   against a throwaway `planora_test` Postgres DB. Config injected via env vars (Program.cs reads
   `Jwt:Key` inline before host build). Run `dotnet test` with dev servers stopped.
+- **Email provider switch** — `Email:Provider` selects `Console` or `Resend`; production requires
+  `RESEND_API_KEY` in GitHub Actions and maps it to Azure Container Apps as
+  `Email__Resend__ApiKey=secretref:resend-api-key`.
 
 ---
 
@@ -127,7 +134,7 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 
 | Controller | Key notes |
 |---|---|
-| AuthController | register, login (progressive lockout), refresh, logout, demo |
+| AuthController | register, login + 2FA, refresh, logout, demo, password reset, email verification, sessions |
 | WorkspacesController | member-gated; POST seeds demo board |
 | BoardsController | cover image via separate endpoints; magic-byte validation |
 | ColumnsController | position reorder |
@@ -137,7 +144,7 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 | ChecklistsController | card-scoped |
 | InvitationsController | token-based, 7-day expiry |
 | NotificationsController | unread count, mark read, dismiss |
-| UsersController | profile update |
+| UsersController | profile update, password change, notification preferences |
 | SearchController | GET /api/search?q= — ILIKE across boards + cards, min 2 chars |
 
 ---
@@ -171,8 +178,12 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 | DB | PostgreSQL (managed or self-hosted) | Manual |
 
 - `API_BASE_URL` secret injected into `appsettings.json` at build time via `sed`
+- API email delivery uses Resend in production: `Email__Provider=Resend`,
+  `Email__From__Address=notifications@planora.website`, `App__WebBaseUrl=https://planora.website`,
+  and `Email__Resend__ApiKey=secretref:resend-api-key` (sourced from GitHub `RESEND_API_KEY`).
 - API port: `PORT` env var → fallback 8080
-- Board images: volume-mounted (`board_covers`) — survive container restarts
+- Board/card uploads still use local disk (`IFileStorage` Local) unless `Storage:Provider=AzureBlob`
+  is implemented and enabled; Container Apps local disk is ephemeral.
 - Scale-to-zero on Container Apps → ~20 s cold start; demo page shows "Server is waking up…" after 4 s
 
 ---
@@ -191,10 +202,9 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 ## Roadmap
 
 - [ ] Real-time updates (SignalR)
-- [ ] Email delivery for invitations
 - [ ] Board templates
 - [ ] Analytics dashboard
-- [ ] Settings page (password change, 2FA, account deletion)
+- [ ] Data export and account deletion
 - [ ] Mobile layout improvements
 - [ ] Rate limiting on upload endpoints
 - [ ] `Update*Request` validators

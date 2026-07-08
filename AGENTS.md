@@ -16,11 +16,11 @@ Full stack, patterns and roadmap: [session.md](session.md)
 
 ## Stack
 
-.NET 10 · ASP.NET Core API · Blazor WASM · PostgreSQL · EF Core · ASP.NET Identity · Mapperly · FluentValidation · SortableJS (vendored) · Blazored.LocalStorage
+.NET 10 · ASP.NET Core API · Blazor WASM · PostgreSQL · EF Core · ASP.NET Identity · Resend email · Mapperly · FluentValidation · SortableJS (vendored) · Blazored.LocalStorage
 
 ```
 Planora.slnx
-├── Planora.Api/     Controllers/ Domain/Entities/ Application/{Mappers,Services,Validators} Infrastructure/Data/ Migrations/
+├── Planora.Api/     Controllers/ Domain/Entities/ Application/{Interfaces,Options,Mappers,Services,Validators} Infrastructure/{Data,Email,Jobs,Storage}/ Migrations/
 ├── Planora.Web/     Auth/ Pages/ Components/ Services/ Layout/ wwwroot/{css,js,lib/sortablejs}
 ├── Planora.Shared/  DTOs/ Enums/ Constants/BoardLimits.cs
 └── Planora.Tests/   xUnit — Infrastructure/PlanoraWebAppFactory, AuthFlowTests
@@ -42,6 +42,8 @@ Planora.slnx
 **Deployment**
 - Push to `main` auto-deploys API (Azure Container Apps) and Web (Azure Static Web Apps). Ask before pushing.
 - `appsettings.Development.json` has real local credentials — never commit it.
+- Resend production email uses GitHub secret `RESEND_API_KEY`; the deploy workflow maps it to
+  Azure Container Apps as `Email__Resend__ApiKey=secretref:resend-api-key`.
 
 **Tests**
 - `Planora.Tests` (xUnit) covers the API via `WebApplicationFactory<Program>` against a throwaway
@@ -67,6 +69,14 @@ Injected as `IValidator<T>` in constructor; called manually with `ValidateAsync`
 ## Board Cover Images
 
 Upload/delete via dedicated endpoints. `PUT /api/boards/{id}` does **not** accept `CoverImageUrl`. Magic bytes validated server-side. `BoardLimits.MaxCoverImageBytes` used by both projects. `wwwroot/uploads/boards/` is in `.gitignore`.
+
+## Email
+
+`IEmailSender` selects `Console` locally or `Resend` in production via `Email:Provider`. Sender is
+`notifications@planora.website`. Never commit `Email:Resend:ApiKey`; use gitignored
+`appsettings.Development.json` locally and the `RESEND_API_KEY` GitHub secret for deploys.
+`ActivityEmailNotifier` sends workspace invites, card assignment emails, and assigned-card comment
+emails while respecting profile notification preferences.
 
 ## Blazor UI
 

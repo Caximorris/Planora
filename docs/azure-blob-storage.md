@@ -6,11 +6,11 @@
 
 ## Why this exists
 
-Uploaded files (board cover images today; card attachments next) are written to the container's
-local disk under `wwwroot/uploads/boards`. On Azure Container Apps that filesystem is **ephemeral** —
+Uploaded files (board cover images and card attachments) are written to the container's
+local disk under `wwwroot/uploads/boards` and `wwwroot/uploads/cards`. On Azure Container Apps that filesystem is **ephemeral** —
 every restart, deploy, or scale-out **loses the files**. `IFileStorage`
 (`Planora.Api/Application/Interfaces/IFileStorage.cs`) already abstracts save/delete so the backend
-can be swapped without touching `BoardsController`. Only the durable backend is missing.
+can be swapped without touching the board/card upload controllers. Only the durable backend is missing.
 
 ## What is already wired (prepared, do not redo)
 
@@ -45,7 +45,7 @@ can be swapped without touching `BoardsController`. Only the durable backend is 
    `builder.Services.AddSingleton<IFileStorage, BlobFileStorage>();` and bind
    `builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));`
 4. **Tests** — mirror `Planora.Tests/Boards/CoverImageTests.cs`: bad magic bytes / oversize rejected
-   (unchanged — validation stays in the controller), and delete-on-board-delete. Blob round-trips
+   (unchanged — validation stays in the controller), and delete-on-board/card permanent-delete. Blob round-trips
    need either Azurite (local emulator) in CI or a thin fake `IFileStorage`; do not hit real Azure
    from tests.
 

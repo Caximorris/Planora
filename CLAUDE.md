@@ -2,27 +2,28 @@
 
 Portfolio-grade Kanban app (not a toy): workspaces → boards → columns → cards, with
 members/roles, invites, comments, labels, checklists, due-date calendar, global search,
-in-app notifications, dark mode, and a no-account instant demo. Real auth/security model.
+in-app notifications, transactional email, dark mode, and a no-account instant demo.
+Real auth/security model.
 
 ## Stack
 
 .NET 10 · ASP.NET Core Web API · Blazor WASM · PostgreSQL (Npgsql) · EF Core · ASP.NET Identity
-· short JWT + rotating refresh tokens · Mapperly · FluentValidation · SortableJS (vendored) ·
+· short JWT + rotating refresh tokens · Resend email · Mapperly · FluentValidation · SortableJS (vendored) ·
 Blazored.LocalStorage. Deploy: API → Azure Container Apps, Web → Azure Static Web Apps.
 
 ## Architecture map
 
 ```
 Planora.slnx
-├── Planora.Api/      Controllers/  Domain/Entities/  Application/{Interfaces,Services,Mappers,Validators}
-│                     Infrastructure/Data/  Migrations/ (19)  wwwroot/uploads/  Dockerfile
+├── Planora.Api/      Controllers/  Domain/Entities/  Application/{Interfaces,Options,Services,Mappers,Validators}
+│                     Infrastructure/{Data,Email,Jobs,Storage}/  Migrations/ (15)  wwwroot/uploads/  Dockerfile
 ├── Planora.Web/      Auth/  Pages/  Components/  Services/  Layout/  wwwroot/{css,js,lib,sample-data}
 ├── Planora.Shared/   DTOs/<Domain>/  Enums/  Constants/BoardLimits.cs   (contract between Api+Web)
 └── Planora.Tests/    xUnit integration tests — Infrastructure/PlanoraWebAppFactory, AuthFlowTests
 ```
 - Entities: `Planora.Api/Domain/Entities/` (Workspace, WorkspaceMember, WorkspaceInvitation,
   WorkspaceLabel, Board, Column, Card, CardComment, CardLabel, Checklist, ChecklistItem,
-  Notification, RefreshToken, AppUser, BaseEntity).
+  CardAttachment, ActivityEvent, Notification, RefreshToken, AppUser, BaseEntity).
 - DbContext + migrations: `Planora.Api/Infrastructure/Data/` and `Planora.Api/Migrations/`.
 - **Test project**: `Planora.Tests` (xUnit) — API integration tests via `WebApplicationFactory<Program>`
   against a dedicated `planora_test` Postgres DB (dropped + re-migrated per run; no Docker/Testcontainers).
@@ -89,6 +90,12 @@ automatically, no manual code. Add a new mapping method only for genuinely non-m
 `CoverImageUrl`. Magic-byte type check + size limit server-side (`BoardLimits.MaxCoverImageBytes`,
 shared). `wwwroot/uploads/boards/` is gitignored.
 
+**Email delivery** — `IEmailSender` is the provider boundary. Local/dev defaults to `ConsoleEmailSender`;
+production uses `ResendEmailSender` with `Email:Provider=Resend`, sender
+`notifications@planora.website`, and `Email:Resend:ApiKey` from secrets. Never log or commit API keys.
+`ActivityEmailNotifier` sends workspace invite, card-assignment, and assigned-card-comment emails;
+it respects notification preferences and logs/swallow provider failures so user actions still commit.
+
 ## Frontend rules
 
 - Keep components small/readable; push shared logic into `Services/` or `Components/`.
@@ -152,9 +159,11 @@ shared). `wwwroot/uploads/boards/` is gitignored.
   Web → Azure Static Web Apps. **Ask before pushing.**
 - Config keys (`appsettings.json`, empty in repo — real values via env/secrets):
   `ConnectionStrings:Default`, `Jwt:{Key,Issuer,Audience,ExpirationMinutes,RefreshTokenDays}`,
-  `Cors:AllowedOrigins`, `Storage:{Provider,Blob:{ConnectionString,ContainerName,PublicBaseUrl}}`
+  `App:WebBaseUrl`, `Cors:AllowedOrigins`,
+  `Email:{Provider,From:{Address,Name},Resend:ApiKey}`,
+  `Storage:{Provider,Blob:{ConnectionString,ContainerName,PublicBaseUrl}}`
   (`Provider` defaults to `Local`; `AzureBlob` is scaffolded but **not implemented** — see
-  `docs/azure-blob-storage.md`). Container Apps overrides `Cors__AllowedOrigins` from a secret.
+  `docs/azure-blob-storage.md`). Container Apps overrides CORS and Resend settings from secrets/env.
 - `appsettings.Development.json` holds real local credentials — **never commit it**. No secrets in source.
 
 ## AI collaboration rules

@@ -1,10 +1,9 @@
 # Planora — Product Improvement Plan
 
-> Grounded in the actual repository at the time of writing (main branch). Every claim below was
-> checked against source: `Program.cs`, controllers, the EF model snapshot, migrations (9),
-> `Planora.Web/Services/*`, deployment workflows, and the existing docs
-> (`architecture.md`, `FRONTEND_AUDIT.md`, `DESIGN_SYSTEM.md`, `FRONTEND_SENIOR_QA.md`).
-> **No features are implemented here — this is a decision document.**
+> Living roadmap and decision log for the actual repository on `main`. Current as of 2026-07-08:
+> the foundation/security/product tasks through Resend-backed transactional email are implemented
+> and tested. The older prioritization sections are retained for rationale; the task ledger and
+> assumptions near the bottom are the source of truth for current status.
 
 ---
 
@@ -39,35 +38,23 @@ This is a strong base. The gaps below are about **depth and trust**, not fixing 
 
 ## 2. Main product gaps
 
-Ranked by how much they undermine the "serious SaaS" impression:
+Ranked by how much they undermine the "serious SaaS" impression today:
 
-1. **File uploads are stored on the container's local disk** (`wwwroot/uploads/boards`, served via
-   `UseStaticFiles`). On Azure Container Apps this filesystem is **ephemeral** — every restart,
-   deploy, or scale-out **loses all cover images**. This is a real data-loss bug, not a feature
-   gap. It also blocks card attachments from being built safely.
-2. **No health checks.** `Program.cs` never calls `AddHealthChecks()`. Azure Container Apps
-   liveness/readiness probes have no correct target, so a wedged app (e.g. DB unreachable) won't be
-   detected or recycled. Ops credibility gap.
-3. **Zero automated tests.** For an app whose headline strength is a security model, having *no*
-   test proving IDOR/lockout/refresh-reuse behavior is the single biggest credibility hole. It's
-   also the thing a reviewer checks first.
-4. **No account-recovery / email flows.** `EmailConfirmed` and `TwoFactorEnabled` columns exist but
-   are unused; there is **no email infrastructure at all**. A SaaS that can't do "forgot password"
-   or verify an email reads as unfinished.
-5. **Team management is API-deep but UI-shallow, and missing key verbs.** Member list, remove, and
-   role-change endpoints exist; invitations have `ExpiresAt`/`Status`/`Token`. But there is **no
-   invite revocation, no transfer-ownership, no leave-workspace**, and the frontend surfaces little
-   of the member/invite lifecycle. Ownership is `Restrict`-deleted, so **account deletion is
-   currently impossible** while a user owns a workspace.
-6. **No auditability.** No activity feed, no audit log, no soft-delete/trash. Deletes are hard
-   cascades (delete a workspace → everything gone, irreversibly). Senior reviewers look for exactly
-   this.
-7. **No concurrency control.** Domain entities carry `UpdatedAt` but no concurrency token; reorder
-   and simultaneous edits can silently lose writes.
-8. **No background jobs.** Expired refresh tokens and invitations are never cleaned up; the tables
-   grow unbounded.
+1. **Durable upload storage is still not implemented.** `IFileStorage` exists and local disk works,
+   but Azure Blob is still a throw in `Program.cs`. Board covers and card attachments are still at
+   risk on Container Apps restart/deploy/scale-out.
+2. **Data export and account deletion are still deferred.** Workspace ownership transfer/leave exists,
+   but full user data export and account deletion need explicit product/retention decisions.
+3. **Update request validation is incomplete.** `Create*Request` types use FluentValidation; many
+   update flows still rely on controller-level checks.
+4. **No bUnit/component test layer.** API integration coverage is strong; Blazor UI behavior is still
+   validated mostly by build/manual browser passes.
+5. **Upload endpoints are not rate-limited.** File type/size/scope validation exists, but upload abuse
+   controls are still a gap.
+6. **Filtered drag reorder still needs a fix.** SortableJS `evt.newIndex` is relative to the filtered
+   list when priority filtering is active, so reorder can send the wrong full-list position.
 
-Everything in §3+ is prioritized against this list.
+Everything in §3+ explains how the app got here; this list is the current remaining risk surface.
 
 ---
 
@@ -85,16 +72,15 @@ here is a flashy feature; all of it is what separates "serious" from "demo."
 - Test foundation: xUnit + `WebApplicationFactory`, seeded with the security-critical cases
   (IDOR, lockout, refresh reuse, membership).
 - GitHub Actions CI that builds the solution and runs those tests on every PR.
-- Password reset + email verification via an `IEmailSender` abstraction (console/local sink until a real
-  sender domain/provider exists).
+- Password reset + email verification via an `IEmailSender` abstraction; console sink locally and
+  Resend in production.
 
 **Why now:** #1 and #2 are active reliability/ops defects. Tests + CI must land early because every
 later phase changes security-adjacent code and you have no safety net today.
 
 **Implementation notes:** the storage interface is the keystone — attachments (Phase 2) depend on
-it. Keep `IEmailSender` a thin interface with a no-op/console dev implementation so you don't couple
-the portfolio to a paid email provider. Until a sender domain/provider exists, email verification stays
-optional and login must not require `EmailConfirmed`.
+it. Keep `IEmailSender` a thin interface so provider choice stays behind configuration. Email
+verification stays optional and login must not require `EmailConfirmed`.
 
 **Risks:** Blob migration must keep existing `CoverImageUrl` values resolvable (dual-read during
 transition). CI is low risk. Email flows touch `AuthController` — the most security-sensitive file —
@@ -245,7 +231,7 @@ revoke-all, membership required on board/card endpoints.
 **Why:** a SaaS without account recovery reads as unfinished; complements the strong auth core.
 **MVP scope:** `IEmailSender` (console dev sink), Identity token providers for reset + confirm,
 endpoints + rate limiting, minimal Blazor pages. Verification optional-but-encouraged, not enforced.
-**Don't build yet:** transactional email provider integration, templated HTML emails.
+**Don't build yet:** full email template system or marketing/broadcast email.
 **Acceptance:** reset token is single-use, expires, rotates `SecurityStamp` on password change; email
 confirmation flips `EmailConfirmed` without blocking login for unverified accounts.
 **Tests:** reset happy path, expired/replayed token rejected, lockout interaction, confirm-email happy
@@ -360,17 +346,14 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > shared-host test suite doesn't trip the global window. Task 7 ✅: cover-image disk I/O extracted behind
 > `IFileStorage` (`LocalFileStorage`), registered in `Program.cs`, `BoardsController` refactored with no
 > behavior change; `Boards/CoverImageTests` added (upload/validation/scope). 20 tests green.
-> Tasks 8–9 (Azure Blob impl + dual-read) **paused** pending a deploy-target/SDK decision (Azure Blob
-> vs Railway; see Assumptions §storage). Task 10 ✅: `IEmailSender` + `ConsoleEmailSender` dev sink
-> registered in `Program.cs` (dev-only; must be replaced by a real provider in prod). Task 11 ✅:
+> Tasks 8–9 (Azure Blob impl + dual-read) **paused** pending implementation. Task 10 ✅:
+> `IEmailSender` + `ConsoleEmailSender` dev sink registered in `Program.cs`. Task 11 ✅:
 > password reset request/confirm endpoints, Blazor forgot/reset pages, auth-client integration, and
-> `PasswordResetTests` are in place. Task 12 ✅: email verification remains opt-in while there is no
-> company sender domain/provider; register/resend/confirm endpoints, profile status/action, confirm page,
+> `PasswordResetTests` are in place. Task 12 ✅: email verification remains opt-in; register/resend/confirm endpoints, profile status/action, confirm page,
 > and `EmailVerificationTests` are in place. Tasks 13-14 ✅: `ActivityEvent` spine, migration, card
 > create/move emission, and board activity feed API/UI are in place with scoped tests. Task 15 ✅:
 > session/device management lists active refresh-token sessions, marks the current session, revokes
-> one session, and revokes all other sessions from Profile. Email verification remains optional while
-> there is no company sender domain/provider. `dotnet test Planora.slnx` passes with 38 tests; full
+> one session, and revokes all other sessions from Profile. Email verification remains optional. `dotnet test Planora.slnx` passes with 38 tests; full
 > `dotnet build Planora.slnx` is clean. Chrome/Playwright verified register → profile sessions →
 > revoke others on desktop and mobile with no horizontal overflow. Task 16 ✅: workspace invitation
 > revocation, ownership transfer, and self-leave endpoints are in place with authorization guards and
@@ -439,7 +422,7 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     `Planora.Web/Pages/ConfirmEmail.razor`, `AuthService`, `UserService`,
     `Planora.Tests/Auth/EmailVerificationTests.cs`. Risk: M. Validated: confirmation flips
     `EmailConfirmed`, invalid token rejected, resend works, unverified users can still log in while the
-    app uses console/local email delivery; `dotnet test Planora.slnx` green (31 tests) and full build
+    app uses configurable email delivery; `dotnet test Planora.slnx` green (31 tests) and full build
     clean. Deps: 10.
 13. ✅ **`ActivityEvent` entity + migration + emit on card create/move.** Goal: append-only events.
     Files: `Domain/Entities/ActivityEvent.cs`, `ActivityEventConfiguration`, `ApplicationDbContext`,
@@ -522,6 +505,18 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     DevTools live pass — enroll (first-click, stamp rotation transparent), recovery codes shown once,
     logout→login→password→TOTP→authenticated, console clean. Deps: 3, 15.
     Note: recovery codes keep Identity's `xxxxx-xxxxx` format (not sanitized) so redemption matches.
+24. ✅ **Resend production email + notification preferences.** Goal: real transactional email for
+    account recovery/verification, workspace invites, card assignments, and assigned-card comments.
+    Files: `EmailOptions`, `ResendEmailSender`, `ActivityEmailNotifier`, notification-preference
+    fields on `AppUser` + migration `AddEmailNotificationPreferences`, `UsersController`
+    `notification-preferences` endpoints, Profile notification toggles, deploy workflow Resend secret
+    wiring, `EmailNotificationTests`, and `ResendEmailSenderTests`. Production sender:
+    `Planora <notifications@planora.website>`. GitHub secret `RESEND_API_KEY` is copied to Azure
+    Container Apps as `resend-api-key` and mapped with
+    `Email__Resend__ApiKey=secretref:resend-api-key`; API startup fails fast if provider is Resend
+    and required settings are missing. Risk: M (provider/deploy config). Validated:
+    `dotnet build Planora.slnx`, focused Resend sender tests, and full `dotnet test Planora.slnx`
+    green. Deps: 10, 11, 12, 16.
 
 ---
 
@@ -537,8 +532,8 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
   behavior ships with tests; drag/drop-ordering and permission changes are covered.
 - **UX:** empty/loading/error states everywhere; toasts + error boundary; keyboard and mobile passes
   hold (per `FRONTEND_SENIOR_QA.md`); no white-screens on component errors.
-- **Deployment:** health probes wired; CI gates merges; secrets via env/Key Vault; storage is
-  durable (Blob), not ephemeral disk.
+- **Deployment:** health probes wired; CI gates merges; secrets via env/Key Vault; email delivery uses
+  Resend; storage still needs durable Blob rather than ephemeral disk.
 - **Observability:** structured logs + correlation IDs (present) plus health checks and a cleanup
   job; an activity/audit trail for user-facing actions.
 - **Maintainability:** shared abstractions (`IFileStorage`, `IEmailSender`, `ActivityEvent`) instead
@@ -550,40 +545,32 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 
 ## 10. Final recommendation (blunt)
 
-**Build first (in this order): storage abstraction + Blob, health checks, and the auth/IDOR test
-foundation with a CI gate.** The storage bug is losing user data in production *today*; health checks
-and tests are what a technical reviewer checks in the first five minutes. None of these are glamorous,
-and that's exactly why doing them signals seniority.
+**Build next: Azure Blob storage, data export/account deletion, and the small hardening gaps
+(upload rate limits + update validators).** The storage bug is the remaining production-risk item:
+uploaded covers and attachments can still disappear on Container Apps restart/deploy/scale-out.
 
-**Then build the features that make it feel like a product:** password reset + email verification,
-card attachments, and an activity feed. Those three are the highest portfolio-signal-per-risk once the
-foundation is safe.
+**Then add product polish that compounds the existing base:** saved filters/recent items, deeper empty
+states, and bUnit coverage for Profile/WorkspaceSettings/Board modal flows.
 
-**Delay:** optimistic concurrency, notification preferences/email notifications, saved filters, 2FA,
-and data export/account deletion. All are worthwhile P2s, but they land better on top of a tested,
-durable base.
+**Done now:** health checks, tests/CI, account recovery, email verification, Resend transactional
+delivery, workspace settings/member lifecycle, activity feed, attachments, soft-delete/trash,
+background cleanup, optimistic concurrency, frontend primitives, and 2FA.
 
 **Waste of time for this project right now:** Stripe billing, Gantt/sprints, real-time SignalR
 presence, AI assistant, plugin marketplace, native mobile, and enterprise SSO. Each is a large,
 fragile investment that — half-finished — makes the project look *less* serious, not more. If you want
 one "wow" system, pick **activity feed + attachments**, not real-time or billing.
 
-**What most improves the portfolio piece:** turning the existing (genuinely strong) security model
-from *claimed* into *proven* — tests + CI — and fixing the one embarrassing production bug (ephemeral
-uploads). That combination changes the story from "nice demo" to "this person ships and defends real
-software."
+**What most improves the portfolio piece now:** eliminating ephemeral upload storage. The security
+model is already proven by tests; the next credibility jump is making uploaded user files durable.
 
 ---
 
 ### Assumptions & uncertainties
 
-- **Change-password** is assumed to already exist (CLAUDE.md states `SecurityStamp` rotates on
-  password change); only *reset* (forgot-password, email-based) and *email verification* are treated
-  as missing. Confirm the exact `AuthController` surface before scheduling task 11/12.
-- **Email provider:** no company sender email/domain exists yet. Keep email verification, password
-  reset, and future notification emails behind `IEmailSender`; do not require confirmed email for login
-  until a real provider is configured and monitored. If two-step auth is added before then, prefer app
-  authenticator/TOTP over email codes.
+- **Email provider:** Resend is configured for production via `RESEND_API_KEY`; sender is
+  `notifications@planora.website`. Keep login independent of `EmailConfirmed` unless you intentionally
+  decide to enforce verification later.
 - **Invite expiration enforcement:** the accept/lookup paths mark stale pending invitations as
   `Expired`, and task 16 keeps revocation limited to still-pending invitations.
 - **Storage target** assumed to be Azure Blob (matches the Azure hosting). If deployment is actually
@@ -591,7 +578,6 @@ software."
   a one-file decision.
 - **Test database** approach (Testcontainers vs. a CI Postgres service) is left open; either works
   with `WebApplicationFactory`. Testcontainers is cleaner locally but needs Docker in CI.
-- Feature *breadth* was taken from the repo; I did not exhaustively read every controller body, so a
-  few "missing" verbs (e.g. leave-workspace) are inferred from the endpoint list, not proven absent.
-  Grep the controller before implementing to avoid duplicating an existing endpoint.
+- Feature breadth should now be read from this task ledger plus `docs/api-endpoints.md`; older roadmap
+  rationale is retained to explain why features were prioritized, not as a missing-feature list.
 ```

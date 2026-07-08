@@ -87,7 +87,8 @@ cd Planora.Api && dotnet watch run
 cd Planora.Web && dotnet watch run
 ```
 
-Migrations run automatically on API startup. Register with any invented email — a demo workspace is created immediately.
+Migrations run automatically on API startup. With the default local console email sink, register with
+any invented email — a demo workspace is created immediately and verification/reset links are logged.
 
 > **Note:** never run `dotnet build` while a dev server is live — it causes 404 fingerprint errors on Blazor WASM assets.
 
@@ -115,8 +116,8 @@ dotnet test Planora.slnx
   `Email__From__Address=notifications@planora.website`, `App__WebBaseUrl=https://planora.website`,
   and the GitHub `RESEND_API_KEY` secret.
 - File storage is selected by `Storage:Provider` (`Local` by default). **Known limitation:** on
-  Container Apps the local disk is ephemeral, so board cover images do **not** survive a restart or
-  scale-out yet — the durable Azure Blob backend is scaffolded but not implemented
+  Container Apps the local disk is ephemeral, so board cover images and card attachments do **not**
+  survive a restart or scale-out yet — the durable Azure Blob backend is scaffolded but not implemented
   ([docs/azure-blob-storage.md](docs/azure-blob-storage.md))
 
 ## Roadmap
@@ -125,4 +126,4 @@ dotnet test Planora.slnx
 - [x] Email delivery for invitations and account recovery
 - [ ] Board templates
 - [ ] Analytics dashboard
-- [ ] Settings page (password change, 2FA, account deletion)
+- [ ] Data export and account deletion
