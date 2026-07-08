@@ -153,7 +153,10 @@
                     }
                     else if (_trashedBoards.Count == 0)
                     {
-                        <p style="font-size:13px;color:var(--text-secondary)">Trash is empty.</p>
+                        <EmptyState Compact Title="Trash is empty"
+                                    Description="Deleted boards land here and can be restored.">
+                            <Icon>🗑</Icon>
+                        </EmptyState>
                     }
                     else
                     {
@@ -326,6 +329,7 @@
     [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
     [Inject] BoardService BoardService { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
+    [Inject] ToastService Toast { get; set; } = null!;
 
     private List<WorkspaceDto> _workspaces = [];
     private List<BoardDto> _boards = [];
@@ -411,7 +415,14 @@
         if (_deleteBoardTarget is null) return;
         _saving = true;
         if (await BoardService.DeleteAsync(_deleteBoardTarget.Id))
+        {
             _archivedBoards.RemoveAll(b => b.Id == _deleteBoardTarget.Id);
+            Toast.Success("Board moved to Trash.");
+        }
+        else
+        {
+            Toast.Error("Couldn't move the board to Trash. Please try again.");
+        }
         _deleteBoardTarget = null;
         _saving = false;
     }
@@ -430,8 +441,13 @@
     private async Task RestoreBoard(BoardDto board)
     {
         var restored = await BoardService.RestoreAsync(board.Id);
-        if (restored is null) return;
+        if (restored is null)
+        {
+            Toast.Error("Couldn't restore the board. Please try again.");
+            return;
+        }
         _trashedBoards.RemoveAll(b => b.Id == board.Id);
+        Toast.Success("Board restored.");
         // Restore only clears DeletedAt; the board keeps its archived state, so put it back where
         // it belongs (boards are trashed from the archived view, so this is normally the archive).
         if (restored.IsArchived)
@@ -451,7 +467,14 @@
         if (_permanentDeleteBoardTarget is null) return;
         _saving = true;
         if (await BoardService.DeletePermanentAsync(_permanentDeleteBoardTarget.Id))
+        {
             _trashedBoards.RemoveAll(b => b.Id == _permanentDeleteBoardTarget.Id);
+            Toast.Success("Board permanently deleted.");
+        }
+        else
+        {
+            Toast.Error("Couldn't delete the board. Please try again.");
+        }
         _permanentDeleteBoardTarget = null;
         _saving = false;
     }

@@ -1,0 +1,30 @@
+<div class="empty-state @(Compact ? "empty-state--compact" : null)">
+    @if (Icon is not null)
+    {
+        <div class="empty-state-icon" aria-hidden="true">@Icon</div>
+    }
+    <h3 class="empty-state-title">@Title</h3>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="empty-state-desc">@Description</p>
+    }
+    @if (Action is not null)
+    {
+        <div class="empty-state-action">@Action</div>
+    }
+</div>
+
+@code {
+    /// <summary>Optional glyph/SVG shown above the title.</summary>
+    [Parameter] public RenderFragment? Icon { get; set; }
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Optional call-to-action (e.g. a button) rendered below the description.</summary>
+    [Parameter] public RenderFragment? Action { get; set; }
+
+    /// <summary>Tighter padding for use inside cards/panels rather than a full page.</summary>
+    [Parameter] public bool Compact { get; set; }
+}

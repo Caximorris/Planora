@@ -45,5 +45,6 @@ builder.Services.AddScoped<ChecklistService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<SearchService>();
+builder.Services.AddScoped<ToastService>();
 
 await builder.Build().RunAsync();

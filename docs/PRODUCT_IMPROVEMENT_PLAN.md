@@ -496,9 +496,18 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     column, and card PUTs return 409 and preserve the current value; normal callers echo row
     versions; `dotnet build Planora.slnx` clean; `dotnet test Planora.slnx` green (60 tests).
     Deps: 3.
-22. **Frontend primitives: toast + error boundary + empty states.** Goal: shared UI to reuse. Files:
-    `Planora.Web/Components/*`, `MainLayout`. Risk: L. Validate: thrown component caught; toasts show.
-    Deps: none.
+22. ✅ **Frontend primitives: toast + error boundary + empty states.** Goal: shared UI to reuse. Files:
+    `Planora.Web/Services/ToastService.cs` (OnChange idiom, per-type auto-dismiss), `Components/ToastHost.razor`
+    (mounted once in `MainLayout` inside `.app-shell`, `--z-toast`, `aria-live=polite`),
+    `Components/EmptyState.razor` (Icon/Title/Description/Action slots, `Compact`), `Program.cs` (DI),
+    `app.css` (toast + empty-state styles, theme-aware via semantic tokens, reduced-motion respected).
+    `ErrorBoundary` already existed in `MainLayout` (retry action) — kept. First consumers wired:
+    board trash/restore/permanent-delete now raise success/error toasts (previously silent), and the
+    empty board-trash state uses `EmptyState`. Risk: L. Validated: `dotnet build Planora.Web` clean
+    (no shared-contract change); Chrome DevTools live pass against the running stack — board
+    trash/restore raise success toasts (correct `--color-success` border, ✓ icon, `role=status` +
+    `aria-live=polite` dismiss button), toast auto-dismisses at exactly 4.0s, `EmptyState` renders in
+    the Trash panel, console clean (no errors/warnings). Deps: none.
 
 ---
 
