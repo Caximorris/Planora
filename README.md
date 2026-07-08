@@ -126,4 +126,4 @@ dotnet test Planora.slnx
 - [x] Email delivery for invitations and account recovery
 - [ ] Board templates
 - [ ] Analytics dashboard
-- [ ] Data export and account deletion
+- [x] Data export and account deletion

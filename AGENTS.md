@@ -64,7 +64,7 @@ Planora.slnx
 
 ## FluentValidation
 
-Injected as `IValidator<T>` in constructor; called manually with `ValidateAsync`. Only `Create*Request` has validators — add for `Update*` if modifying those flows.
+Injected as `IValidator<T>` in constructor; called manually with `ValidateAsync` at the top of each action. Both `Create*Request` and `Update*Request` have validators (update ones are partial-update aware via `.When(x => x.Field is not null)`). Add the matching validator for any new write flow.
 
 ## Board Cover Images
 

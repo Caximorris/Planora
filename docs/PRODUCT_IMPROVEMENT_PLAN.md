@@ -43,10 +43,11 @@ Ranked by how much they undermine the "serious SaaS" impression today:
 1. **Durable upload storage is still not implemented.** `IFileStorage` exists and local disk works,
    but Azure Blob is still a throw in `Program.cs`. Board covers and card attachments are still at
    risk on Container Apps restart/deploy/scale-out.
-2. **Data export and account deletion are still deferred.** Workspace ownership transfer/leave exists,
-   but full user data export and account deletion need explicit product/retention decisions.
-3. **Update request validation is incomplete.** `Create*Request` types use FluentValidation; many
-   update flows still rely on controller-level checks.
+2. ~~**Data export and account deletion.**~~ ✅ **Done (2026-07-08)** — `GET /api/users/export`
+   (full profile + member workspaces JSON) and `POST /api/users/delete-account` (password re-auth;
+   solo-owned workspaces removed with the account, shared-owned block with 409) in `AccountService`.
+3. ~~**Update request validation.**~~ ✅ **Done (2026-07-08)** — `Update*Request` types now have
+   FluentValidation validators (partial-update aware), wired into all six write controllers.
 4. **No bUnit/component test layer.** API integration coverage is strong; Blazor UI behavior is still
    validated mostly by build/manual browser passes.
 5. **Upload endpoints are not rate-limited.** File type/size/scope validation exists, but upload abuse
@@ -321,8 +322,8 @@ These unblock multiple features and prevent one-off hacks:
 4. **Test harness (`WebApplicationFactory` + disposable Postgres)** — precondition for trusting every
    later change to security-adjacent code.
 5. **CI pipeline** — makes the harness enforceable.
-6. **Update-path validators** — CLAUDE.md notes FluentValidation only covers `Create*Request`. Add
-   `Update*` validators as those flows change; don't validate ad hoc in controllers.
+6. **Update-path validators** — ✅ **Done (2026-07-08).** `Update*Request` types now have partial-update
+   FluentValidation validators, wired into all six write controllers; CLAUDE.md updated accordingly.
 7. **Optimistic concurrency token (`xmin`)** — enabler for safe concurrent edits/reorders.
 8. **Hosted background-service pattern** — one `BackgroundService` host for cleanup jobs, reused by
    token/invite/trash purging.
@@ -384,6 +385,19 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > trash/restore/permanent + filter consistency (search/calendar/GetById) + cross-workspace guards;
 > `dotnet test Planora.slnx` green (54 tests), full build clean, and Chrome verified both trash flows
 > end-to-end with no console errors. Scope: boards + cards only (workspace recoverable-delete deferred).
+> **Post-task-24 hardening (2026-07-08 → 2026-07-09):** three follow-ups landed on top of the numbered
+> ledger. (a) **CI email-test fix** — `Password_reset_email_warns_if_not_requested` asserted a raw
+> apostrophe that `EmailLayout` HTML-encodes (`didn&#39;t`); assertion made encoding-agnostic (the
+> template/encoding were correct). (b) **Data export + account deletion** (§2.2) — `IAccountService`
+> /`AccountService`, `GET /api/users/export` (profile + all member workspaces, archived included,
+> trashed/foreign excluded) and `POST /api/users/delete-account` (password re-auth; solo-owned
+> workspaces deleted with the account, shared-owned → 409 + list). Frontend Profile "Privacy" section
+> wired (export blob download, delete confirm panel). Tests: `Planora.Tests/Account/`
+> (`AccountExportTests`, `AccountDeletionTests`). (c) **Update-path validators** (§2.3 / enabler #6) —
+> seven `Update*RequestValidator`s (partial-update aware) wired into Boards/Cards/Columns/Workspaces/
+> Labels/Checklists; `Planora.Tests/Validation/UpdateValidationTests.cs`. No new migrations. NOTE:
+> (b) and (c) were implemented in an environment without `dotnet`, so they are **pending local
+> `dotnet build` + `dotnet test` verification** (and CI) — confirm green before treating as done.
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -545,8 +559,8 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 
 ## 10. Final recommendation (blunt)
 
-**Build next: Azure Blob storage, data export/account deletion, and the small hardening gaps
-(upload rate limits + update validators).** The storage bug is the remaining production-risk item:
+**Build next: Azure Blob storage, then the remaining small hardening gaps (upload rate limits, and
+the filtered drag-reorder bug fix).** The storage bug is the remaining production-risk item:
 uploaded covers and attachments can still disappear on Container Apps restart/deploy/scale-out.
 
 **Then add product polish that compounds the existing base:** saved filters/recent items, deeper empty
@@ -554,7 +568,8 @@ states, and bUnit coverage for Profile/WorkspaceSettings/Board modal flows.
 
 **Done now:** health checks, tests/CI, account recovery, email verification, Resend transactional
 delivery, workspace settings/member lifecycle, activity feed, attachments, soft-delete/trash,
-background cleanup, optimistic concurrency, frontend primitives, and 2FA.
+background cleanup, optimistic concurrency, frontend primitives, 2FA, **data export + account
+deletion, and update-path validators** (last two pending local build/test verification).
 
 **Waste of time for this project right now:** Stripe billing, Gantt/sprints, real-time SignalR
 presence, AI assistant, plugin marketplace, native mobile, and enterprise SSO. Each is a large,

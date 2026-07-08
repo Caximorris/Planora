@@ -16,7 +16,7 @@ Planora is a Kanban project management SaaS. Full-stack .NET 10 monorepo: REST A
 | Database | PostgreSQL (port 5433 locally) via EF Core + Npgsql |
 | Auth | ASP.NET Core Identity + JWT (15 min) + refresh tokens (7 days) |
 | Mapping | Mapperly (source-generated, zero-reflection) |
-| Validation | FluentValidation (Create* requests only) |
+| Validation | FluentValidation (Create* and Update* requests) |
 | Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards; HTML5 DnD — board tiles |
 | Storage | `IFileStorage` — local disk (dev); Azure Blob backend scaffolded, not implemented (see `docs/azure-blob-storage.md`) |
 | Email | `IEmailSender` — console sink locally; Resend in production from `notifications@planora.website` |
@@ -34,7 +34,7 @@ Planora.slnx
 │   ├── Application/
 │   │   ├── Mappers/          PlanoraMappingProfile — static partial, source-generated
 │   │   ├── Services/         TokenService, RefreshTokenService, DemoWorkspaceSeeder
-│   │   ├── Validators/       FluentValidation — Create* only
+│   │   ├── Validators/       FluentValidation — Create* + Update*
 │   │   └── Interfaces/
 │   ├── Infrastructure/Data/  ApplicationDbContext, EF config
 │   ├── Migrations/
@@ -99,6 +99,11 @@ Planora.slnx
 - Password reset and email verification use short-lived Identity tokens; reset rotates `SecurityStamp` and revokes refresh tokens
 - HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - Structured audit logging with correlation IDs
+- **Data export & account deletion** — `GET /api/users/export` returns a full JSON snapshot of the
+  user's profile + every workspace they belong to (archived included, trashed/other users' data
+  excluded). `POST /api/users/delete-account` re-auths with the password, deletes solo-owned
+  workspaces with the account, and blocks (409 + list) if the user still owns a workspace with other
+  members. Logic in `AccountService` (`IAccountService`).
 
 ### Operational
 - **Health checks** — `GET /health/live` (liveness, no checks) and `GET /health/ready`
@@ -144,7 +149,7 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 | ChecklistsController | card-scoped |
 | InvitationsController | token-based, 7-day expiry |
 | NotificationsController | unread count, mark read, dismiss |
-| UsersController | profile update, password change, notification preferences |
+| UsersController | profile update, password change, notification preferences, data export, account deletion |
 | SearchController | GET /api/search?q= — ILIKE across boards + cards, min 2 chars |
 
 ---
@@ -153,7 +158,7 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 
 **Mapperly** — `PlanoraMappingProfile` is a `static partial class`. Matching property names map automatically — no manual mapper code needed.
 
-**FluentValidation** — injected directly in constructor, called manually. Only `Create*Request` has validators. `Update*Request` are unvalidated (add if modifying those flows).
+**FluentValidation** — injected directly in constructor, called manually at the top of each action. Both `Create*Request` and `Update*Request` have validators. Update validators use partial-update semantics (`.When(x => x.Field is not null)`) so reorder/clear/assign-only updates pass; they enforce the same length/format/enum rules as create. Add the matching validator when introducing a new write flow — don't validate ad hoc in controllers.
 
 **Blazor + SortableJS** — SortableJS reorders the DOM; Blazor's diffing re-renders using component state. Without `@key="card.Id"` on card foreach and `@key="col.Id"` on column foreach, Blazor assigns wrong data to wrong DOM nodes after a drag. Always add `@key`.
 
@@ -190,7 +195,6 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 
 ## Known Issues / Technical Debt
 
-- `Update*Request` validators not implemented (only `Create*`)
 - No rate limiting on cover image upload endpoint
 - SortableJS `evt.newIndex` is relative to filtered list when priority filter is active — reorder sends wrong position
 - API integration tests exist (`Planora.Tests`); no bUnit Blazor component tests yet
@@ -204,10 +208,10 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 - [ ] Real-time updates (SignalR)
 - [ ] Board templates
 - [ ] Analytics dashboard
-- [ ] Data export and account deletion
+- [x] Data export and account deletion
 - [ ] Mobile layout improvements
 - [ ] Rate limiting on upload endpoints
-- [ ] `Update*Request` validators
+- [x] `Update*Request` validators
 
 ---
 

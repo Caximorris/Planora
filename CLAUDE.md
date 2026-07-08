@@ -83,8 +83,11 @@ Dev JWT key: `dev-super-secret-key-minimum-32-characters-long!!` (in gitignored 
 **Mapperly** — `PlanoraMappingProfile` is a `static partial class`; matching property names map
 automatically, no manual code. Add a new mapping method only for genuinely non-matching shapes.
 
-**FluentValidation** — only `Create*Request` types have validators today. If you add/modify an
-`Update*` flow that needs validation, add the matching validator; don't validate ad hoc in controllers.
+**FluentValidation** — both `Create*Request` and `Update*Request` types have validators, injected as
+`IValidator<T>` and called via `ValidateAsync` at the top of each action (400 with error messages on
+failure). Update validators are partial-update aware (`.When(x => x.Field is not null)`) so
+reorder/clear/assign-only updates pass. If you add a new write flow, add the matching validator;
+don't validate ad hoc in controllers.
 
 **Board cover images** — dedicated upload/delete endpoints; `PUT /api/boards/{id}` does **not** accept
 `CoverImageUrl`. Magic-byte type check + size limit server-side (`BoardLimits.MaxCoverImageBytes`,

@@ -2,7 +2,8 @@
 
 Base path: `/api`  
 Auth: Bearer JWT (15-min access token + 7-day refresh token)  
-Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
+Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window  
+Validation: both `Create*` and `Update*` request bodies are validated with FluentValidation (length/format/enum rules); invalid bodies return **400** with the error messages. Update validators are partial (only provided fields are checked).
 
 <!-- Scaffold — expand as endpoints are added/changed -->
 
@@ -73,6 +74,8 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | POST | /users/change-password | Authorized + auth rate limit; rotates security stamp and revokes refresh tokens |
 | GET | /users/notification-preferences | Authorized; returns email toggles |
 | PUT | /users/notification-preferences | Authorized; updates assignment/comment/workspace-invite email toggles |
+| GET | /users/export | Authorized; full JSON export of the caller's profile + every workspace they belong to (archived included; trashed and other users' workspaces excluded) |
+| POST | /users/delete-account | Authorized + auth rate limit; body `{ password }`. Re-auths, deletes solo-owned workspaces with the account. **409** + blocked-workspace list if the user owns a workspace with other members (transfer/delete it first); **400** on wrong password |
 
 ## Boards
 

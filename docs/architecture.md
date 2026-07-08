@@ -64,6 +64,5 @@ _db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == X && m.UserId == UserId)
 
 - bUnit Blazor component tests not set up yet (API integration tests exist in `Planora.Tests`)
 - No rate limiting on upload endpoints
-- FluentValidation only on `Create*Request`, not `Update*Request`
 - SortableJS reorder + active priority filter → `evt.newIndex` is relative to filtered list, not full collection
 - Azure Blob storage backend is scaffolded but not implemented; uploaded files still use local disk
