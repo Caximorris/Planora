@@ -1,4 +1,7 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Components.Forms;
+using Planora.Shared.Constants;
 using Planora.Shared.DTOs.Card;
 
 namespace Planora.Web.Services;
@@ -22,6 +25,21 @@ public class CardService
         var res = await _http.PutAsJsonAsync($"api/cards/{id}", request);
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardDto>() : null;
     }
+
+    public async Task<CardAttachmentDto?> UploadAttachmentAsync(Guid cardId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        await using var stream = file.OpenReadStream(CardLimits.MaxAttachmentBytes);
+        using var streamContent = new StreamContent(stream);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        content.Add(streamContent, "file", file.Name);
+
+        var res = await _http.PostAsync($"api/cards/{cardId}/attachments", content);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<CardAttachmentDto>() : null;
+    }
+
+    public async Task<bool> DeleteAttachmentAsync(Guid cardId, Guid attachmentId) =>
+        (await _http.DeleteAsync($"api/cards/{cardId}/attachments/{attachmentId}")).IsSuccessStatusCode;
 
     public async Task<CardDto?> ArchiveAsync(Guid id)
     {
@@ -51,4 +69,7 @@ public class CardService
     /// Permanent (irreversible) delete — only valid for a card already in the trash.
     public async Task<bool> DeletePermanentAsync(Guid id) =>
         (await _http.DeleteAsync($"api/cards/{id}/permanent")).IsSuccessStatusCode;
+
+    public string ResolveAttachmentUrl(string relativeUrl) =>
+        new Uri(_http.BaseAddress!, relativeUrl).ToString();
 }

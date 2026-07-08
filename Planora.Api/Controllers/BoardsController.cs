@@ -264,7 +264,16 @@ public class BoardsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
+        var attachmentUrls = await _db.CardAttachments
+            .IgnoreQueryFilters()
+            .Where(a => a.Card.Column.BoardId == board.Id)
+            .Select(a => a.Url)
+            .ToListAsync();
+
         await _storage.DeleteAsync(board.CoverImageUrl);
+        foreach (var url in attachmentUrls)
+            await _storage.DeleteAsync(url);
+
         _db.Boards.Remove(board);
         await _db.SaveChangesAsync();
         return NoContent();

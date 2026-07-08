@@ -979,6 +979,49 @@ html[data-theme="dark"] .card-desc-preview { color: var(--lav-400); }
 .comment-text { font-size: 13px; color: var(--color-text); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .comment-input-row { display: flex; flex-direction: column; gap: 6px; }
 
+/* Attachments */
+.attachment-upload-label {
+    margin: 0;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+.attachments-empty {
+    font-size: 13px;
+    color: var(--color-text-low);
+    margin: 0;
+}
+.attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.attachment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border-lo);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+}
+.attachment-link {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--wine-800);
+    text-decoration: none;
+}
+.attachment-link:hover { color: var(--wine-900); text-decoration: underline; }
+.attachment-size {
+    font-size: 11px;
+    color: var(--color-text-low);
+    white-space: nowrap;
+}
+
 /* ── Role badges ─────────────────────────────────────────────── */
 .role-badge {
     display: inline-block; padding: 2px 9px; border-radius: var(--radius-full);

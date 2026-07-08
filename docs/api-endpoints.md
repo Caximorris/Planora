@@ -86,6 +86,8 @@ Cards additionally support soft-delete / trash, mirroring boards:
 | GET | /cards/trash?boardId={id} | Member-gated list of trashed cards for a board, newest-deleted first |
 | PATCH | /cards/{id}/restore | Restores a trashed card (clears DeletedAt) |
 | DELETE | /cards/{id}/permanent | Hard delete — only a trashed card |
+| POST | /cards/{id}/attachments | multipart/form-data; member-gated; allowlisted PNG/JPEG/WEBP/GIF/PDF/TXT; max 10MB |
+| DELETE | /cards/{id}/attachments/{attachmentId} | Member-gated; deletes attachment row + stored file |
 
 Trash is orthogonal to archive: a board/card can be archived and/or trashed. The global EF query
 filter hides both archived and trashed rows from all normal reads (lists, GetById, search, calendar).

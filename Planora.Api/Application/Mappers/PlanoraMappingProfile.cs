@@ -17,6 +17,7 @@ public static partial class PlanoraMappingProfile
     public static partial BoardDetailDto ToDetailDto(this Board board);
     public static partial ColumnDto ToDto(this Column column);
     public static partial CardDto ToDto(this Card card);
+    public static partial CardAttachmentDto ToDto(this CardAttachment attachment);
 
     public static partial LabelDto ToDto(this WorkspaceLabel label);
     public static partial ChecklistDto ToDto(this Checklist checklist);

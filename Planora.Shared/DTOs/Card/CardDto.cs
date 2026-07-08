@@ -22,4 +22,5 @@ public class CardDto
     public DateTime? DeletedAt { get; set; }
     public List<LabelDto> Labels { get; set; } = [];
     public List<ChecklistDto> Checklists { get; set; } = [];
+    public List<CardAttachmentDto> Attachments { get; set; } = [];
 }

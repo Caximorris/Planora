@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
     public DbSet<CardComment> CardComments => Set<CardComment>();
+    public DbSet<CardAttachment> CardAttachments => Set<CardAttachment>();
     public DbSet<WorkspaceLabel> WorkspaceLabels => Set<WorkspaceLabel>();
     public DbSet<CardLabel> CardLabels => Set<CardLabel>();
     public DbSet<Checklist> Checklists => Set<Checklist>();

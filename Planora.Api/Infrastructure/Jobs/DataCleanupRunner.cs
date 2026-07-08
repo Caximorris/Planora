@@ -40,29 +40,51 @@ public sealed class DataCleanupRunner
 
         var trashCutoff = nowUtc - trashRetention;
 
-        // Cards trashed long ago and not part of a board being purged below.
-        var cards = await _db.Cards
-            .IgnoreQueryFilters()
-            .Where(c => c.DeletedAt != null && c.DeletedAt < trashCutoff)
-            .ExecuteDeleteAsync(ct);
-
         // Boards are loaded (not ExecuteDelete) so their cover images can be removed from storage;
         // the DB cascade takes care of columns/cards/comments under each purged board.
         var boardsToPurge = await _db.Boards
             .IgnoreQueryFilters()
             .Where(b => b.DeletedAt != null && b.DeletedAt < trashCutoff)
             .ToListAsync(ct);
+        var boardIdsToPurge = boardsToPurge.Select(b => b.Id).ToHashSet();
+
+        // Cards are loaded (not ExecuteDelete) so attachment files can be removed from storage.
+        var cardsToPurge = await _db.Cards
+            .IgnoreQueryFilters()
+            .Include(c => c.Attachments)
+            .Include(c => c.Column)
+            .Where(c => c.DeletedAt != null
+                && c.DeletedAt < trashCutoff
+                && !boardIdsToPurge.Contains(c.Column.BoardId))
+            .ToListAsync(ct);
+
+        foreach (var card in cardsToPurge)
+            foreach (var attachment in card.Attachments)
+                await _storage.DeleteAsync(attachment.Url, ct);
+
+        var boardAttachmentUrls = boardIdsToPurge.Count == 0
+            ? []
+            : await _db.CardAttachments
+                .IgnoreQueryFilters()
+                .Where(a => boardIdsToPurge.Contains(a.Card.Column.BoardId))
+                .Select(a => a.Url)
+                .ToListAsync(ct);
 
         foreach (var board in boardsToPurge)
             await _storage.DeleteAsync(board.CoverImageUrl);
+        foreach (var url in boardAttachmentUrls)
+            await _storage.DeleteAsync(url, ct);
 
+        if (cardsToPurge.Count > 0)
+            _db.Cards.RemoveRange(cardsToPurge);
         if (boardsToPurge.Count > 0)
-        {
             _db.Boards.RemoveRange(boardsToPurge);
+        if (cardsToPurge.Count > 0 || boardsToPurge.Count > 0)
+        {
             await _db.SaveChangesAsync(ct);
         }
 
-        var result = new CleanupResult(tokens, invitations, cards, boardsToPurge.Count);
+        var result = new CleanupResult(tokens, invitations, cardsToPurge.Count, boardsToPurge.Count);
         if (result.Total > 0)
         {
             _logger.LogInformation(

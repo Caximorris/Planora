@@ -4,6 +4,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Mappers;
 using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
@@ -19,14 +20,26 @@ namespace Planora.Api.Controllers;
 public class CardsController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly Dictionary<string, string> AllowedAttachmentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/png"] = ".png",
+        ["image/jpeg"] = ".jpg",
+        ["image/webp"] = ".webp",
+        ["image/gif"] = ".gif",
+        ["application/pdf"] = ".pdf",
+        ["text/plain"] = ".txt",
+    };
+    private const string AttachmentRelativeDir = "uploads/cards";
 
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateCardRequest> _createValidator;
+    private readonly IFileStorage _storage;
 
-    public CardsController(ApplicationDbContext db, IValidator<CreateCardRequest> createValidator)
+    public CardsController(ApplicationDbContext db, IValidator<CreateCardRequest> createValidator, IFileStorage storage)
     {
         _db = db;
         _createValidator = createValidator;
+        _storage = storage;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -41,6 +54,7 @@ public class CardsController : ControllerBase
                 .ThenInclude(cl => cl.Label)
             .Include(c => c.Checklists.OrderBy(ch => ch.Position))
                 .ThenInclude(ch => ch.Items.OrderBy(i => i.Position))
+            .Include(c => c.Attachments.OrderBy(a => a.CreatedAt))
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (card is null) return NotFound();
@@ -237,6 +251,83 @@ public class CardsController : ControllerBase
         return Ok(card.ToDto());
     }
 
+    [HttpPost("{id:guid}/attachments")]
+    [RequestSizeLimit(CardLimits.MaxAttachmentBytes + 1024)]
+    public async Task<IActionResult> UploadAttachment(Guid id, IFormFile? file)
+    {
+        var card = await _db.Cards
+            .Include(c => c.Column)
+                .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(c => c.Id == id);
+        if (card is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        if (file is null || file.Length == 0) return BadRequest("No file uploaded.");
+        if (file.Length > CardLimits.MaxAttachmentBytes)
+            return BadRequest($"Attachment must be smaller than {CardLimits.MaxAttachmentBytes / 1024 / 1024} MB.");
+        if (!AllowedAttachmentTypes.TryGetValue(file.ContentType, out var extension))
+            return BadRequest("Unsupported attachment type. Use PNG, JPEG, WEBP, GIF, PDF or TXT.");
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer);
+        buffer.Position = 0;
+        var header = new byte[Math.Min(16, (int)buffer.Length)];
+        await buffer.ReadExactlyAsync(header);
+        buffer.Position = 0;
+
+        if (!HasValidAttachmentSignature(header, file.ContentType))
+            return BadRequest("File content doesn't match a supported attachment format.");
+
+        var url = await _storage.SaveAsync(buffer, AttachmentRelativeDir, extension);
+        var attachment = new CardAttachment
+        {
+            CardId = card.Id,
+            UploadedById = UserId,
+            FileName = SafeDisplayFileName(file.FileName),
+            ContentType = file.ContentType,
+            SizeBytes = file.Length,
+            Url = url
+        };
+
+        _db.CardAttachments.Add(attachment);
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch
+        {
+            await _storage.DeleteAsync(url);
+            throw;
+        }
+
+        return Ok(attachment.ToDto());
+    }
+
+    [HttpDelete("{cardId:guid}/attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DeleteAttachment(Guid cardId, Guid attachmentId)
+    {
+        var attachment = await _db.CardAttachments
+            .Include(a => a.Card)
+                .ThenInclude(c => c.Column)
+                    .ThenInclude(col => col.Board)
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.CardId == cardId);
+        if (attachment is null) return NotFound();
+
+        var isMember = await _db.WorkspaceMembers
+            .AnyAsync(m => m.WorkspaceId == attachment.Card.Column.Board.WorkspaceId && m.UserId == UserId);
+        if (!isMember) return Forbid();
+
+        var url = attachment.Url;
+        _db.CardAttachments.Remove(attachment);
+        await _db.SaveChangesAsync();
+        await _storage.DeleteAsync(url);
+
+        return NoContent();
+    }
+
     private static string ToPayloadJson<T>(T payload) => JsonSerializer.Serialize(payload, JsonOptions);
 
     [HttpPatch("{id:guid}/archive")]
@@ -329,6 +420,7 @@ public class CardsController : ControllerBase
     {
         var card = await _db.Cards
             .IgnoreQueryFilters()
+            .Include(c => c.Attachments)
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
             .FirstOrDefaultAsync(c => c.Id == id && c.DeletedAt != null);
@@ -360,8 +452,40 @@ public class CardsController : ControllerBase
             .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
 
+        foreach (var attachment in card.Attachments)
+            await _storage.DeleteAsync(attachment.Url);
+
         _db.Cards.Remove(card);
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private static bool HasValidAttachmentSignature(byte[] header, string contentType) => contentType switch
+    {
+        "image/png" => header.Length >= 8
+            && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47
+            && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A,
+        "image/jpeg" => header.Length >= 3
+            && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+        "image/gif" => header.Length >= 6
+            && header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38
+            && (header[4] == 0x37 || header[4] == 0x39) && header[5] == 0x61,
+        "image/webp" => header.Length >= 12
+            && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+            && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
+        "application/pdf" => header.Length >= 5
+            && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46 && header[4] == 0x2D,
+        "text/plain" => header.All(b => b != 0),
+        _ => false,
+    };
+
+    private static string SafeDisplayFileName(string? fileName)
+    {
+        var safeName = Path.GetFileName(fileName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(safeName))
+            return "attachment";
+
+        safeName = string.Concat(safeName.Select(ch => char.IsControl(ch) ? '_' : ch));
+        return safeName.Length <= 180 ? safeName : safeName[..180];
     }
 }

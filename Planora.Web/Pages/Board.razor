@@ -151,6 +151,41 @@ else
                             <button type="button" class="btn btn-sm btn-secondary" @onclick="() => _editColor = null">Reset</button>
                         </div>
                     </div>
+                    <div class="mb-3 mt-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0">Attachments</label>
+                            <label class="settings-upload-label attachment-upload-label">
+                                @(_uploadingAttachment ? "Uploading..." : "Upload...")
+                                <InputFile OnChange="OnAttachmentSelected" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain" disabled="@_uploadingAttachment" />
+                            </label>
+                        </div>
+                        @if (_attachmentError is not null)
+                        {
+                            <div class="settings-error mb-2">@_attachmentError</div>
+                        }
+                        @if (_editCard!.Attachments.Count == 0)
+                        {
+                            <p class="attachments-empty">No attachments.</p>
+                        }
+                        else
+                        {
+                            <div class="attachments-list">
+                                @foreach (var attachment in _editCard.Attachments.OrderBy(a => a.CreatedAt))
+                                {
+                                    <div class="attachment-row" @key="attachment.Id">
+                                        <a class="attachment-link"
+                                           href="@CardService.ResolveAttachmentUrl(attachment.Url)"
+                                           target="_blank"
+                                           rel="noopener">
+                                            @attachment.FileName
+                                        </a>
+                                        <span class="attachment-size">@FormatFileSize(attachment.SizeBytes)</span>
+                                        <button type="button" class="btn-icon-sm" aria-label="Delete attachment @attachment.FileName" @onclick="() => DeleteAttachment(attachment)">✕</button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
                     @* Labels *@
                     <div class="mb-3 mt-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -577,6 +612,8 @@ else
     private string? _editColor;
 
     private string? _coverError;
+    private string? _attachmentError;
+    private bool _uploadingAttachment;
     private bool _showBoardSettings;
     private bool _showActivity;
     private bool _confirmDeleteBoard;
@@ -942,6 +979,8 @@ else
         _editPriority = card.Priority;
         _editColor = PlanoraColors.SafeSurfaceBackgroundOrNull(card.Color);
         _newCommentText = "";
+        _attachmentError = null;
+        _uploadingAttachment = false;
         _comments = [];
         _editChecklists = [];
         _editCardLabelIds = [];
@@ -966,6 +1005,7 @@ else
             // Sync labels back to the in-memory card so chips appear on the tile
             card.Labels = detail.Labels;
             card.Checklists = detail.Checklists;
+            card.Attachments = detail.Attachments;
             card.RowVersion = detail.RowVersion;
         }
 
@@ -978,6 +1018,8 @@ else
         _editCard = null;
         _comments = [];
         _newCommentText = "";
+        _attachmentError = null;
+        _uploadingAttachment = false;
         _editChecklists = [];
         _editCardLabelIds = [];
         _newItemText = [];
@@ -1001,6 +1043,41 @@ else
             _comments.Remove(comment);
     }
 
+    private async Task OnAttachmentSelected(InputFileChangeEventArgs e)
+    {
+        if (_editCard is null) return;
+
+        _attachmentError = null;
+        _uploadingAttachment = true;
+        try
+        {
+            var uploaded = await CardService.UploadAttachmentAsync(_editCard.Id, e.File);
+            if (uploaded is not null)
+            {
+                _editCard.Attachments.Add(uploaded);
+            }
+            else
+            {
+                _attachmentError = $"Upload failed. Use PNG, JPEG, WEBP, GIF, PDF or TXT under {CardLimits.MaxAttachmentBytes / 1024 / 1024} MB.";
+            }
+        }
+        catch (IOException)
+        {
+            _attachmentError = $"Attachment is too large (max {CardLimits.MaxAttachmentBytes / 1024 / 1024} MB).";
+        }
+        finally
+        {
+            _uploadingAttachment = false;
+        }
+    }
+
+    private async Task DeleteAttachment(CardAttachmentDto attachment)
+    {
+        if (_editCard is null) return;
+        if (await CardService.DeleteAttachmentAsync(_editCard.Id, attachment.Id))
+            _editCard.Attachments.RemoveAll(a => a.Id == attachment.Id);
+    }
+
     private async Task CommentKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && e.CtrlKey) await AddComment();
@@ -1014,6 +1091,13 @@ else
         if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
         if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
         return utc.ToLocalTime().ToString("MMM d");
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024d:0.#} KB";
+        return $"{bytes / 1024d / 1024d:0.#} MB";
     }
 
     private async Task SaveCard()

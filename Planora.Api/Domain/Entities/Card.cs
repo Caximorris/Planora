@@ -25,4 +25,5 @@ public class Card : BaseEntity
     public ICollection<CardComment> Comments { get; set; } = [];
     public ICollection<CardLabel> Labels { get; set; } = [];
     public ICollection<Checklist> Checklists { get; set; } = [];
+    public ICollection<CardAttachment> Attachments { get; set; } = [];
 }

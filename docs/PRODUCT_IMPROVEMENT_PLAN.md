@@ -468,9 +468,13 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     `Planora.Tests/Workspaces/WorkspaceLifecycleTests.cs`. Risk: M. Validated: full member/invite/ownership
     lifecycle surfaced; list-invitations scoped to Owner/Admin (2 new tests); `dotnet build Planora.slnx`
     clean; `dotnet test Planora.slnx` green (45 tests). Deps: 16.
-18. **Card attachments.** Goal: `CardAttachment` entity + endpoints + card-modal UI on `IFileStorage`.
-    Files: new entity, migration, `CardsController`/service, card modal. Risk: M. Validate:
-    validation + scope + cascade tests. Deps: 8.
+18. ✅ **Card attachments.** Goal: `CardAttachment` entity + endpoints + card-modal UI on `IFileStorage`.
+    Files: `CardAttachment` entity/config + `AddCardAttachments` migration, card attachment DTOs,
+    `CardLimits`, `CardsController` upload/delete endpoints, board/card permanent-delete and cleanup
+    storage cleanup, `CardService`, `Board.razor` card-modal attachment panel, `app.css`,
+    `Planora.Tests/Cards/CardAttachmentTests.cs`. Risk: M. Validated: member upload + card detail,
+    content-type/signature rejection, nonmember upload/delete denial, permanent-delete cascade;
+    `dotnet build Planora.slnx` clean; `dotnet test Planora.slnx` green (64 tests). Deps: 8.
 19. ✅ **Soft-delete + trash/restore (boards, cards).** Goal: `DeletedAt` + global filter + trash view.
     Files: entities, Board/Card/Column configs, `AddSoftDeleteToBoardsAndCards` migration,
     Boards/Cards controllers, `BoardService`/`CardService`, `Workspaces.razor`/`Board.razor`,
