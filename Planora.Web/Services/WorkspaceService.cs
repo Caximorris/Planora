@@ -30,6 +30,29 @@ public class WorkspaceService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<WorkspaceDto>() : null;
     }
 
+    public async Task<WorkspaceDto?> UpdateAsync(Guid id, UpdateWorkspaceRequest request)
+    {
+        var res = await _http.PutAsJsonAsync($"api/workspaces/{id}", request);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<WorkspaceDto>() : null;
+    }
+
+    public Task<List<InvitationDto>?> GetInvitationsAsync(Guid workspaceId) =>
+        _http.GetFromJsonAsync<List<InvitationDto>>($"api/workspaces/{workspaceId}/invitations");
+
+    public async Task<bool> RevokeInvitationAsync(Guid workspaceId, Guid invitationId) =>
+        (await _http.DeleteAsync($"api/workspaces/{workspaceId}/invitations/{invitationId}")).IsSuccessStatusCode;
+
+    public async Task<WorkspaceDto?> TransferOwnershipAsync(Guid workspaceId, string newOwnerUserId)
+    {
+        var res = await _http.PostAsJsonAsync(
+            $"api/workspaces/{workspaceId}/transfer-ownership",
+            new TransferWorkspaceOwnershipRequest { NewOwnerUserId = newOwnerUserId });
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<WorkspaceDto>() : null;
+    }
+
+    public async Task<bool> LeaveAsync(Guid workspaceId) =>
+        (await _http.PostAsync($"api/workspaces/{workspaceId}/leave", null)).IsSuccessStatusCode;
+
     public async Task<bool> DeleteAsync(Guid id) =>
         (await _http.DeleteAsync($"api/workspaces/{id}")).IsSuccessStatusCode;
 

@@ -375,8 +375,15 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > revoke others on desktop and mobile with no horizontal overflow. Task 16 ✅: workspace invitation
 > revocation, ownership transfer, and self-leave endpoints are in place with authorization guards and
 > lifecycle tests. `docs/api-endpoints.md` is updated for the new auth/workspace/invitation routes.
-> `dotnet test Planora.slnx` passes with 43 tests; full `dotnet build Planora.slnx` is clean. Next:
-> Task 17 (workspace settings + member/invite UI) or resume Tasks 8-9 after the deploy-target/SDK decision.
+> Task 17 ✅: dedicated `WorkspaceSettings.razor` page at `/workspaces/{id}/settings` surfaces workspace
+> name/description edit, member list with Owner-only role change + Owner/Admin remove, pending-invite list
+> with invite + revoke, and a danger zone (transfer ownership, leave, delete). A new
+> `GET /api/workspaces/{id}/invitations` endpoint (Owner/Admin; marks stale pendings Expired) backs the
+> invite list; `WorkspaceService` gained update/transfer/leave/revoke/list-invitations methods. The old
+> Members modal in `Workspaces.razor` was removed in favor of a `⚙ Settings` link (no duplicate member UI).
+> `dotnet test Planora.slnx` passes with 45 tests; full `dotnet build Planora.slnx` is clean. Next:
+> Task 18 (card attachments) depends on Tasks 8-9 (Blob storage), so resume Tasks 8-9 after the
+> deploy-target/SDK decision, or pick Task 19 (soft-delete + trash/restore).
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -437,9 +444,13 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     `docs/api-endpoints.md`. Risk: M. Validated: owner can transfer ownership then leave, non-owner
     cannot transfer, sole owner cannot leave, revoked invite token cannot be accepted, member cannot
     revoke invitations; focused integration tests green. Deps: 3.
-17. **Workspace settings + member/invite UI.** Goal: surface members, roles, invites, the new verbs.
-    Files: `Planora.Web/Pages/WorkspaceSettings.razor`, services. Risk: M. Validate: full lifecycle
-    clickable; contract compiles both projects. Deps: 16.
+17. ✅ **Workspace settings + member/invite UI.** Goal: surface members, roles, invites, the new verbs.
+    Files: `Planora.Web/Pages/WorkspaceSettings.razor` (new `@page`), `Planora.Web/Services/WorkspaceService.cs`
+    (update/transfer/leave/revoke/list-invitations), `Planora.Api/Controllers/WorkspacesController.cs`
+    (`GET {id}/invitations`), `Planora.Web/Pages/Workspaces.razor` (Members modal → `⚙ Settings` link),
+    `Planora.Tests/Workspaces/WorkspaceLifecycleTests.cs`. Risk: M. Validated: full member/invite/ownership
+    lifecycle surfaced; list-invitations scoped to Owner/Admin (2 new tests); `dotnet build Planora.slnx`
+    clean; `dotnet test Planora.slnx` green (45 tests). Deps: 16.
 18. **Card attachments.** Goal: `CardAttachment` entity + endpoints + card-modal UI on `IFileStorage`.
     Files: new entity, migration, `CardsController`/service, card modal. Risk: M. Validate:
     validation + scope + cascade tests. Deps: 8.

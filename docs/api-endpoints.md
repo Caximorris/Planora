@@ -43,6 +43,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 | PATCH | /workspaces/{id}/members/{userId} | Owner only; cannot assign Owner here |
 | GET | /workspaces/{id}/boards | Ordered by Position |
 | GET | /workspaces/{id}/calendar | Member-gated due-date feed |
+| GET | /workspaces/{id}/invitations | Owner/Admin; lists pending invitations (marks stale pendings Expired) |
 | POST | /workspaces/{id}/invitations | Owner/Admin; creates pending invitation |
 | DELETE | /workspaces/{id}/invitations/{invitationId} | Owner/Admin; revokes pending invitation |
 | POST | /workspaces/{id}/transfer-ownership | Owner only; target must already be a member |

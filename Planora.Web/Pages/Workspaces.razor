@@ -1,6 +1,5 @@
 @page "/workspaces"
 @attribute [Authorize]
-@using System.Security.Claims
 @using Planora.Shared.Constants
 @using Planora.Shared.Enums
 
@@ -58,7 +57,7 @@
             <div class="ws-content-header">
                 <span class="ws-content-title">@_selected.Name</span>
                 <div class="ws-content-actions">
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="OpenMembersModal">👥 Members</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenSettings(_selected)">⚙ Settings</button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleArchivedBoards">
                         @(_showArchivedBoards ? "Hide archived" : "Show archived")
                     </button>
@@ -265,106 +264,10 @@
     </div>
 }
 
-@* Members modal *@
-@if (_showMembers && _selected is not null)
-{
-    <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="members-title">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="members-title">Members — @_selected.Name</h5>
-                    <button class="btn-close" aria-label="Close members dialog" @onclick="CloseMembersModal"></button>
-                </div>
-                <div class="modal-body">
-
-                    @* Member list *@
-                    @if (_loadingMembers)
-                    {
-                        <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
-                    }
-                    else
-                    {
-                        <div class="members-list mb-4">
-                            @foreach (var member in _members)
-                            {
-                                <div class="member-item" @key="member.UserId">
-                                    <div class="member-avatar">@member.DisplayName[0]</div>
-                                    <div class="member-info">
-                                        <span class="member-name">@member.DisplayName</span>
-                                        <span class="member-email">@member.Email</span>
-                                    </div>
-                                    <span class="role-badge role-badge--@member.Role.ToString().ToLower()">@member.Role</span>
-                                    @if (_callerRole is WorkspaceRole.Owner or WorkspaceRole.Admin
-                                         && member.UserId != _selected.OwnerId
-                                         && member.UserId != _currentUserId)
-                                    {
-                                        <button class="member-remove-btn"
-                                                title="Remove member"
-                                                aria-label="Remove member @member.DisplayName"
-                                                @onclick="() => RemoveMember(member)"
-                                                disabled="@_saving">✕</button>
-                                    }
-                                </div>
-                            }
-                        </div>
-
-                        @* Invite section — only for Owner/Admin *@
-                        @if (_callerRole is WorkspaceRole.Owner or WorkspaceRole.Admin)
-                        {
-                            <hr />
-                            <div class="invite-section">
-                                <h6>Invite someone</h6>
-                                <div class="invite-form">
-                                    <input class="form-control"
-                                           placeholder="Email address"
-                                           @bind="_inviteEmail"
-                                           type="email" />
-                                    <select class="form-select" @bind="_inviteRole">
-                                        <option value="@WorkspaceRole.Member">Member</option>
-                                        <option value="@WorkspaceRole.Admin">Admin</option>
-                                    </select>
-                                    <button class="btn btn-primary"
-                                            @onclick="SendInvite"
-                                            disabled="@(_saving || string.IsNullOrWhiteSpace(_inviteEmail))">
-                                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                                        Invite
-                                    </button>
-                                </div>
-                                @if (_inviteError is not null)
-                                {
-                                    <div class="alert alert-danger mt-2 py-2" style="font-size:13px;">@_inviteError</div>
-                                }
-                                @if (_inviteLink is not null)
-                                {
-                                    <div class="invite-link-box mt-3">
-                                        <span class="invite-link-label">Share this link:</span>
-                                        <div class="invite-link-row">
-                                            <input class="form-control form-control-sm" readonly value="@_inviteLink" />
-                                            <button class="btn btn-sm btn-outline-secondary" @onclick="CopyLink">
-                                                @(_linkCopied ? "✓ Copied" : "Copy")
-                                            </button>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseMembersModal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
     [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
     [Inject] BoardService BoardService { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
-    [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
-    [Inject] IJSRuntime JS { get; set; } = null!;
 
     private List<WorkspaceDto> _workspaces = [];
     private List<BoardDto> _boards = [];
@@ -388,26 +291,8 @@
     private List<BoardDto> _archivedBoards = [];
     private BoardDto? _deleteBoardTarget;
 
-    // Members modal
-    private bool _showMembers;
-    private bool _loadingMembers;
-    private List<WorkspaceMemberDto> _members = [];
-    private WorkspaceRole? _callerRole;
-    private string? _currentUserId;
-
-    // Invite
-    private string _inviteEmail = "";
-    private WorkspaceRole _inviteRole = WorkspaceRole.Member;
-    private string? _inviteLink;
-    private string? _inviteError;
-    private bool _linkCopied;
-
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? authState.User.FindFirst("sub")?.Value;
-
         _workspaces = await WorkspaceService.GetAllAsync() ?? [];
         _loading = false;
         if (_workspaces.Count > 0)
@@ -508,61 +393,10 @@
         _saving = false;
     }
 
-    private async Task OpenMembersModal()
+    private void OpenSettings(WorkspaceDto? ws)
     {
-        if (_selected is null) return;
-        _showMembers = true;
-        _loadingMembers = true;
-        _inviteLink = null;
-        _inviteError = null;
-        _inviteEmail = "";
-        _inviteRole = WorkspaceRole.Member;
-        _members = await WorkspaceService.GetMembersAsync(_selected.Id) ?? [];
-        _callerRole = _members.FirstOrDefault(m => m.UserId == _currentUserId)?.Role;
-        _loadingMembers = false;
-    }
-
-    private async Task RemoveMember(WorkspaceMemberDto member)
-    {
-        if (_selected is null) return;
-        _saving = true;
-        var ok = await WorkspaceService.RemoveMemberAsync(_selected.Id, member.UserId);
-        if (ok) _members.RemoveAll(m => m.UserId == member.UserId);
-        _saving = false;
-    }
-
-    private async Task SendInvite()
-    {
-        if (_selected is null || string.IsNullOrWhiteSpace(_inviteEmail)) return;
-        _saving = true;
-        _inviteError = null;
-        _inviteLink = null;
-        _linkCopied = false;
-
-        var result = await WorkspaceService.CreateInvitationAsync(_selected.Id, new()
-        {
-            InviteeEmail = _inviteEmail,
-            Role = _inviteRole
-        });
-
-        if (result is not null)
-        {
-            _inviteLink = $"{Nav.BaseUri}invite/{result.Token}";
-            _inviteEmail = "";
-        }
-        else
-        {
-            _inviteError = "Could not send invitation. The user may already be a member or an error occurred.";
-        }
-
-        _saving = false;
-    }
-
-    private async Task CopyLink()
-    {
-        if (_inviteLink is null) return;
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteLink);
-        _linkCopied = true;
+        if (ws is null) return;
+        Nav.NavigateTo($"/workspaces/{ws.Id}/settings");
     }
 
     private string TileStyle(BoardDto board) =>
@@ -603,5 +437,4 @@
     private void OpenBoard(Guid id) => Nav.NavigateTo($"/boards/{id}");
     private void CloseWsModal() { _showCreateWs = false; _wsName = ""; _wsDesc = ""; }
     private void CloseBoardModal() { _showCreateBoard = false; _boardName = ""; _boardColor = PlanoraColors.DefaultBoardColor; }
-    private void CloseMembersModal() { _showMembers = false; _members = []; _inviteLink = null; _inviteError = null; }
 }

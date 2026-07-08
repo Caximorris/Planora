@@ -103,6 +103,37 @@ public class WorkspaceLifecycleTests(PlanoraWebAppFactory factory)
     }
 
     [Fact]
+    public async Task Owner_lists_only_pending_invitations()
+    {
+        var (owner, _) = await factory.RegisterAndAuthenticateAsync();
+        var workspace = await owner.CreateWorkspaceAsync("List Invitations Workspace");
+
+        var pending = await CreateInvitationAsync(owner, workspace.Id, $"pending.{Guid.NewGuid():N}@planora.test");
+        var toRevoke = await CreateInvitationAsync(owner, workspace.Id, $"revoked.{Guid.NewGuid():N}@planora.test");
+        var revoke = await owner.DeleteAsync($"/api/workspaces/{workspace.Id}/invitations/{toRevoke.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+
+        var invitations = await owner.GetFromJsonAsync<List<InvitationDto>>($"/api/workspaces/{workspace.Id}/invitations");
+
+        Assert.NotNull(invitations);
+        Assert.Contains(invitations!, i => i.Id == pending.Id);
+        Assert.DoesNotContain(invitations!, i => i.Id == toRevoke.Id);
+        Assert.All(invitations!, i => Assert.Equal(InvitationStatus.Pending, i.Status));
+    }
+
+    [Fact]
+    public async Task Non_member_cannot_list_workspace_invitations()
+    {
+        var (owner, _) = await factory.RegisterAndAuthenticateAsync();
+        var workspace = await owner.CreateWorkspaceAsync("Private Invitations Workspace");
+
+        var (outsider, _) = await RegisterAndAuthenticateAsync($"outsider.{Guid.NewGuid():N}@planora.test");
+        var response = await outsider.GetAsync($"/api/workspaces/{workspace.Id}/invitations");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Member_cannot_revoke_workspace_invitation()
     {
         var (owner, _) = await factory.RegisterAndAuthenticateAsync();

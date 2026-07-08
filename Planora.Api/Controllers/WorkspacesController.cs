@@ -256,6 +256,48 @@ public class WorkspacesController : ControllerBase
         return Ok(dtos);
     }
 
+    [HttpGet("{id:guid}/invitations")]
+    public async Task<IActionResult> GetInvitations(Guid id)
+    {
+        var callerMember = await _db.WorkspaceMembers
+            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
+
+        if (callerMember is null || (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin))
+            return Forbid();
+
+        // Mark stale pending invitations as expired so the list reflects reality.
+        var stale = await _db.WorkspaceInvitations
+            .Where(i => i.WorkspaceId == id && i.Status == InvitationStatus.Pending && i.ExpiresAt < DateTime.UtcNow)
+            .ToListAsync();
+        if (stale.Count > 0)
+        {
+            foreach (var s in stale) s.Status = InvitationStatus.Expired;
+            await _db.SaveChangesAsync();
+        }
+
+        var invitations = await _db.WorkspaceInvitations
+            .Include(i => i.Workspace)
+            .Include(i => i.Inviter)
+            .Where(i => i.WorkspaceId == id && i.Status == InvitationStatus.Pending)
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync();
+
+        var dtos = invitations.Select(i => new InvitationDto
+        {
+            Id = i.Id,
+            WorkspaceId = i.WorkspaceId,
+            WorkspaceName = i.Workspace.Name,
+            InviterName = i.Inviter != null ? i.Inviter.DisplayName : "Someone",
+            InviteeEmail = i.InviteeEmail,
+            Role = i.Role,
+            Status = i.Status,
+            ExpiresAt = i.ExpiresAt,
+            Token = i.Token
+        });
+
+        return Ok(dtos);
+    }
+
     [HttpPost("{id:guid}/invitations")]
     public async Task<IActionResult> CreateInvitation(Guid id, [FromBody] CreateInvitationRequest request)
     {

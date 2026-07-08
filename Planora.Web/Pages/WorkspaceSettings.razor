@@ -1,0 +1,474 @@
+@page "/workspaces/{Id:guid}/settings"
+@attribute [Authorize]
+@using System.Security.Claims
+
+<PageTitle>Workspace settings — Planora</PageTitle>
+
+<div class="profile-root">
+
+    @if (_loading)
+    {
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+    }
+    else if (_workspace is null)
+    {
+        <div class="ws-empty">
+            <div class="ws-empty-icon">🔒</div>
+            <div class="ws-empty-text">Workspace not found</div>
+            <div class="ws-empty-sub">It may have been deleted, or you no longer have access.</div>
+            <button class="btn btn-sm btn-primary mt-3" @onclick="GoToWorkspaces">Back to workspaces</button>
+        </div>
+    }
+    else
+    {
+        <div class="profile-header">
+            <div class="profile-avatar-lg">@_workspace.Name[0]</div>
+            <div>
+                <h1>@_workspace.Name</h1>
+                <p>Workspace settings · @_members.Count member@(_members.Count == 1 ? "" : "s")</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary ms-auto" @onclick="GoToWorkspaces">← Back</button>
+        </div>
+
+        @* ── Details ── *@
+        <div class="profile-section">
+            <h2 class="profile-section-title">Details</h2>
+            <div class="profile-row">
+                <div>
+                    <div class="profile-row-label">Name</div>
+                    <div class="profile-row-desc">Shown to every member of this workspace</div>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <input class="form-control profile-row-input" @bind="_name" maxlength="80"
+                           disabled="@(!CanManage)" />
+                    @if (CanManage)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="SaveDetails" disabled="@_savingDetails">
+                            @if (_savingDetails) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Save
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="profile-row">
+                <div>
+                    <div class="profile-row-label">Description</div>
+                    <div class="profile-row-desc">Optional — a short summary of what this workspace is for</div>
+                </div>
+                <input class="form-control profile-row-input" @bind="_description" maxlength="300"
+                       placeholder="Optional" disabled="@(!CanManage)" />
+            </div>
+            @if (_detailsStatus is not null)
+            {
+                <div class="alert @(_detailsStatus == true ? "alert-success" : "alert-danger") py-1 mt-1" style="font-size:13px;">
+                    @(_detailsStatus == true ? "Saved." : "Could not save changes.")
+                </div>
+            }
+        </div>
+
+        @* ── Members ── *@
+        <div class="profile-section">
+            <h2 class="profile-section-title">Members</h2>
+            <div class="members-list">
+                @foreach (var member in _members)
+                {
+                    <div class="member-item" @key="member.UserId">
+                        <div class="member-avatar">@member.DisplayName[0]</div>
+                        <div class="member-info">
+                            <span class="member-name">
+                                @member.DisplayName
+                                @if (member.UserId == _currentUserId) { <span class="text-muted"> (you)</span> }
+                            </span>
+                            <span class="member-email">@member.Email</span>
+                        </div>
+
+                        @if (_callerRole == WorkspaceRole.Owner
+                             && member.UserId != _workspace.OwnerId
+                             && member.UserId != _currentUserId)
+                        {
+                            <select class="form-select form-select-sm" style="width:auto;"
+                                    value="@member.Role"
+                                    @onchange="e => ChangeRole(member, e)"
+                                    disabled="@_savingMember">
+                                <option value="@WorkspaceRole.Member">Member</option>
+                                <option value="@WorkspaceRole.Admin">Admin</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <span class="role-badge role-badge--@member.Role.ToString().ToLower()">@member.Role</span>
+                        }
+
+                        @if (CanManage
+                             && member.UserId != _workspace.OwnerId
+                             && member.UserId != _currentUserId)
+                        {
+                            <button class="member-remove-btn"
+                                    title="Remove member"
+                                    aria-label="Remove member @member.DisplayName"
+                                    @onclick="() => ConfirmRemoveMember(member)"
+                                    disabled="@_savingMember">✕</button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── Invitations ── (Owner/Admin only) *@
+        @if (CanManage)
+        {
+            <div class="profile-section">
+                <h2 class="profile-section-title">Invitations</h2>
+
+                <div class="invite-section mb-3">
+                    <div class="invite-form">
+                        <input class="form-control" placeholder="Email address" type="email"
+                               @bind="_inviteEmail" @bind:event="oninput" />
+                        <select class="form-select" @bind="_inviteRole">
+                            <option value="@WorkspaceRole.Member">Member</option>
+                            <option value="@WorkspaceRole.Admin">Admin</option>
+                        </select>
+                        <button class="btn btn-primary" @onclick="SendInvite"
+                                disabled="@(_savingInvite || string.IsNullOrWhiteSpace(_inviteEmail))">
+                            @if (_savingInvite) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Invite
+                        </button>
+                    </div>
+                    @if (_inviteError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 py-2" style="font-size:13px;">@_inviteError</div>
+                    }
+                    @if (_inviteLink is not null)
+                    {
+                        <div class="invite-link-box mt-3">
+                            <span class="invite-link-label">Share this link:</span>
+                            <div class="invite-link-row">
+                                <input class="form-control form-control-sm" readonly value="@_inviteLink" />
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="CopyLink">
+                                    @(_linkCopied ? "✓ Copied" : "Copy")
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_invitations.Count == 0)
+                {
+                    <p style="font-size:13px;color:var(--color-text-mid);margin:0;">No pending invitations.</p>
+                }
+                else
+                {
+                    <div class="members-list">
+                        @foreach (var invite in _invitations)
+                        {
+                            <div class="member-item" @key="invite.Id">
+                                <div class="member-avatar">@char.ToUpper(invite.InviteeEmail[0])</div>
+                                <div class="member-info">
+                                    <span class="member-name">@invite.InviteeEmail</span>
+                                    <span class="member-email">Invited as @invite.Role · expires @invite.ExpiresAt.ToLocalTime().ToString("MMM d")</span>
+                                </div>
+                                <span class="role-badge role-badge--@invite.Role.ToString().ToLower()">@invite.Role</span>
+                                <button class="member-remove-btn"
+                                        title="Revoke invitation"
+                                        aria-label="Revoke invitation for @invite.InviteeEmail"
+                                        @onclick="() => RevokeInvite(invite)"
+                                        disabled="@_savingInvite">✕</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Danger zone ── *@
+        <div class="profile-section">
+            <h2 class="profile-section-title">Danger zone</h2>
+
+            @if (_callerRole == WorkspaceRole.Owner)
+            {
+                <div class="profile-row profile-row--danger">
+                    <div>
+                        <div class="profile-row-label">Transfer ownership</div>
+                        <div class="profile-row-desc">Make another member the owner. You become an Admin.</div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select class="form-select form-select-sm" style="width:auto;" @bind="_transferTargetId">
+                            <option value="">Select member…</option>
+                            @foreach (var m in _members.Where(m => m.UserId != _currentUserId))
+                            {
+                                <option value="@m.UserId">@m.DisplayName</option>
+                            }
+                        </select>
+                        <button class="btn btn-outline-danger btn-sm"
+                                @onclick="ConfirmTransfer"
+                                disabled="@(string.IsNullOrEmpty(_transferTargetId))">Transfer</button>
+                    </div>
+                </div>
+            }
+
+            @if (_callerRole != WorkspaceRole.Owner)
+            {
+                <div class="profile-row profile-row--danger">
+                    <div>
+                        <div class="profile-row-label">Leave workspace</div>
+                        <div class="profile-row-desc">You will lose access to all its boards and cards.</div>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="ConfirmLeave">Leave</button>
+                </div>
+            }
+
+            @if (_callerRole == WorkspaceRole.Owner)
+            {
+                <div class="profile-row profile-row--danger">
+                    <div>
+                        <div class="profile-row-label">Delete workspace</div>
+                        <div class="profile-row-desc">Permanently deletes this workspace and all of its boards.</div>
+                    </div>
+                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDelete">Delete</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Generic confirmation modal ── *@
+@if (_confirm is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirm-title">@_confirm.Title</h5>
+                    <button class="btn-close" aria-label="Close" @onclick="() => _confirm = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);">@_confirm.Body</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _confirm = null">Cancel</button>
+                    <button class="btn @(_confirm.Danger ? "btn-danger" : "btn-primary") btn-sm"
+                            @onclick="RunConfirm" disabled="@_savingConfirm">
+                        @if (_savingConfirm) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        @_confirm.ActionLabel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    [Inject] WorkspaceService WorkspaceService { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
+    [Inject] IJSRuntime JS { get; set; } = null!;
+
+    private WorkspaceDto? _workspace;
+    private List<WorkspaceMemberDto> _members = [];
+    private List<InvitationDto> _invitations = [];
+    private WorkspaceRole? _callerRole;
+    private string? _currentUserId;
+    private bool _loading = true;
+
+    private string _name = "";
+    private string _description = "";
+    private bool _savingDetails;
+    private bool? _detailsStatus;
+
+    private bool _savingMember;
+
+    private string _inviteEmail = "";
+    private WorkspaceRole _inviteRole = WorkspaceRole.Member;
+    private string? _inviteLink;
+    private string? _inviteError;
+    private bool _linkCopied;
+    private bool _savingInvite;
+
+    private string? _transferTargetId;
+
+    private ConfirmModel? _confirm;
+    private bool _savingConfirm;
+
+    private bool CanManage => _callerRole is WorkspaceRole.Owner or WorkspaceRole.Admin;
+
+    private sealed class ConfirmModel
+    {
+        public required string Title { get; init; }
+        public required string Body { get; init; }
+        public required string ActionLabel { get; init; }
+        public bool Danger { get; init; } = true;
+        public required Func<Task> Action { get; init; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? authState.User.FindFirst("sub")?.Value;
+
+        try
+        {
+            _workspace = await WorkspaceService.GetByIdAsync(Id);
+        }
+        catch (HttpRequestException)
+        {
+            _workspace = null;
+        }
+
+        if (_workspace is not null)
+        {
+            _name = _workspace.Name;
+            _description = _workspace.Description ?? "";
+            _members = await WorkspaceService.GetMembersAsync(Id) ?? [];
+            _callerRole = _members.FirstOrDefault(m => m.UserId == _currentUserId)?.Role;
+
+            if (CanManage)
+                _invitations = await WorkspaceService.GetInvitationsAsync(Id) ?? [];
+        }
+
+        _loading = false;
+    }
+
+    private async Task SaveDetails()
+    {
+        if (_workspace is null) return;
+        _savingDetails = true;
+        _detailsStatus = null;
+        var updated = await WorkspaceService.UpdateAsync(Id, new()
+        {
+            Name = string.IsNullOrWhiteSpace(_name) ? _workspace.Name : _name.Trim(),
+            Description = _description.Trim()
+        });
+        if (updated is not null)
+        {
+            _workspace = updated;
+            _name = updated.Name;
+            _description = updated.Description ?? "";
+        }
+        _detailsStatus = updated is not null;
+        _savingDetails = false;
+    }
+
+    private async Task ChangeRole(WorkspaceMemberDto member, ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<WorkspaceRole>(e.Value?.ToString(), out var role)) return;
+        _savingMember = true;
+        var ok = await WorkspaceService.UpdateMemberRoleAsync(Id, member.UserId, role);
+        if (ok) member.Role = role;
+        _savingMember = false;
+    }
+
+    private void ConfirmRemoveMember(WorkspaceMemberDto member) => _confirm = new()
+    {
+        Title = "Remove member?",
+        Body = $"{member.DisplayName} will lose access to this workspace.",
+        ActionLabel = "Remove",
+        Action = async () =>
+        {
+            var ok = await WorkspaceService.RemoveMemberAsync(Id, member.UserId);
+            if (ok) _members.RemoveAll(m => m.UserId == member.UserId);
+        }
+    };
+
+    private async Task SendInvite()
+    {
+        if (_workspace is null || string.IsNullOrWhiteSpace(_inviteEmail)) return;
+        _savingInvite = true;
+        _inviteError = null;
+        _inviteLink = null;
+        _linkCopied = false;
+
+        var result = await WorkspaceService.CreateInvitationAsync(Id, new()
+        {
+            InviteeEmail = _inviteEmail,
+            Role = _inviteRole
+        });
+
+        if (result is not null)
+        {
+            _inviteLink = $"{Nav.BaseUri}invite/{result.Token}";
+            _inviteEmail = "";
+            _invitations = await WorkspaceService.GetInvitationsAsync(Id) ?? _invitations;
+        }
+        else
+        {
+            _inviteError = "Could not send invitation. The user may already be a member or already invited.";
+        }
+
+        _savingInvite = false;
+    }
+
+    private async Task RevokeInvite(InvitationDto invite)
+    {
+        _savingInvite = true;
+        var ok = await WorkspaceService.RevokeInvitationAsync(Id, invite.Id);
+        if (ok) _invitations.RemoveAll(i => i.Id == invite.Id);
+        _savingInvite = false;
+    }
+
+    private async Task CopyLink()
+    {
+        if (_inviteLink is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteLink);
+        _linkCopied = true;
+    }
+
+    private void ConfirmTransfer()
+    {
+        var target = _members.FirstOrDefault(m => m.UserId == _transferTargetId);
+        if (target is null) return;
+        _confirm = new()
+        {
+            Title = "Transfer ownership?",
+            Body = $"{target.DisplayName} will become the owner. You will be changed to Admin.",
+            ActionLabel = "Transfer",
+            Action = async () =>
+            {
+                var updated = await WorkspaceService.TransferOwnershipAsync(Id, target.UserId);
+                if (updated is not null)
+                {
+                    _workspace = updated;
+                    _members = await WorkspaceService.GetMembersAsync(Id) ?? _members;
+                    _callerRole = _members.FirstOrDefault(m => m.UserId == _currentUserId)?.Role;
+                    _transferTargetId = null;
+                }
+            }
+        };
+    }
+
+    private void ConfirmLeave() => _confirm = new()
+    {
+        Title = "Leave workspace?",
+        Body = "You will lose access to all of its boards and cards.",
+        ActionLabel = "Leave",
+        Action = async () =>
+        {
+            if (await WorkspaceService.LeaveAsync(Id)) GoToWorkspaces();
+        }
+    };
+
+    private void ConfirmDelete() => _confirm = new()
+    {
+        Title = "Delete workspace?",
+        Body = $"\"{_workspace?.Name}\" and all of its boards will be permanently deleted.",
+        ActionLabel = "Delete",
+        Action = async () =>
+        {
+            if (await WorkspaceService.DeleteAsync(Id)) GoToWorkspaces();
+        }
+    };
+
+    private async Task RunConfirm()
+    {
+        if (_confirm is null) return;
+        _savingConfirm = true;
+        await _confirm.Action();
+        _savingConfirm = false;
+        _confirm = null;
+    }
+
+    private void GoToWorkspaces() => Nav.NavigateTo("/workspaces");
+}
