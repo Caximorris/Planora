@@ -18,11 +18,16 @@ public class ColumnsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateColumnRequest> _createValidator;
+    private readonly IValidator<UpdateColumnRequest> _updateValidator;
 
-    public ColumnsController(ApplicationDbContext db, IValidator<CreateColumnRequest> createValidator)
+    public ColumnsController(
+        ApplicationDbContext db,
+        IValidator<CreateColumnRequest> createValidator,
+        IValidator<UpdateColumnRequest> updateValidator)
     {
         _db = db;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -62,6 +67,10 @@ public class ColumnsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateColumnRequest request)
     {
         if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
 
         var column = await _db.Columns
             .Include(c => c.Board)

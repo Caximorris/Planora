@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,18 @@ namespace Planora.Api.Controllers;
 public class ChecklistsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public ChecklistsController(ApplicationDbContext db) => _db = db;
+    private readonly IValidator<UpdateChecklistRequest> _updateChecklistValidator;
+    private readonly IValidator<UpdateChecklistItemRequest> _updateItemValidator;
+
+    public ChecklistsController(
+        ApplicationDbContext db,
+        IValidator<UpdateChecklistRequest> updateChecklistValidator,
+        IValidator<UpdateChecklistItemRequest> updateItemValidator)
+    {
+        _db = db;
+        _updateChecklistValidator = updateChecklistValidator;
+        _updateItemValidator = updateItemValidator;
+    }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -59,6 +71,10 @@ public class ChecklistsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateChecklistRequest request)
     {
+        var validation = await _updateChecklistValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
         var checklist = await _db.Checklists.FindAsync(id);
         if (checklist is null) return NotFound();
 
@@ -119,6 +135,10 @@ public class ChecklistsController : ControllerBase
     [HttpPut("items/{id:guid}")]
     public async Task<IActionResult> UpdateItem(Guid id, [FromBody] UpdateChecklistItemRequest request)
     {
+        var validation = await _updateItemValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
         var item = await _db.ChecklistItems.FindAsync(id);
         if (item is null) return NotFound();
 

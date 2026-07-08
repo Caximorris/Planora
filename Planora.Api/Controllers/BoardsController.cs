@@ -32,12 +32,18 @@ public class BoardsController : ControllerBase
 
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateBoardRequest> _createValidator;
+    private readonly IValidator<UpdateBoardRequest> _updateValidator;
     private readonly IFileStorage _storage;
 
-    public BoardsController(ApplicationDbContext db, IValidator<CreateBoardRequest> createValidator, IFileStorage storage)
+    public BoardsController(
+        ApplicationDbContext db,
+        IValidator<CreateBoardRequest> createValidator,
+        IValidator<UpdateBoardRequest> updateValidator,
+        IFileStorage storage)
     {
         _db = db;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
         _storage = storage;
     }
 
@@ -137,6 +143,10 @@ public class BoardsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBoardRequest request)
     {
         if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
 
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();

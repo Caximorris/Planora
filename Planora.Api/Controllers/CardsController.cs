@@ -33,17 +33,20 @@ public class CardsController : ControllerBase
 
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateCardRequest> _createValidator;
+    private readonly IValidator<UpdateCardRequest> _updateValidator;
     private readonly IFileStorage _storage;
     private readonly IActivityEmailNotifier _emailNotifier;
 
     public CardsController(
         ApplicationDbContext db,
         IValidator<CreateCardRequest> createValidator,
+        IValidator<UpdateCardRequest> updateValidator,
         IFileStorage storage,
         IActivityEmailNotifier emailNotifier)
     {
         _db = db;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
         _storage = storage;
         _emailNotifier = emailNotifier;
     }
@@ -129,6 +132,10 @@ public class CardsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCardRequest request)
     {
         if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
 
         var card = await _db.Cards
             .Include(c => c.Column)

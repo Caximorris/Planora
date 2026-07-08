@@ -21,15 +21,18 @@ public class WorkspacesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateWorkspaceRequest> _createValidator;
+    private readonly IValidator<UpdateWorkspaceRequest> _updateValidator;
     private readonly IActivityEmailNotifier _emailNotifier;
 
     public WorkspacesController(
         ApplicationDbContext db,
         IValidator<CreateWorkspaceRequest> createValidator,
+        IValidator<UpdateWorkspaceRequest> updateValidator,
         IActivityEmailNotifier emailNotifier)
     {
         _db = db;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
         _emailNotifier = emailNotifier;
     }
 
@@ -433,6 +436,10 @@ public class WorkspacesController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWorkspaceRequest request)
     {
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
         var workspace = await _db.Workspaces
             .Include(w => w.Members)
             .FirstOrDefaultAsync(w => w.Id == id);

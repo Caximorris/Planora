@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,13 @@ namespace Planora.Api.Controllers;
 public class LabelsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public LabelsController(ApplicationDbContext db) => _db = db;
+    private readonly IValidator<UpdateLabelRequest> _updateValidator;
+
+    public LabelsController(ApplicationDbContext db, IValidator<UpdateLabelRequest> updateValidator)
+    {
+        _db = db;
+        _updateValidator = updateValidator;
+    }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -69,6 +76,10 @@ public class LabelsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLabelRequest request)
     {
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
+
         var label = await _db.WorkspaceLabels.FindAsync(id);
         if (label is null) return NotFound();
 
