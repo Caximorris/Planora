@@ -117,7 +117,15 @@
       "Bash(ls js/)",
       "Bash(ls css/)",
       "Bash(ls appsettings*.json)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(PORT=8099 ASPNETCORE_ENVIRONMENT=Development dotnet Planora.Api.dll)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(dotnet new *)",
+      "Bash(dotnet sln *)",
+      "Bash(dotnet add *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet list *)",
+      "PowerShell($p = Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.StartTime } ; if \\($p\\) { $p | Select-Object Id, StartTime, @{n='CmdWindow';e={$_.MainWindowTitle}} | Format-Table -AutoSize | Out-String } else { \"no dotnet processes\" })"
     ]
   }
 }

@@ -11,6 +11,7 @@ public class Card : BaseEntity
     public CardPriority Priority { get; set; } = CardPriority.None;
     public string? Color { get; set; }
     public bool IsArchived { get; set; }
+    public uint RowVersion { get; set; }
 
     // Soft-delete (trash): null = live, non-null = trashed. Distinct from IsArchived (put-aside).
     public DateTime? DeletedAt { get; set; }

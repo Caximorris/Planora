@@ -136,12 +136,16 @@ public class BoardsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBoardRequest request)
     {
+        if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
+
+        _db.Entry(board).Property(b => b.RowVersion).OriginalValue = request.RowVersion;
 
         if (request.Name is not null) board.Name = request.Name;
         if (request.ClearDescription) board.Description = null;
@@ -154,7 +158,15 @@ public class BoardsController : ControllerBase
         }
         if (request.Position.HasValue) board.Position = request.Position.Value;
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "Board was modified by another request. Reload and try again." });
+        }
+
         return Ok(board.ToDto());
     }
 

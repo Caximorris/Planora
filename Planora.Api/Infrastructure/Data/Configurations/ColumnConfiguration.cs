@@ -19,6 +19,9 @@ public class ColumnConfiguration : IEntityTypeConfiguration<Column>
         builder.Property(c => c.Color)
             .HasMaxLength(9);
 
+        builder.Property(c => c.RowVersion)
+            .IsRowVersion();
+
         builder.HasMany(c => c.Cards)
             .WithOne(card => card.Column)
             .HasForeignKey(card => card.ColumnId)

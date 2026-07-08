@@ -9,6 +9,7 @@ public class BoardDto
     public string? CoverImageUrl { get; set; }
     public int Position { get; set; }
     public bool IsArchived { get; set; }
+    public uint RowVersion { get; set; }
     public DateTime? DeletedAt { get; set; }
     public Guid WorkspaceId { get; set; }
     public DateTime CreatedAt { get; set; }

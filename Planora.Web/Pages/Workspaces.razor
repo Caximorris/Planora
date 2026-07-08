@@ -536,7 +536,13 @@
         {
             if (_boards[i].Position == i) continue;
             _boards[i].Position = i;
-            await BoardService.UpdateAsync(_boards[i].Id, new() { Position = i });
+            var updated = await BoardService.UpdateAsync(_boards[i].Id, new() { RowVersion = _boards[i].RowVersion, Position = i });
+            if (updated is not null)
+            {
+                _boards[i].Position = updated.Position;
+                _boards[i].RowVersion = updated.RowVersion;
+                _boards[i].UpdatedAt = updated.UpdatedAt;
+            }
         }
     }
 

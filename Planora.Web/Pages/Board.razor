@@ -784,10 +784,24 @@ else
         _pendingCardPositions.Clear();
 
         foreach (var (colId, pos) in colSnap)
-            await ColumnService.UpdateAsync(colId, new() { Position = pos });
+        {
+            var column = _board?.Columns.FirstOrDefault(c => c.Id == colId);
+            if (column is null) continue;
+
+            var updated = await ColumnService.UpdateAsync(colId, new() { RowVersion = column.RowVersion, Position = pos });
+            if (updated is not null)
+                ApplyColumnUpdate(column, updated);
+        }
 
         foreach (var (cardId, (colId, pos)) in cardSnap)
-            await CardService.UpdateAsync(cardId, new() { ColumnId = colId, Position = pos });
+        {
+            var card = FindCard(cardId);
+            if (card is null) continue;
+
+            var updated = await CardService.UpdateAsync(cardId, new() { RowVersion = card.RowVersion, ColumnId = colId, Position = pos });
+            if (updated is not null)
+                ApplyCardUpdate(card, updated);
+        }
     }
 
     public void Dispose()
@@ -801,15 +815,15 @@ else
     {
         var newName = e.Value?.ToString()?.Trim();
         if (string.IsNullOrWhiteSpace(newName) || newName == _board!.Name) return;
-        var updated = await BoardService.UpdateAsync(_board.Id, new() { Name = newName, Description = _board.Description, CoverColor = _board.CoverColor });
-        if (updated is not null) _board.Name = updated.Name;
+        var updated = await BoardService.UpdateAsync(_board.Id, new() { RowVersion = _board.RowVersion, Name = newName, Description = _board.Description, CoverColor = _board.CoverColor });
+        if (updated is not null) ApplyBoardUpdate(updated);
     }
 
     private async Task SaveBoardColor(string color)
     {
         if (string.IsNullOrWhiteSpace(color)) return;
-        var updated = await BoardService.UpdateAsync(_board!.Id, new() { Name = _board.Name, Description = _board.Description, CoverColor = color });
-        if (updated is not null) _board.CoverColor = updated.CoverColor;
+        var updated = await BoardService.UpdateAsync(_board!.Id, new() { RowVersion = _board.RowVersion, Name = _board.Name, Description = _board.Description, CoverColor = color });
+        if (updated is not null) ApplyBoardUpdate(updated);
     }
 
     private async Task OnCoverFileSelected(InputFileChangeEventArgs e)
@@ -819,7 +833,7 @@ else
         try
         {
             var updated = await BoardService.UploadCoverImageAsync(_board!.Id, e.File);
-            if (updated is not null) _board!.CoverImageUrl = updated.CoverImageUrl;
+            if (updated is not null) ApplyBoardUpdate(updated);
             else _coverError = "Couldn't upload image — check the file type and size (max 5 MB).";
         }
         catch (IOException)
@@ -832,8 +846,8 @@ else
     private async Task RemoveCoverImage()
     {
         _saving = true;
-        if (await BoardService.RemoveCoverImageAsync(_board!.Id))
-            _board!.CoverImageUrl = null;
+        var updated = await BoardService.RemoveCoverImageAsync(_board!.Id);
+        if (updated is not null) ApplyBoardUpdate(updated);
         _saving = false;
     }
 
@@ -867,21 +881,25 @@ else
 
     private async Task RenameColumn(Guid columnId, string title)
     {
-        var updated = await ColumnService.UpdateAsync(columnId, new() { Title = title });
-        if (updated is null) return;
         var column = _board!.Columns.FirstOrDefault(c => c.Id == columnId);
-        if (column is not null) column.Title = updated.Title;
+        if (column is null) return;
+
+        var updated = await ColumnService.UpdateAsync(columnId, new() { RowVersion = column.RowVersion, Title = title });
+        if (updated is null) return;
+        ApplyColumnUpdate(column, updated);
     }
 
     private async Task ChangeColumnColor(Guid columnId, string? color)
     {
+        var column = _board!.Columns.FirstOrDefault(c => c.Id == columnId);
+        if (column is null) return;
+
         var request = color is null
-            ? new UpdateColumnRequest { ClearColor = true }
-            : new UpdateColumnRequest { Color = color };
+            ? new UpdateColumnRequest { RowVersion = column.RowVersion, ClearColor = true }
+            : new UpdateColumnRequest { RowVersion = column.RowVersion, Color = color };
         var updated = await ColumnService.UpdateAsync(columnId, request);
         if (updated is null) return;
-        var column = _board!.Columns.FirstOrDefault(c => c.Id == columnId);
-        if (column is not null) column.Color = updated.Color;
+        ApplyColumnUpdate(column, updated);
     }
 
     private async Task AddColumn()
@@ -889,7 +907,7 @@ else
         if (string.IsNullOrWhiteSpace(_newColTitle)) return;
         var created = await ColumnService.CreateAsync(new() { Title = _newColTitle, BoardId = Id });
         if (created is not null)
-            _board!.Columns.Add(new ColumnDto { Id = created.Id, Title = created.Title, Position = created.Position, BoardId = Id });
+            _board!.Columns.Add(created);
         CancelColumn();
     }
 
@@ -948,6 +966,7 @@ else
             // Sync labels back to the in-memory card so chips appear on the tile
             card.Labels = detail.Labels;
             card.Checklists = detail.Checklists;
+            card.RowVersion = detail.RowVersion;
         }
 
         _comments = commentsTask.Result ?? [];
@@ -1003,6 +1022,7 @@ else
         _saving = true;
         var updated = await CardService.UpdateAsync(_editCard.Id, new()
         {
+            RowVersion = _editCard.RowVersion,
             Title = _editTitle,
             Description = _editDesc.Length > 0 ? _editDesc : null,
             ClearDescription = _editDesc.Length == 0,
@@ -1024,6 +1044,49 @@ else
         _saving = false;
         CloseCard();
     }
+
+    private void ApplyBoardUpdate(BoardDto updated)
+    {
+        if (_board is null) return;
+
+        _board.Name = updated.Name;
+        _board.Description = updated.Description;
+        _board.CoverColor = updated.CoverColor;
+        _board.CoverImageUrl = updated.CoverImageUrl;
+        _board.Position = updated.Position;
+        _board.IsArchived = updated.IsArchived;
+        _board.DeletedAt = updated.DeletedAt;
+        _board.RowVersion = updated.RowVersion;
+        _board.UpdatedAt = updated.UpdatedAt;
+    }
+
+    private static void ApplyColumnUpdate(ColumnDto column, ColumnDto updated)
+    {
+        column.Title = updated.Title;
+        column.Position = updated.Position;
+        column.Color = updated.Color;
+        column.RowVersion = updated.RowVersion;
+        column.UpdatedAt = updated.UpdatedAt;
+    }
+
+    private static void ApplyCardUpdate(CardDto card, CardDto updated)
+    {
+        card.Title = updated.Title;
+        card.Description = updated.Description;
+        card.Position = updated.Position;
+        card.DueDate = updated.DueDate;
+        card.Priority = updated.Priority;
+        card.Color = updated.Color;
+        card.ColumnId = updated.ColumnId;
+        card.AssigneeId = updated.AssigneeId;
+        card.RowVersion = updated.RowVersion;
+        card.UpdatedAt = updated.UpdatedAt;
+        card.IsArchived = updated.IsArchived;
+        card.DeletedAt = updated.DeletedAt;
+    }
+
+    private CardDto? FindCard(Guid cardId) =>
+        _board?.Columns.SelectMany(c => c.Cards).FirstOrDefault(c => c.Id == cardId);
 
     private async Task ArchiveCard()
     {

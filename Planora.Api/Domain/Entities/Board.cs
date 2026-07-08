@@ -8,6 +8,7 @@ public class Board : BaseEntity
     public string? CoverImageUrl { get; set; }
     public int Position { get; set; }
     public bool IsArchived { get; set; }
+    public uint RowVersion { get; set; }
 
     // Soft-delete (trash): null = live, non-null = trashed. Distinct from IsArchived (put-aside).
     public DateTime? DeletedAt { get; set; }

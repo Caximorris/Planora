@@ -108,6 +108,8 @@ public class CardsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCardRequest request)
     {
+        if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
         var card = await _db.Cards
             .Include(c => c.Column)
                 .ThenInclude(col => col.Board)
@@ -118,6 +120,8 @@ public class CardsController : ControllerBase
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == card.Column.Board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
+
+        _db.Entry(card).Property(c => c.RowVersion).OriginalValue = request.RowVersion;
 
         var previousAssigneeId = card.AssigneeId;
         var previousColumnId = card.ColumnId;
@@ -221,7 +225,15 @@ public class CardsController : ControllerBase
             });
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "Card was modified by another request. Reload and try again." });
+        }
+
         return Ok(card.ToDto());
     }
 

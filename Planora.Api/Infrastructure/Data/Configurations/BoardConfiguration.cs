@@ -24,6 +24,9 @@ public class BoardConfiguration : IEntityTypeConfiguration<Board>
         builder.Property(b => b.CoverImageUrl)
             .HasMaxLength(500);
 
+        builder.Property(b => b.RowVersion)
+            .IsRowVersion();
+
         builder.HasMany(b => b.Columns)
             .WithOne(c => c.Board)
             .HasForeignKey(c => c.BoardId)

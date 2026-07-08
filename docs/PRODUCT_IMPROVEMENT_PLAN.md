@@ -476,12 +476,22 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
     Boards/Cards controllers, `BoardService`/`CardService`, `Workspaces.razor`/`Board.razor`,
     `SoftDeleteTests.cs`. Risk: M. Validated: soft-deleted excluded from list/search/calendar/GetById;
     restore + permanent-delete work; cross-workspace guards; 54 tests green; Chrome-verified. Deps: 3.
-20. **Background cleanup job.** Goal: `BackgroundService` purging expired refresh tokens/invites (and
-    old trash). Files: `Infrastructure/Jobs/*`, `Program.cs`. Risk: L. Validate: job removes only
-    expired rows; test the predicate. Deps: 19.
-21. **Optimistic concurrency (`xmin`).** Goal: concurrency token on card/column/board; 409 on
-    conflict. Files: entity configs, migration, controllers. Risk: M. Validate: concurrent update →
-    409, no lost write; test. Deps: 3.
+20. ✅ **Background cleanup job.** Goal: `BackgroundService` purging expired refresh tokens/invites (and
+    old trash). Files: `Infrastructure/Jobs/DataCleanupRunner.cs` (scoped, testable),
+    `DataCleanupBackgroundService.cs` (timer), `Program.cs`, `Planora.Tests/Jobs/DataCleanupTests.cs`.
+    Risk: L. Validated: purges only expired tokens (`ExpiresAt < now`, preserves reuse-detection),
+    expired invitations, and trash past a 30-day retention (loads boards to clean cover images, DB
+    cascade handles children); keeps active/recent rows; 3 predicate tests; `dotnet test` green
+    (57 tests). Interval/retention config-driven (`Cleanup:IntervalHours`=6, `Cleanup:TrashRetentionDays`=30);
+    first pass fires one interval after startup so it never runs during the test host. Deps: 19.
+21. ✅ **Optimistic concurrency (`xmin`).** Goal: concurrency token on card/column/board; 409 on
+    conflict. Files: Board/Column/Card entities + configs, shared DTO/update contracts,
+    `AddXminConcurrencyTokens` migration (snapshot-only; PostgreSQL `xmin` is a system column),
+    Boards/Columns/Cards controllers, Blazor board/workspace update callers,
+    `Planora.Tests/Concurrency/OptimisticConcurrencyTests.cs`. Risk: M. Validated: stale board,
+    column, and card PUTs return 409 and preserve the current value; normal callers echo row
+    versions; `dotnet build Planora.slnx` clean; `dotnet test Planora.slnx` green (60 tests).
+    Deps: 3.
 22. **Frontend primitives: toast + error boundary + empty states.** Goal: shared UI to reuse. Files:
     `Planora.Web/Components/*`, `MainLayout`. Risk: L. Validate: thrown component caught; toasts show.
     Deps: none.

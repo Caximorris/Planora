@@ -74,8 +74,11 @@ public class BoardService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
     }
 
-    public async Task<bool> RemoveCoverImageAsync(Guid boardId) =>
-        (await _http.DeleteAsync($"api/boards/{boardId}/cover-image")).IsSuccessStatusCode;
+    public async Task<BoardDto?> RemoveCoverImageAsync(Guid boardId)
+    {
+        var res = await _http.DeleteAsync($"api/boards/{boardId}/cover-image");
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
+    }
 
     /// Converts the API's relative cover-image path (e.g. "/uploads/boards/x.png") into an
     /// absolute URL against the API origin, since the Blazor app is served from a different origin.

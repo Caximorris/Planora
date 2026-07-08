@@ -17,6 +17,7 @@ using Planora.Api.Domain.Entities;
 using Planora.Api.Infrastructure.Data;
 using Planora.Api.Infrastructure.Email;
 using Planora.Api.Infrastructure.HealthChecks;
+using Planora.Api.Infrastructure.Jobs;
 using Planora.Api.Infrastructure.Storage;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -174,6 +175,10 @@ switch (storageOptions.Provider.Trim().ToLowerInvariant())
 }
 // Email: dev console sink today; production swaps in a real provider behind IEmailSender.
 builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+
+// Background cleanup: purges expired refresh tokens/invitations and trash past retention.
+builder.Services.AddScoped<DataCleanupRunner>();
+builder.Services.AddHostedService<DataCleanupBackgroundService>();
 
 // ── Validation ────────────────────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();

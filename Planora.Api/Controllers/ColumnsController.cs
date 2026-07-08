@@ -61,6 +61,8 @@ public class ColumnsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateColumnRequest request)
     {
+        if (request.RowVersion == 0) return BadRequest("RowVersion is required.");
+
         var column = await _db.Columns
             .Include(c => c.Board)
             .FirstOrDefaultAsync(c => c.Id == id);
@@ -70,6 +72,8 @@ public class ColumnsController : ControllerBase
         var isMember = await _db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == column.Board.WorkspaceId && m.UserId == UserId);
         if (!isMember) return Forbid();
+
+        _db.Entry(column).Property(c => c.RowVersion).OriginalValue = request.RowVersion;
 
         if (request.Title is not null) column.Title = request.Title;
         if (request.Position.HasValue) column.Position = request.Position.Value;
@@ -81,7 +85,15 @@ public class ColumnsController : ControllerBase
             column.Color = color;
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "Column was modified by another request. Reload and try again." });
+        }
+
         return Ok(column.ToDto());
     }
 

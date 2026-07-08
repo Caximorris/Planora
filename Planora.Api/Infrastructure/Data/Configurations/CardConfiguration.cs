@@ -25,6 +25,9 @@ public class CardConfiguration : IEntityTypeConfiguration<Card>
         builder.Property(c => c.Color)
             .HasMaxLength(9);
 
+        builder.Property(c => c.RowVersion)
+            .IsRowVersion();
+
         builder.HasOne(c => c.Assignee)
             .WithMany()
             .HasForeignKey(c => c.AssigneeId)

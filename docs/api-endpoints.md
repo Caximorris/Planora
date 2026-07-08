@@ -64,7 +64,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 |--------|------|-------|
 | GET | /boards/{id} | Full detail with columns/cards |
 | POST | /boards | CoverColor validated as `^#[0-9A-Fa-f]{6}$` |
-| PUT | /boards/{id} | Does NOT accept CoverImageUrl — use upload endpoint |
+| PUT | /boards/{id} | Requires `RowVersion`; stale versions return 409. Does NOT accept CoverImageUrl — use upload endpoint |
 | DELETE | /boards/{id} | **Soft delete** — moves the board to the workspace trash (recoverable) |
 | GET | /boards/trash?workspaceId={id} | Member-gated list of trashed boards, newest-deleted first |
 | PATCH | /boards/{id}/restore | Restores a trashed board (clears DeletedAt) |
@@ -76,6 +76,7 @@ Rate limit: `[EnableRateLimiting("auth")]` — 10 req/min fixed window
 ## Columns, Cards, Checklists, Labels
 
 Standard CRUD — all workspace-member gated. See controllers for full signatures.
+`PUT /columns/{id}` and `PUT /cards/{id}` require `RowVersion`; stale versions return 409.
 
 Cards additionally support soft-delete / trash, mirroring boards:
 

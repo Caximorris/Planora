@@ -67,6 +67,7 @@ public class ActivityEventTests(PlanoraWebAppFactory factory)
 
         var move = await client.PutAsJsonAsync($"/api/cards/{card.Id}", new UpdateCardRequest
         {
+            RowVersion = card.RowVersion,
             ColumnId = done.Id,
             Position = 0
         });
@@ -100,6 +101,7 @@ public class ActivityEventTests(PlanoraWebAppFactory factory)
 
         var move = await client.PutAsJsonAsync($"/api/cards/{card.Id}", new UpdateCardRequest
         {
+            RowVersion = card.RowVersion,
             ColumnId = done.Id,
             Position = 0
         });
