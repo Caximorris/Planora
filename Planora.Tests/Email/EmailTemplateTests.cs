@@ -34,7 +34,11 @@ public class EmailTemplateTests
         Assert.Equal("Reset your Planora password", email.Subject);
         Assert.Contains("Reset password", email.HtmlBody);
         Assert.Contains("/reset-password?token=xyz", email.HtmlBody);
-        Assert.Contains("didn't request", email.HtmlBody);
+        // The "if you didn't request this" warning must render. The apostrophe is HTML-encoded
+        // (didn&#39;t) in the HTML body, so match the encoding-agnostic part of the phrase here and
+        // the natural sentence in the plain-text alternative, which keeps the raw apostrophe.
+        Assert.Contains("request a password reset", email.HtmlBody);
+        Assert.Contains("didn't request", email.TextBody);
     }
 
     [Fact]
