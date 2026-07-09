@@ -142,7 +142,11 @@
       "Bash(xargs cat)",
       "Read(//c/Users/Matias/.claude/**)",
       "Read(//c/Users/Matias/.claude/rules/ecc/common/**)",
-      "PowerShell(foreach \\($id in 16568,15552,14864,23452\\) { try { Stop-Process -Id $id -Force -ErrorAction Stop; \"killed $id\" } catch { \"already gone: $id\" } }; Start-Sleep -Milliseconds 800; \"--- ports now ---\"; \\(Get-NetTCPConnection -State Listen -LocalPort 8080,5076 -ErrorAction SilentlyContinue | Measure-Object\\).Count)"
+      "PowerShell(foreach \\($id in 16568,15552,14864,23452\\) { try { Stop-Process -Id $id -Force -ErrorAction Stop; \"killed $id\" } catch { \"already gone: $id\" } }; Start-Sleep -Milliseconds 800; \"--- ports now ---\"; \\(Get-NetTCPConnection -State Listen -LocalPort 8080,5076 -ErrorAction SilentlyContinue | Measure-Object\\).Count)",
+      "mcp__plugin_ecc_chrome-devtools__emulate",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --no-launch-profile)",
+      "mcp__plugin_ecc_chrome-devtools__list_pages",
+      "Bash(git check-ignore *)"
     ]
   }
 }

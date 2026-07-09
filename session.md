@@ -17,7 +17,7 @@ Planora is a Kanban project management SaaS. Full-stack .NET 10 monorepo: REST A
 | Auth | ASP.NET Core Identity + JWT (15 min) + refresh tokens (7 days) |
 | Mapping | Mapperly (source-generated, zero-reflection) |
 | Validation | FluentValidation (Create* and Update* requests) |
-| Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards; HTML5 DnD — board tiles |
+| Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards (touch-guarded: delay+threshold); HTML5 DnD — board tiles (mouse), touch move buttons on mobile |
 | Storage | `IFileStorage` — local disk (dev); Azure Blob backend scaffolded, not implemented (see `docs/azure-blob-storage.md`) |
 | Email | `IEmailSender` — console sink locally; Resend in production from `notifications@planora.website` |
 | CI/CD | GitHub Actions → Docker → Azure Container Apps (API), Azure Static Web Apps (Web) |
@@ -47,7 +47,7 @@ Planora.slnx
 │   ├── Layout/               MainLayout (nav, notifications bell, search button, user menu)
 │   └── wwwroot/
 │       ├── css/app.css
-│       ├── js/               board-sortable.js, theme.js, search.js
+│       ├── js/               board-sortable.js, modal-a11y.js, theme.js, search.js, download.js
 │       └── lib/sortablejs/
 ├── Planora.Shared/
 │   ├── DTOs/                 Request/response types for every entity + Search
@@ -63,11 +63,15 @@ Planora.slnx
 ## Features (implemented)
 
 ### Core Kanban
-- **Workspaces** — create/delete, drag-reorder board tiles (HTML5 DnD)
+- **Workspaces** — create/delete, drag-reorder board tiles (HTML5 DnD on desktop, ‹ › move buttons on touch)
 - **Boards** — custom background color, cover image upload (5 MB, magic-bytes validated), archive/unarchive
 - **Columns** — create, rename, color, reorder (SortableJS)
 - **Cards** — title, description, priority (Low/Medium/High/Critical), due date, color, assignee, archive/unarchive
 - **Card drag** — between columns and within same column (SortableJS + `@key` on Blazor foreach)
+- **Mobile** — left rail → fixed bottom tab bar (6 tabs incl. Calendar); board filter collapses to a
+  "Filters" toggle; Calendar swaps its month grid for an agenda list <600px; touch-guarded drag; 16px
+  inputs (no iOS zoom); `viewport-fit=cover` + safe-area padding. Modals get scroll-lock / focus-trap /
+  Escape globally via `modal-a11y.js`. See `docs/MOBILE_AUDIT.md`.
 - **Priority filter** — pills at top of board filter visible cards by priority
 
 ### Collaboration

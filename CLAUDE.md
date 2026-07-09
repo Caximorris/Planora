@@ -110,11 +110,25 @@ it respects notification preferences and logs/swallow provider failures so user 
   - SortableJS (cards/columns) requires `@key="card.Id"` / `@key="col.Id"` on the foreach — without it
     Blazor diffing corrupts the DOM after a reorder.
   - `planoraInitColumnsSortable` / `planoraInitCardLists` are idempotent — call every `OnAfterRenderAsync`.
-  - Board **tile** reorder in `Workspaces.razor` uses HTML5 native DnD, not SortableJS.
-- `position:fixed` overlays must be **siblings**, not children, of `.board-header` / `.kanban-column`
-  (both have `backdrop-filter`, which creates a stacking context and breaks `inset:0`).
+  - Both configs set `delay:180, delayOnTouchOnly:true, touchStartThreshold:8` so touch scroll doesn't
+    hijack a drag (desktop mouse drag stays instant). Keep both configs consistent.
+  - Board **tile** reorder in `Workspaces.razor` uses HTML5 native DnD (mouse-only). Touch uses the
+    `.board-tile-move` ‹ › buttons (shown only on coarse pointers) → `MoveBoard`/`PersistBoardPositionsAsync`.
+- **Modals:** render every dialog as `.modal.d-block` with a header `.btn-close` (+ a sibling
+  `.modal-backdrop`). `wwwroot/js/modal-a11y.js` is a global observer that then gives it body
+  scroll-lock, focus-in, Tab trap, Escape-to-close and focus-restore for free — no per-modal wiring.
+  Don't hand-roll a dialog that skips these classes or it loses all of that.
+- `position:fixed` overlays must be **siblings**, not children, of anything with `backdrop-filter`
+  (`.board-header`, `.kanban-column`, and **`.side-nav`**), which creates a containing block/stacking
+  context and breaks `inset:0`. The mobile nav dropdowns work around this by anchoring their backdrop
+  to the bar bottom + `height:var(--viewport-h)` (see `app.css`, `.side-nav .nav-dropdown-backdrop`).
 - Watch event propagation in nested card/board/modal/drag zones (stop where clicks must not bubble).
 - Only the notifications bell polls (30s). Don't add new polling loops; preserve responsive layout.
+- **Mobile (≤768px)** the left rail becomes a fixed bottom tab bar with 6 tabs (Home, Spaces,
+  Calendar, Search, Alerts, Account). Alerts/Account sit in `.nav-*-wrap` divs — those wrappers must
+  stay `flex:1` or they collapse and bunch. Mobile inputs are 16px (kills iOS zoom); the Calendar
+  swaps its 620px month grid for an agenda list below 600px; the board's quick-filter pills collapse
+  behind the "Filters" toggle to save vertical space.
 
 ## Database rules
 

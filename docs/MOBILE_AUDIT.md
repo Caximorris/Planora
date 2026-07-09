@@ -1,5 +1,9 @@
 # Planora — Mobile Views Audit
 
+> **Status: RESOLVED (2026-07-09).** All findings below were fixed and verified live — see
+> [Section 8](#8-resolution-shipped-2026-07-09). Sections 1–7 are preserved as the original
+> pre-fix audit; the 6/10 score and severities in them describe the state *before* the fixes.
+
 **Date:** 2026-07-09
 **Method:** Static code audit (Razor + `app.css` + JS interop). Dev servers were stopped for an
 unrelated build, so this pass is **code-based, not live-rendered**. Every finding that needs a real
@@ -372,6 +376,41 @@ half the week on a phone (P1-3). Fix those three and this is an 8.
 
 ---
 
+## 8. Resolution (shipped 2026-07-09)
+
+Every finding above was fixed and **verified live** with Chrome DevTools (emulated mobile+touch at
+390×844, 320×568, 667×375 landscape). Measurements below are post-fix.
+
+| ID | Fix | Verified |
+|---|---|---|
+| **P0-1** | `delay:180, delayOnTouchOnly:true, touchStartThreshold:8` on both SortableJS configs (`board-sortable.js`) — desktop mouse drag stays instant | options read back live |
+| **P1-1** | `viewport-fit=cover` added to the viewport meta (`index.html`) | meta string confirmed |
+| **P1-2** | Calendar surfaced as a mobile bottom-nav tab (`MainLayout.razor`) | 6 tabs present |
+| **P1-3** | Agenda list replaces the 620px month grid below 600px (`Calendar.razor` + CSS) | grid `none`, agenda shown, 0 page overflow |
+| **P2-1** | All text inputs → 16px on mobile, incl. the calendar select (specificity fix) | measured 16px |
+| **P2-2** | Global `modal-a11y.js`: body scroll-lock, focus-in, Tab trap, Escape-close, focus restore — zero per-modal wiring, works on every `.modal.d-block` | focus in modal, `body{overflow:hidden}`, Escape closes |
+| **P2-3** | Board chrome text `0.45/0.48 → 0.62` | — |
+| **P2-4** | Column gear → 26×26 on coarse pointers | measured 26×26 |
+| **P2-5** | Landscape column height bounded to clear the bottom nav (`168px` reserve) | 13px clearance, no overlap |
+| **P2-6** | Touch move buttons on workspace board tiles (native DnD is mouse-only) | controls render 30×30, ends disable |
+| **LV-1** | Quick-filter pills collapse behind the "Filters" toggle on mobile | header 179→145px (21%→17%) |
+| **P3-1..P3-5** | Narrow mobile column (84vw), mobile back button, empty-column affordance, textarea hints, responsive due/priority row | — |
+
+**Two follow-up fixes surfaced during live QA** (also shipped): even bottom-nav spacing (the
+`.nav-*-wrap` wrappers weren't flex items, so Alerts/Account collapsed and touched), and
+tap-outside-to-close for the Alerts/Account sheets (`.side-nav`'s `backdrop-filter` was clipping the
+fixed backdrop to the 54px bar).
+
+**Still needs a physical device** (emulator can't confirm): home-indicator overlap on notched iOS
+(the `viewport-fit=cover` CSS is correct but the inset reads 0 in Chrome emulation), and the *feel*
+of the 180 ms drag hold. The landscape column height uses a magic `168px` reserve — it clears the nav
+today but a flex-based board layout would be the robust long-term fix.
+
+New durable pattern: any future modal must render as `.modal.d-block` with a `.btn-close` to inherit
+the `modal-a11y.js` behavior automatically (see `CLAUDE.md` → Frontend rules).
+
+---
+
 *Sections 1–6 were a static code audit; Section 7 is a live rendered pass that supersedes earlier
-severities where noted. Remaining **[verify]** / "not yet verified" items need a physical device.
-No app code was changed; nothing committed or pushed — awaiting explicit instruction to fix.*
+severities where noted; Section 8 records the shipped resolution. Remaining device-only items are
+listed above.*
