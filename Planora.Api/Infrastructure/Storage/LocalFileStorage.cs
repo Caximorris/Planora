@@ -49,4 +49,8 @@ public sealed class LocalFileStorage : IFileStorage
         if (File.Exists(candidate)) File.Delete(candidate);
         return Task.CompletedTask;
     }
+
+    // Files under wwwroot are served directly by UseStaticFiles; the stored relative URL is already
+    // the browser-fetchable URL, so no transformation is needed.
+    public string? GetReadUrl(string? storedUrl) => storedUrl;
 }

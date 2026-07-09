@@ -1,12 +1,15 @@
 # Azure Blob storage — implementation handoff (Tasks 8–9)
 
-> **Status (2026-07-09): implemented.** `BlobFileStorage`
+> **Status (2026-07-09): implemented, private + SAS.** `BlobFileStorage`
 > (`Planora.Api/Infrastructure/Storage/BlobFileStorage.cs`) is the durable backend, selected by
-> `Storage:Provider = AzureBlob` in `Program.cs`. Dual-read is automatic (see Task 9 below). Verified
-> by `dotnet build Planora.slnx` (clean) and `Planora.Tests/Storage/BlobFileStorageTests.cs`
-> (133 tests green). **Still required before prod:** provision the Azure resources and set the
-> `Storage__*` secrets/env (see "Azure resources to provision"). The sections below are retained as
-> the design record.
+> `Storage:Provider = AzureBlob` in `Program.cs`. The container is **private** (no anonymous access);
+> reads go out as short-lived signed SAS URLs minted by `GetReadUrl` and applied to every response by
+> `MediaUrlResolutionFilter` — a browser only ever gets a working URL through an API response it was
+> already authorized to receive, and that URL expires (`Storage:Blob:SasMinutes`, default 60).
+> Dual-read is automatic (see Task 9 below). Verified by `dotnet build Planora.slnx` (clean) and
+> `Planora.Tests/Storage/` (139 tests green). **Still required before prod:** provision the Azure
+> resources and set the `Storage__*` secrets/env (see "Azure resources to provision"). The sections
+> below are retained as the design record.
 
 ## Why this exists
 
@@ -69,11 +72,22 @@ still show their covers (dual-read above); dev still works on disk (`Provider: "
 
 ## Azure resources to provision (outside the repo)
 
-- A Storage Account + a private blob container (name = `Blob:ContainerName`, default `uploads`).
-- Container Apps secret carrying `Storage__Blob__ConnectionString` (double-underscore = nested key),
-  plus `Storage__Provider=AzureBlob` and `Storage__Blob__PublicBaseUrl`.
-- Prefer a Managed Identity + `DefaultAzureCredential` over a connection string if you want to avoid
-  a long-lived secret (then `BlobFileStorage` takes the account URL + credential instead).
+Do this once; no code changes needed. Portal steps (or the `az` equivalents):
+
+1. **Create a Storage Account** — same resource group/region as the Container App; Standard/LRS is fine.
+2. **Create a private container** named `uploads` (access level **Private** — the default; the app
+   keeps it private and signs SAS URLs for reads, so anonymous access must stay off).
+3. **Copy the connection string** — Security + networking → Access keys → key1 connection string.
+4. **Set three Container Apps settings** (store the connection string as a *secret*):
+   - `Storage__Provider = AzureBlob`
+   - `Storage__Blob__ConnectionString = <secret>`  (double-underscore = nested config key)
+   - `Storage__Blob__PublicBaseUrl = https://<acct>.blob.core.windows.net/uploads`
+
+The connection string carries the account key, which `BlobFileStorage` needs to **mint read SAS
+URLs** (`client.GenerateSasUri`). A key-less Managed Identity would require user-delegation SAS
+instead — a later enhancement; `GetReadUrl` degrades to the stored (unfetchable-from-a-private-
+container) URL if it ever runs without a shared-key credential, so switching auth models means
+revisiting SAS generation.
 
 ## Config reference
 
@@ -81,9 +95,10 @@ still show their covers (dual-read above); dev still works on disk (`Provider: "
 "Storage": {
   "Provider": "AzureBlob",              // "Local" (default) | "AzureBlob"
   "Blob": {
-    "ConnectionString": "<secret>",     // env/Key Vault only — never commit
+    "ConnectionString": "<secret>",     // env/Key Vault only — never commit; account key signs SAS
     "ContainerName": "uploads",
-    "PublicBaseUrl": "https://<acct>.blob.core.windows.net/uploads"
+    "PublicBaseUrl": "https://<acct>.blob.core.windows.net/uploads",
+    "SasMinutes": 60                    // read-SAS lifetime; long enough for an open board
   }
 }
 ```

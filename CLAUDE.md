@@ -166,9 +166,11 @@ it respects notification preferences and logs/swallow provider failures so user 
   `Email:{Provider,From:{Address,Name},Resend:ApiKey}`,
   `Storage:{Provider,Blob:{ConnectionString,ContainerName,PublicBaseUrl}}`
   (`Provider` defaults to `Local` = `LocalFileStorage`; `AzureBlob` = `BlobFileStorage`, implemented —
-  needs `Storage__Blob__ConnectionString`/`PublicBaseUrl` secrets + an Azure Storage account; dual-read
-  keeps legacy `/uploads/...` covers resolving. See `docs/azure-blob-storage.md`). Container Apps
-  overrides CORS and Resend settings from secrets/env.
+  **private** container, reads served as short-lived SAS URLs signed by `IFileStorage.GetReadUrl` and
+  applied to every response by `MediaUrlResolutionFilter` (a global result filter — don't return
+  stored file URLs bypassing it); needs `Storage__Blob__ConnectionString`/`PublicBaseUrl` secrets +
+  an Azure Storage account; dual-read keeps legacy `/uploads/...` covers resolving. See
+  `docs/azure-blob-storage.md`). Container Apps overrides CORS and Resend settings from secrets/env.
 - `appsettings.Development.json` holds real local credentials — **never commit it**. No secrets in source.
 
 ## AI collaboration rules

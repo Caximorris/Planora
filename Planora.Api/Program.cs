@@ -19,6 +19,7 @@ using Planora.Api.Infrastructure.Data;
 using Planora.Api.Infrastructure.Email;
 using Planora.Api.Infrastructure.HealthChecks;
 using Planora.Api.Infrastructure.Jobs;
+using Planora.Api.Infrastructure.Filters;
 using Planora.Api.Infrastructure.Storage;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -210,7 +211,10 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
 // ── API ───────────────────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+// MediaUrlResolutionFilter signs stored file references into read URLs on every response (SAS for
+// private blobs; no-op for local disk) — one choke point so no endpoint leaks an unfetchable URL.
+builder.Services.AddScoped<MediaUrlResolutionFilter>();
+builder.Services.AddControllers(options => options.Filters.Add<MediaUrlResolutionFilter>());
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

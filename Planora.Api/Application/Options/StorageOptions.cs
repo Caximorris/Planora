@@ -34,4 +34,10 @@ public sealed class BlobStorageOptions
     /// Blob impl reads both (dual-read) during migration.
     /// </summary>
     public string PublicBaseUrl { get; set; } = "";
+
+    /// <summary>
+    /// Lifetime, in minutes, of the read SAS URLs the private-blob backend hands out. Long enough
+    /// that an open board keeps rendering (default 60); short enough that a leaked URL soon dies.
+    /// </summary>
+    public int SasMinutes { get; set; } = 60;
 }

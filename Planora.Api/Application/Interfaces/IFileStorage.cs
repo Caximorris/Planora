@@ -20,4 +20,12 @@ public interface IFileStorage
     /// null/empty or does not resolve to a file owned by this storage.
     /// </summary>
     Task DeleteAsync(string? relativeUrl, CancellationToken ct = default);
+
+    /// <summary>
+    /// Turns a stored file reference (as returned by <see cref="SaveAsync"/>) into a URL a browser
+    /// can fetch. Local disk returns it unchanged (served by static files); the Azure Blob backend
+    /// signs it into a short-lived read SAS URL because the container is private. Returns the input
+    /// unchanged for null/empty values and for legacy/foreign URLs it doesn't own.
+    /// </summary>
+    string? GetReadUrl(string? storedUrl);
 }

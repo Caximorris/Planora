@@ -418,12 +418,16 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
    `Infrastructure/Storage/LocalFileStorage.cs`, `BoardsController`, `Program.cs`,
    `Planora.Tests/Boards/CoverImageTests.cs`. Risk: M. Validated: `dotnet build` clean; cover
    upload/validation/scope covered by tests (20 green). Deps: none.
-8. ✅ **Azure Blob impl + config.** Goal: Blob-backed `IFileStorage` selected by config. Files:
-   `Infrastructure/Storage/BlobFileStorage.cs`, `Program.cs` (switch arm + `Configure<StorageOptions>`),
-   `Planora.Api.csproj` (`Azure.Storage.Blobs` 12.29.1), `Planora.Tests/Storage/BlobFileStorageTests.cs`.
-   Risk: M. Validated: `dotnet build Planora.slnx` clean; 21 unit assertions cover blob-name/URL/
-   content-type logic; full suite green (133). Anonymous blob-read (parity with static-file serving).
-   **Not yet done:** Azure resource provisioning + `Storage__*` secrets (infra, outside repo). Deps: 7.
+8. ✅ **Azure Blob impl + config (private + SAS).** Goal: Blob-backed `IFileStorage` selected by config.
+   Files: `Infrastructure/Storage/BlobFileStorage.cs`, `Infrastructure/Filters/MediaUrlResolutionFilter.cs`,
+   `IFileStorage`/`LocalFileStorage` (`GetReadUrl`), `StorageOptions` (`SasMinutes`), `Program.cs`
+   (switch arm + `Configure<StorageOptions>` + global filter), `Planora.Api.csproj`
+   (`Azure.Storage.Blobs` 12.29.1), `Planora.Tests/Storage/{BlobFileStorage,MediaUrlResolutionFilter}Tests.cs`.
+   Risk: M. Validated: `dotnet build Planora.slnx` clean; 27 unit assertions (blob-name/URL/content-type
+   + the filter reaching every URL-bearing DTO shape); full suite green (139). **Private** container —
+   reads are short-lived read-SAS URLs (default 60 min) minted per response; only the API (holding the
+   account key) writes or signs. **Not yet done:** Azure resource provisioning + `Storage__*` secrets
+   (infra, outside repo). Deps: 7.
 9. ✅ **Dual-read (no migration needed).** Goal: serve old disk URLs + new blob URLs. Implemented for
    free: frontend `new Uri(base, url)` passes absolute Blob URLs through and resolves legacy
    `/uploads/...` against the API; `BlobFileStorage.DeleteAsync` no-ops on legacy paths. Files:
