@@ -19,6 +19,12 @@ window.planoraInitColumnsSortable = function (dotnetRef) {
         animation: 150,
         handle: '.kanban-col-header',
         draggable: '.kanban-column',
+        // Touch: require a short press before a drag starts (delayOnTouchOnly keeps desktop
+        // mouse drag instant) and ignore tiny finger jitter, so a swipe to scroll the board
+        // horizontally isn't hijacked into a column drag. See MOBILE_AUDIT P0-1.
+        delay: 180,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 8,
         // Without this, Sortable uses the browser's native HTML5 drag image (which follows the
         // cursor) *on top of* its own ".sortable-ghost" placeholder (left at the drop slot) —
         // two semi-transparent copies on screen at once, looking like a duplicate. Forcing the
@@ -48,6 +54,13 @@ window.planoraInitCardLists = function (dotnetRef) {
             animation: 150,
             forceFallback: true,
             fallbackOnBody: true,
+            // Touch: a card is only "picked up" after a 180ms hold, and small finger moves are
+            // treated as scroll, not drag. delayOnTouchOnly leaves desktop mouse drag instant.
+            // Without this a vertical column scroll or horizontal board swipe grabs a card.
+            // See MOBILE_AUDIT P0-1.
+            delay: 180,
+            delayOnTouchOnly: true,
+            touchStartThreshold: 8,
             disabled: disabled,
             onEnd: function (evt) {
                 var cardId = evt.item.dataset.cardId;

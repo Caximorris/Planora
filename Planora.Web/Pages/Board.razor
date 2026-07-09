@@ -30,6 +30,7 @@ else
                 <span>/</span>
             </div>
             <div class="board-title-wrap">
+                <a class="board-back-btn" href="/workspaces" aria-label="Back to workspaces" title="Back to workspaces">‹</a>
                 <span class="board-title-display">@_board.Name</span>
                 <button type="button" class="board-header-action" @onclick="OpenActivity">Activity</button>
                 <button type="button" class="settings-gear-btn" title="Board settings" aria-label="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
@@ -45,7 +46,7 @@ else
                                autocomplete="off"
                                @oninput="OnSearchInput" />
                     </label>
-                    <div class="quick-filter-row" aria-label="Quick filters">
+                    <div class="quick-filter-row @(_filtersAdvancedOpen ? "" : "quick-filter-row--mobile-collapsed")" aria-label="Quick filters">
                         <button type="button"
                                 class="filter-pill @(IsMyCardsFilterActive ? "active" : "")"
                                 aria-pressed="@IsMyCardsFilterActive"
@@ -317,11 +318,11 @@ else
                         </select>
                     </div>
                     <div class="row g-2">
-                        <div class="col-6">
+                        <div class="col-12 col-sm-6">
                             <label class="form-label">Due date</label>
                             <input type="date" class="form-control" @bind="_editDue" />
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-sm-6">
                             <label class="form-label">Priority</label>
                             <select class="form-select" @bind="_editPriority">
                                 @foreach (var p in Enum.GetValues<CardPriority>())

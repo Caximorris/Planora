@@ -26,6 +26,10 @@
         {
             <div class="kanban-column-empty">No matching cards</div>
         }
+        else if (VisibleCards.Count == 0)
+        {
+            <div class="kanban-column-empty">No cards yet</div>
+        }
     </div>
 
     <div class="add-card-area">
@@ -35,6 +39,8 @@
                       @bind="_cardTitle"
                       placeholder="Card title…"
                       @onkeydown="CardKeyDown"
+                      autocapitalize="sentences"
+                      autocomplete="off"
                       rows="2"></textarea>
             <div class="add-card-actions">
                 <button class="btn btn-sm btn-primary" @onclick="Submit">Add card</button>

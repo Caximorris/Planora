@@ -68,6 +68,46 @@
             }
         </div>
 
+        @* Mobile agenda: a fixed-width month grid is unusable on a phone (half the week is
+           off-screen), so below ~600px we show an upcoming-dates list instead. Same data,
+           CSS decides which one is visible. See MOBILE_AUDIT P1-3. *@
+        <div class="calendar-agenda">
+            @{
+                var agendaDays = _cells
+                    .Where(c => c.Date.Month == _currentDate.Month)
+                    .Select(c => (Date: c.Date, Cards: _cardsByDate.GetValueOrDefault(c.Date, [])))
+                    .Where(x => x.Cards.Count > 0)
+                    .ToList();
+            }
+            @if (agendaDays.Count == 0)
+            {
+                <div class="calendar-agenda-empty">No cards due in @_currentDate.ToString("MMMM yyyy").</div>
+            }
+            else
+            {
+                @foreach (var day in agendaDays)
+                {
+                    var isTodayRow = day.Date == DateOnly.FromDateTime(DateTime.Today);
+                    <div class="calendar-agenda-day">
+                        <div class="calendar-agenda-date @(isTodayRow ? "calendar-agenda-date--today" : "")">
+                            <span class="calendar-agenda-dow">@day.Date.ToString("ddd")</span>
+                            <span class="calendar-agenda-num">@day.Date.Day</span>
+                        </div>
+                        <div class="calendar-agenda-cards">
+                            @foreach (var card in day.Cards)
+                            {
+                                <a class="calendar-card-chip @PriorityClass(card) @(card.IsOverdue ? "calendar-chip--overdue" : "")"
+                                   href="/boards/@card.BoardId"
+                                   title="@card.Title — @card.BoardName">
+                                    @card.Title
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
         @if (_loading)
         {
             <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>

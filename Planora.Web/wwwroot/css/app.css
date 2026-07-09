@@ -601,6 +601,18 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     opacity: 0; transition: opacity 0.15s; cursor: pointer; line-height: 1.4;
 }
 .board-tile:hover .board-tile-archive-btn { opacity: 1; }
+/* Touch reorder controls — HTML5 drag can't reorder on touch, so these appear only on
+   coarse pointers (hidden on mouse, which uses drag). MOBILE_AUDIT P2-6. */
+.board-tile-move { display: none; position: absolute; bottom: 6px; right: 6px; gap: 5px; z-index: 1; }
+.board-tile-move-btn {
+    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.42); border: none; color: #fff;
+    border-radius: var(--radius-sm); font-size: 18px; line-height: 1; cursor: pointer;
+}
+.board-tile-move-btn:disabled { opacity: 0.35; cursor: default; }
+@media (hover: none), (pointer: coarse) {
+    .board-tile-move { display: flex; }
+}
 .board-tile-archived-actions {
     display: flex; gap: 4px; flex-shrink: 0;
     position: relative; z-index: 1;
@@ -635,12 +647,22 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     border-bottom: 1px solid rgba(34,211,238,0.06);
 }
 .board-breadcrumb {
-    font-size: 12px; color: rgba(226,232,240,0.45);
+    font-size: 12px; color: rgba(226,232,240,0.62);
     display: flex; align-items: center; gap: 0.3rem;
 }
 .board-breadcrumb a { color: rgba(226,232,240,0.6); }
 .board-breadcrumb a:hover { color: var(--mint-300); text-decoration: none; }
 .board-title-wrap { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+/* Mobile-only back affordance (the breadcrumb is hidden on phones). MOBILE_AUDIT P3-2. */
+.board-back-btn {
+    display: none; flex-shrink: 0;
+    width: 32px; height: 32px; line-height: 1;
+    align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    color: var(--mint-300); text-decoration: none;
+    border-radius: var(--radius-sm);
+}
+.board-back-btn:hover { color: var(--mint-300); text-decoration: none; background: rgba(226,232,240,0.10); }
 .board-title-display {
     font-size: 0.95rem; font-weight: 700;
     color: var(--mint-300); padding: 3px 4px; letter-spacing: -0.2px;
@@ -663,7 +685,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     border-color: rgba(34,211,238,0.45);
 }
 .board-filter { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
-.board-filter-label { font-size: 11px; color: rgba(226,232,240,0.45); }
+.board-filter-label { font-size: 11px; color: rgba(226,232,240,0.62); }
 .board-filter-shell {
     flex: 1 1 100%;
     display: flex;
@@ -696,7 +718,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     outline: none;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
-.board-filter-search::placeholder { color: rgba(226,232,240,0.48); }
+.board-filter-search::placeholder { color: rgba(226,232,240,0.62); }
 .board-filter-search:focus {
     border-color: rgba(34,211,238,0.66);
     box-shadow: 0 0 0 3px rgba(34,211,238,0.16);
@@ -1127,6 +1149,8 @@ html[data-theme="dark"] .card-desc-preview { color: var(--lav-400); }
 }
 
 /* ── Modals ─────────────────────────────────────────────────── */
+/* Set by js/modal-a11y.js while any dialog is open — stops the page scrolling behind it. */
+body.planora-modal-open { overflow: hidden; }
 .modal { z-index: var(--z-modal); }
 .modal-backdrop {
     z-index: calc(var(--z-modal) - 10);
@@ -1786,11 +1810,16 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
 
     .board-header { padding: 0.5rem 0.75rem; gap: 0.3rem 0.5rem; }
     .board-breadcrumb { display: none; }
+    .board-back-btn { display: inline-flex; }
     .board-filter-label { display: none; }
     .board-filter-main { align-items: stretch; }
     .filter-search-wrap { flex-basis: 100%; max-width: none; min-width: 0; }
     .quick-filter-row { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
     .quick-filter-row .filter-pill { flex: 0 0 auto; }
+    /* Reclaim vertical space on phones: the quick-filter pills only show once the "Filters"
+       toggle is open, so the default board header is just search + Filters + count.
+       MOBILE_AUDIT LV-1. */
+    .quick-filter-row--mobile-collapsed { display: none; }
     .filter-count { width: 100%; margin-left: 0; }
     .filter-inline { grid-template-columns: 1fr; }
     .filter-saved-row { align-items: stretch; }
@@ -1800,6 +1829,22 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
     .board-columns { padding-bottom: calc(24px + var(--bottom-nav-h) + env(safe-area-inset-bottom)); }
     .kanban-column { max-height: calc(var(--viewport-h) - var(--bottom-nav-h) - 104px); }
 
+    /* iOS Safari zooms the page when a focused field's font-size is < 16px. Bump every text
+       entry point to 16px on phones to suppress the zoom. See MOBILE_AUDIT P2-1. */
+    .form-control, .form-select, textarea, select,
+    input[type="text"], input[type="email"], input[type="password"],
+    input[type="search"], input[type="number"], input[type="date"], input[type="url"],
+    .board-filter-search, .filter-control, .filter-control--name,
+    .add-card-input, .calendar-toolbar .calendar-ws-select {
+        font-size: 16px;
+    }
+}
+
+/* Phone landscape: the viewport is short and the filter header is proportionally tall, so
+   bound columns to the space between the header and the bottom nav — otherwise the column
+   (and its "add card" button) runs underneath the nav. See MOBILE_AUDIT P2-5. */
+@media (max-width: 768px) and (orientation: landscape) {
+    .kanban-column { max-height: calc(var(--viewport-h) - var(--bottom-nav-h) - 168px); }
 }
 
 /* ── Archived cards list (board settings) ───────────────────── */
@@ -1861,6 +1906,31 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
 .calendar-chip--overdue  { outline: 2px solid #e53e3e; }
 .calendar-more { font-size: 10px; color: var(--text-secondary); padding: 0 4px; }
 
+/* Mobile agenda (P1-3) — hidden until the grid becomes unusable on narrow screens. */
+.calendar-agenda { display: none; }
+.calendar-agenda-empty { padding: 2rem 0.5rem; text-align: center; color: var(--text-secondary); font-size: 14px; }
+.calendar-agenda-day {
+    display: flex; gap: 0.85rem; align-items: flex-start;
+    padding: 0.6rem 0; border-bottom: 1px solid var(--border);
+}
+.calendar-agenda-date {
+    flex-shrink: 0; width: 44px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+}
+.calendar-agenda-dow { font-size: 11px; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
+.calendar-agenda-num { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.calendar-agenda-date--today .calendar-agenda-num {
+    background: var(--rose-800); color: #fff; border-radius: 50%;
+    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+}
+.calendar-agenda-cards { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.calendar-agenda-cards .calendar-card-chip { font-size: 13px; padding: 5px 9px; white-space: normal; }
+
+@media (max-width: 600px) {
+    .calendar-grid { display: none; }
+    .calendar-agenda { display: block; }
+}
+
 /* ── Notifications page ─────────────────────────────────────── */
 .notif-page-root { padding: 1.5rem 2rem; max-width: 700px; margin: 0 auto; }
 .notif-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
@@ -1891,6 +1961,10 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
 @media (max-width: 480px) {
     .side-nav-label { font-size: 9px; }
 
+    /* Narrow the column so the next one peeks past the edge — makes horizontal scroll
+       discoverable on a 320px screen (was 280px = only ~24px peek). MOBILE_AUDIT P3-1. */
+    .kanban-column { width: 84vw; max-width: 300px; }
+
     .modal-dialog { margin: 0.5rem; }
     .auth-card { padding: 1.75rem 1.25rem; }
     .invite-card { padding: 2rem 1.25rem; }
@@ -1908,6 +1982,10 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
     .comment-delete-btn,
     .member-remove-btn {
         opacity: 1;
+    }
+    /* Grow the column gear to a >=24px hit area on touch (WCAG 2.5.8). MOBILE_AUDIT P2-4. */
+    .settings-gear-btn--sm {
+        width: 26px; height: 26px; font-size: 12px;
     }
 }
 

@@ -85,6 +85,7 @@
                 <div class="boards-grid">
                     @foreach (var board in _boards)
                     {
+                        var boardIndex = _boards.IndexOf(board);
                         <div class="board-tile @(_dragOverBoardId == board.Id ? "board-tile--drop" : "")"
                              @key="board.Id"
                              style="@TileStyle(board)"
@@ -108,6 +109,18 @@
                                     aria-label="Archive board @board.Name"
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ArchiveBoard(board)">⬇</button>
+                            <div class="board-tile-move">
+                                <button type="button" class="board-tile-move-btn"
+                                        aria-label="Move @board.Name earlier"
+                                        disabled="@(boardIndex <= 0)"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="() => MoveBoard(board, -1)">‹</button>
+                                <button type="button" class="board-tile-move-btn"
+                                        aria-label="Move @board.Name later"
+                                        disabled="@(boardIndex >= _boards.Count - 1)"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="() => MoveBoard(board, 1)">›</button>
+                            </div>
                         </div>
                     }
                 </div>
@@ -555,6 +568,24 @@
         var targetIndex = _boards.FindIndex(b => b.Id == target.Id);
         _boards.Insert(targetIndex, dragged);
 
+        await PersistBoardPositionsAsync();
+    }
+
+    // Touch-friendly reorder: HTML5 native drag doesn't fire on touch, so mobile uses the
+    // move buttons on each tile (shown only on coarse pointers). See MOBILE_AUDIT P2-6.
+    private async Task MoveBoard(BoardDto board, int delta)
+    {
+        var index = _boards.FindIndex(b => b.Id == board.Id);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= _boards.Count) return;
+
+        _boards.RemoveAt(index);
+        _boards.Insert(target, board);
+        await PersistBoardPositionsAsync();
+    }
+
+    private async Task PersistBoardPositionsAsync()
+    {
         for (var i = 0; i < _boards.Count; i++)
         {
             if (_boards[i].Position == i) continue;
