@@ -1749,6 +1749,17 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
         min-height: 52px;  /* comfortable touch target */
     }
     .side-nav-item svg { width: 22px; height: 22px; }
+    /* Alerts and Account are wrapped in .nav-*-wrap divs; make those wrappers full flex
+       items too so all six tabs share the bar evenly (otherwise they collapse to content
+       width and bunch at the right edge). */
+    .side-nav .nav-notif-wrap,
+    .side-nav .nav-user-wrap {
+        flex: 1; min-width: 0; display: flex;
+    }
+    .side-nav .nav-notif-wrap > .side-nav-item,
+    .side-nav .nav-user-wrap > .side-nav-item {
+        width: 100%;
+    }
     .side-nav-item.active::before {
         left: 50%; top: 0; bottom: auto; transform: translateX(-50%);
         width: 26px; height: 3px; border-radius: 0 0 3px 3px;
