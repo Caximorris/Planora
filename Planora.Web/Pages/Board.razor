@@ -683,7 +683,7 @@ else
     private Dictionary<Guid, string> _newItemText = [];
 
     private string BoardBackgroundStyle =>
-        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, PlanoraColors.DefaultBoardColor, _board?.CoverImageFit);
+        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, PlanoraColors.DefaultBoardColor);
 
     private static string SwatchStyle(string color)
     {

@@ -18,9 +18,5 @@ public class UpdateBoardRequestValidator : AbstractValidator<UpdateBoardRequest>
             .Must(color => PlanoraColors.TryNormalizeSafeBoardBackground(color, out _))
             .When(x => x.CoverColor is not null)
             .WithMessage("CoverColor must be a readable board background color.");
-        RuleFor(x => x.CoverImageFit)
-            .Must(fit => fit is "cover" or "contain")
-            .When(x => x.CoverImageFit is not null)
-            .WithMessage("CoverImageFit must be 'cover' or 'contain'.");
     }
 }

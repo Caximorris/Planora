@@ -101,7 +101,7 @@ public class BoardService
     /// Shared CSS `style` value for anything that shows a board's cover (board tiles, board
     /// header): cover image takes priority over the plain color. Single source of truth so the
     /// board page and the workspace tiles can't drift apart on how a cover is rendered.
-    public string ResolveBackgroundStyle(string? coverImageUrl, string? coverColor, string fallbackColor = "", string? coverImageFit = null)
+    public string ResolveBackgroundStyle(string? coverImageUrl, string? coverColor, string fallbackColor = "")
     {
         var resolvedImage = ResolveImageUrl(coverImageUrl);
         var color = PlanoraColors.SafeBoardBackgroundOrNull(coverColor)
@@ -110,11 +110,9 @@ public class BoardService
         if (resolvedImage is not null)
         {
             // Paint the color underneath the image so the board never flashes white while the cover
-            // downloads; the image covers it once loaded. "contain" shows the whole image (color
-            // frames it), "cover" (default) fills and crops.
-            var size = coverImageFit == "contain" ? "contain" : "cover";
+            // downloads; the image (already cropped on upload) covers it once loaded.
             var under = color is not null ? $"background-color:{color};" : "";
-            return $"{under}background-image:url('{resolvedImage}');background-size:{size};background-position:center;background-repeat:no-repeat;";
+            return $"{under}background-image:url('{resolvedImage}');background-size:cover;background-position:center;background-repeat:no-repeat;";
         }
 
         return color is not null ? $"background:{color};" : "";

@@ -7,6 +7,5 @@ public class UpdateBoardRequest
     public string? Description { get; set; }
     public bool ClearDescription { get; set; }
     public string? CoverColor { get; set; }
-    public string? CoverImageFit { get; set; }
     public int? Position { get; set; }
 }
