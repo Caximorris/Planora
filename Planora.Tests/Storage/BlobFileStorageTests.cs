@@ -55,6 +55,7 @@ public class BlobFileStorageTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("https://other.example.com/photos/abc.png")]  // absolute but not our container
+    [InlineData("file:///uploads/boards/abc.png")]            // non-http scheme (Linux file:// parse of a legacy path)
     public void TryGetBlobName_returns_false_for_empty_or_foreign_urls(string? url)
     {
         Assert.False(BlobFileStorage.TryGetBlobName(url, "uploads", out _));

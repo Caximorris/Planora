@@ -107,6 +107,9 @@ public sealed class BlobFileStorage : IFileStorage
         blobName = "";
         if (string.IsNullOrWhiteSpace(url)) return false;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        // Require http(s). On Linux a legacy "/uploads/..." path parses as an absolute file:// URI
+        // (it does not on Windows), so without this it would slip through and match the marker below.
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
 
         var marker = $"/{containerName}/";
         var path = Uri.UnescapeDataString(uri.AbsolutePath);
