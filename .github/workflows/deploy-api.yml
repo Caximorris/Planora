@@ -47,9 +47,14 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
           CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          STORAGE_CONNECTION_STRING: ${{ secrets.STORAGE_CONNECTION_STRING }}
         run: |
           if [ -z "$RESEND_API_KEY" ]; then
             echo "::error::RESEND_API_KEY GitHub secret is required for production email delivery."
+            exit 1
+          fi
+          if [ -z "$STORAGE_CONNECTION_STRING" ]; then
+            echo "::error::STORAGE_CONNECTION_STRING GitHub secret is required for durable blob storage."
             exit 1
           fi
 
@@ -63,7 +68,9 @@ jobs:
           az containerapp secret set \
             --name planora-api \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --secrets resend-api-key="$RESEND_API_KEY"
+            --secrets \
+              resend-api-key="$RESEND_API_KEY" \
+              storage-connection-string="$STORAGE_CONNECTION_STRING"
           az containerapp update \
             --name planora-api \
             --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -74,4 +81,7 @@ jobs:
               "Email__Provider=Resend" \
               "Email__From__Address=notifications@planora.website" \
               "Email__From__Name=Planora" \
-              "Email__Resend__ApiKey=secretref:resend-api-key"
+              "Email__Resend__ApiKey=secretref:resend-api-key" \
+              "Storage__Provider=AzureBlob" \
+              "Storage__Blob__ConnectionString=secretref:storage-connection-string" \
+              "Storage__Blob__PublicBaseUrl=https://planorabs.blob.core.windows.net/uploads"
