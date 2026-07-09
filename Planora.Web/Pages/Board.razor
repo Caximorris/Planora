@@ -528,17 +528,6 @@ else
                                 <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="RemoveCoverImage">Remove</button>
                             }
                         </div>
-                        @if (_board.CoverImageUrl is not null)
-                        {
-                            <div class="btn-group btn-group-sm mt-2" role="group" aria-label="Cover image size">
-                                <button type="button"
-                                        class="btn @((_board.CoverImageFit ?? "cover") == "cover" ? "btn-secondary" : "btn-outline-secondary")"
-                                        @onclick='() => SetCoverFit("cover")'>Fill</button>
-                                <button type="button"
-                                        class="btn @(_board.CoverImageFit == "contain" ? "btn-secondary" : "btn-outline-secondary")"
-                                        @onclick='() => SetCoverFit("contain")'>Fit</button>
-                            </div>
-                        }
                         @if (_coverError is not null)
                         {
                             <div class="settings-error mt-1">@_coverError</div>
@@ -585,6 +574,38 @@ else
     </div>
 }
 
+@if (_showCropModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Position your cover</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCrop" disabled="@_saving"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:13px;color:var(--color-text-mid);margin-bottom:8px;">
+                        Drag the image to reposition, and use the slider to zoom.
+                    </p>
+                    <div class="cover-crop-stage">
+                        <img @ref="_cropImg" alt="Cover to crop" />
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-3">
+                        <span aria-hidden="true">🔍</span>
+                        <input type="range" class="form-range" min="0" max="100" step="1"
+                               value="@_cropZoom" @oninput="OnCropZoom" aria-label="Zoom" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCrop" disabled="@_saving">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveCrop" disabled="@_saving">Save cover</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
     [Inject] BoardService BoardService { get; set; } = null!;
@@ -623,6 +644,12 @@ else
     private string? _editColor;
 
     private string? _coverError;
+    private bool _showCropModal;
+    private bool _cropperNeedsInit;
+    private string? _cropSrc;
+    private double _cropZoom;
+    private ElementReference _cropImg;
+    private IJSObjectReference? _cropModule;
     private string? _attachmentError;
     private bool _uploadingAttachment;
     private bool _showBoardSettings;
@@ -744,6 +771,14 @@ else
             await JS.InvokeVoidAsync("planoraInitColumnsSortable", _jsRef);
             await JS.InvokeVoidAsync("planoraInitCardLists", _jsRef);
         }
+
+        // Initialize the cropper once the modal (and its <img>) has actually rendered.
+        if (_cropperNeedsInit && _cropSrc is not null)
+        {
+            _cropperNeedsInit = false;
+            _cropModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/cover-cropper.js");
+            await _cropModule.InvokeVoidAsync("init", _cropImg, _cropSrc);
+        }
     }
 
     [JSInvokable]
@@ -857,6 +892,7 @@ else
         _jsRef?.Dispose();
         _saveCts?.Cancel();
         _saveCts?.Dispose();
+        if (_cropModule is not null) _ = _cropModule.DisposeAsync();
     }
 
     private async Task SaveBoardName(ChangeEventArgs e)
@@ -874,21 +910,54 @@ else
         if (updated is not null) ApplyBoardUpdate(updated);
     }
 
+    // Read the picked file into a data URL and open the crop modal; nothing is uploaded until the
+    // user confirms their crop (see SaveCrop).
     private async Task OnCoverFileSelected(InputFileChangeEventArgs e)
     {
         _coverError = null;
-        _saving = true;
         try
         {
-            var updated = await BoardService.UploadCoverImageAsync(_board!.Id, e.File);
-            if (updated is not null) ApplyBoardUpdate(updated);
-            else _coverError = "Couldn't upload image — check the file type and size (max 5 MB).";
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(BoardLimits.MaxCoverImageBytes).CopyToAsync(ms);
+            var contentType = string.IsNullOrWhiteSpace(e.File.ContentType) ? "image/png" : e.File.ContentType;
+            _cropSrc = $"data:{contentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            _cropZoom = 0;
+            _showCropModal = true;
+            _cropperNeedsInit = true;
         }
         catch (IOException)
         {
             _coverError = "Image is too large (max 5 MB).";
         }
+    }
+
+    private async Task OnCropZoom(ChangeEventArgs e)
+    {
+        _cropZoom = double.TryParse(e.Value?.ToString(), out var z) ? z : _cropZoom;
+        if (_cropModule is not null) await _cropModule.InvokeVoidAsync("zoom", _cropZoom);
+    }
+
+    private async Task SaveCrop()
+    {
+        if (_cropModule is null) return;
+        _saving = true;
+        var dataUrl = await _cropModule.InvokeAsync<string?>("getResult");
+        if (dataUrl is not null)
+        {
+            var base64 = dataUrl[(dataUrl.IndexOf(',') + 1)..];
+            var updated = await BoardService.UploadCoverImageBytesAsync(_board!.Id, Convert.FromBase64String(base64));
+            if (updated is not null) ApplyBoardUpdate(updated);
+            else _coverError = "Couldn't upload image — check the file type and size (max 5 MB).";
+        }
         _saving = false;
+        await CloseCrop();
+    }
+
+    private async Task CloseCrop()
+    {
+        if (_cropModule is not null) await _cropModule.InvokeVoidAsync("destroy");
+        _showCropModal = false;
+        _cropSrc = null;
     }
 
     private async Task RemoveCoverImage()
@@ -899,19 +968,6 @@ else
         _saving = false;
     }
 
-    private async Task SetCoverFit(string fit)
-    {
-        if ((_board!.CoverImageFit ?? "cover") == fit) return;
-        var updated = await BoardService.UpdateAsync(_board.Id, new()
-        {
-            RowVersion = _board.RowVersion,
-            Name = _board.Name,
-            Description = _board.Description,
-            CoverColor = _board.CoverColor,
-            CoverImageFit = fit,
-        });
-        if (updated is not null) ApplyBoardUpdate(updated);
-    }
 
     private void CloseBoardSettings()
     {

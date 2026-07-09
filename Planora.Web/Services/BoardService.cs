@@ -74,6 +74,19 @@ public class BoardService
         return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
     }
 
+    /// Uploads an already-cropped cover image (JPEG bytes from the cropper) to the same validated
+    /// endpoint. The board then fills the pre-cropped image, so no distortion or fit setting is needed.
+    public async Task<BoardDto?> UploadCoverImageBytesAsync(Guid boardId, byte[] bytes)
+    {
+        using var content = new MultipartFormDataContent();
+        using var bytesContent = new ByteArrayContent(bytes);
+        bytesContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        content.Add(bytesContent, "file", "cover.jpg");
+
+        var res = await _http.PostAsync($"api/boards/{boardId}/cover-image", content);
+        return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BoardDto>() : null;
+    }
+
     public async Task<BoardDto?> RemoveCoverImageAsync(Guid boardId)
     {
         var res = await _http.DeleteAsync($"api/boards/{boardId}/cover-image");

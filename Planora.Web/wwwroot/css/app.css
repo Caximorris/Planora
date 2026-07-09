@@ -762,6 +762,10 @@ html[data-theme="dark"] .kanban-col-count { background: rgba(34,211,238,0.12); c
 .settings-upload-label:hover { background: var(--teal-200); }
 .settings-upload-label input[type="file"] { display: none; }
 
+/* Cover crop modal — Cropper.js needs a block image inside a height-bounded stage. */
+.cover-crop-stage { max-height: 60vh; background: var(--cream-400); }
+.cover-crop-stage > img { display: block; max-width: 100%; }
+
 .kanban-cards-list {
     overflow-y: auto;
     padding: 10px 12px 14px;
