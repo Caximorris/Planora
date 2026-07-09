@@ -7,6 +7,7 @@ public class BoardDto
     public string? Description { get; set; }
     public string? CoverColor { get; set; }
     public string? CoverImageUrl { get; set; }
+    public string? CoverImageFit { get; set; }
     public int Position { get; set; }
     public bool IsArchived { get; set; }
     public uint RowVersion { get; set; }

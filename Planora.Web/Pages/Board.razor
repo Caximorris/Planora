@@ -528,6 +528,17 @@ else
                                 <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="RemoveCoverImage">Remove</button>
                             }
                         </div>
+                        @if (_board.CoverImageUrl is not null)
+                        {
+                            <div class="btn-group btn-group-sm mt-2" role="group" aria-label="Cover image size">
+                                <button type="button"
+                                        class="btn @((_board.CoverImageFit ?? "cover") == "cover" ? "btn-secondary" : "btn-outline-secondary")"
+                                        @onclick='() => SetCoverFit("cover")'>Fill</button>
+                                <button type="button"
+                                        class="btn @(_board.CoverImageFit == "contain" ? "btn-secondary" : "btn-outline-secondary")"
+                                        @onclick='() => SetCoverFit("contain")'>Fit</button>
+                            </div>
+                        }
                         @if (_coverError is not null)
                         {
                             <div class="settings-error mt-1">@_coverError</div>
@@ -645,7 +656,7 @@ else
     private Dictionary<Guid, string> _newItemText = [];
 
     private string BoardBackgroundStyle =>
-        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, PlanoraColors.DefaultBoardColor);
+        BoardService.ResolveBackgroundStyle(_board?.CoverImageUrl, _board?.CoverColor, PlanoraColors.DefaultBoardColor, _board?.CoverImageFit);
 
     private static string SwatchStyle(string color)
     {
@@ -886,6 +897,20 @@ else
         var updated = await BoardService.RemoveCoverImageAsync(_board!.Id);
         if (updated is not null) ApplyBoardUpdate(updated);
         _saving = false;
+    }
+
+    private async Task SetCoverFit(string fit)
+    {
+        if ((_board!.CoverImageFit ?? "cover") == fit) return;
+        var updated = await BoardService.UpdateAsync(_board.Id, new()
+        {
+            RowVersion = _board.RowVersion,
+            Name = _board.Name,
+            Description = _board.Description,
+            CoverColor = _board.CoverColor,
+            CoverImageFit = fit,
+        });
+        if (updated is not null) ApplyBoardUpdate(updated);
     }
 
     private void CloseBoardSettings()

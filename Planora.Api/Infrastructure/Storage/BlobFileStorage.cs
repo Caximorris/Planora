@@ -73,7 +73,19 @@ public sealed class BlobFileStorage : IFileStorage
         // key-less credential is ever used, fall back to the stored URL rather than throw.
         if (!client.CanGenerateSasUri) return storedUrl;
 
-        return client.GenerateSasUri(BlobSasPermissions.Read, DateTimeOffset.UtcNow.Add(_sasLifetime)).ToString();
+        return client.GenerateSasUri(BlobSasPermissions.Read, BucketedExpiry(DateTimeOffset.UtcNow, _sasLifetime)).ToString();
+    }
+
+    /// <summary>
+    /// Rounds <paramref name="now"/> up to a fixed boundary and adds one window, so the signed URL is
+    /// byte-identical for every request inside the same window. That lets the browser cache the image
+    /// instead of re-downloading a freshly-signed URL on each board open (which flashed white). The
+    /// URL always keeps between one and two windows of validity.
+    /// </summary>
+    public static DateTimeOffset BucketedExpiry(DateTimeOffset now, TimeSpan window)
+    {
+        var bucketStart = (now.UtcTicks / window.Ticks) * window.Ticks;
+        return new DateTimeOffset(bucketStart, TimeSpan.Zero) + window + window;
     }
 
     /// <summary>

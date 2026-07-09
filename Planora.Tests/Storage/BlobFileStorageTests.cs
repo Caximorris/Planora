@@ -61,6 +61,28 @@ public class BlobFileStorageTests
         Assert.False(BlobFileStorage.TryGetBlobName(url, "uploads", out _));
     }
 
+    [Fact]
+    public void BucketedExpiry_is_stable_within_a_window_so_signed_urls_cache()
+    {
+        var window = TimeSpan.FromMinutes(60);
+        var t1 = new DateTimeOffset(2026, 7, 9, 10, 05, 00, TimeSpan.Zero);
+        var t2 = new DateTimeOffset(2026, 7, 9, 10, 55, 00, TimeSpan.Zero); // same hour bucket
+
+        Assert.Equal(BlobFileStorage.BucketedExpiry(t1, window), BlobFileStorage.BucketedExpiry(t2, window));
+        // Always leaves at least one full window of validity.
+        Assert.True(BlobFileStorage.BucketedExpiry(t1, window) - t1 >= window);
+    }
+
+    [Fact]
+    public void BucketedExpiry_advances_to_the_next_window()
+    {
+        var window = TimeSpan.FromMinutes(60);
+        var inThisHour = new DateTimeOffset(2026, 7, 9, 10, 30, 00, TimeSpan.Zero);
+        var inNextHour = new DateTimeOffset(2026, 7, 9, 11, 30, 00, TimeSpan.Zero);
+
+        Assert.NotEqual(BlobFileStorage.BucketedExpiry(inThisHour, window), BlobFileStorage.BucketedExpiry(inNextHour, window));
+    }
+
     [Theory]
     [InlineData(".png", "image/png")]
     [InlineData(".jpg", "image/jpeg")]

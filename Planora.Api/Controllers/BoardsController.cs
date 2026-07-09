@@ -166,6 +166,7 @@ public class BoardsController : ControllerBase
                 return BadRequest("CoverColor must be a readable board background color.");
             board.CoverColor = coverColor;
         }
+        if (request.CoverImageFit is not null) board.CoverImageFit = request.CoverImageFit;
         if (request.Position.HasValue) board.Position = request.Position.Value;
 
         try
