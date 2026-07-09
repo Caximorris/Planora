@@ -6,10 +6,16 @@
 
 window.planoraInitColumnsSortable = function (dotnetRef) {
     var el = document.querySelector('.board-columns');
-    if (!el || el.dataset.sortableInit === 'true') return;
+    if (!el) return;
+    var disabled = el.dataset.dndDisabled === 'true';
+    if (el._planoraColumnsSortable) {
+        el._planoraColumnsSortable.option('disabled', disabled);
+        return;
+    }
+    if (el.dataset.sortableInit === 'true') return;
     el.dataset.sortableInit = 'true';
 
-    new Sortable(el, {
+    el._planoraColumnsSortable = new Sortable(el, {
         animation: 150,
         handle: '.kanban-col-header',
         draggable: '.kanban-column',
@@ -19,6 +25,7 @@ window.planoraInitColumnsSortable = function (dotnetRef) {
         // fallback makes Sortable draw a single clone it fully controls instead.
         forceFallback: true,
         fallbackOnBody: true,
+        disabled: disabled,
         onEnd: function (evt) {
             var columnId = evt.item.dataset.columnId;
             if (columnId) dotnetRef.invokeMethodAsync('OnColumnsReordered', columnId, evt.newIndex);
@@ -49,4 +56,10 @@ window.planoraInitCardLists = function (dotnetRef) {
             }
         });
     });
+};
+
+window.planoraSetInputValue = function (el, value) {
+    if (!el) return;
+    var next = value || '';
+    if (el.value !== next) el.value = next;
 };

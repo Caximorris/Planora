@@ -126,7 +126,23 @@
       "Bash(dotnet test *)",
       "Bash(dotnet list *)",
       "PowerShell($p = Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.StartTime } ; if \\($p\\) { $p | Select-Object Id, StartTime, @{n='CmdWindow';e={$_.MainWindowTitle}} | Format-Table -AutoSize | Out-String } else { \"no dotnet processes\" })",
-      "Bash(powershell.exe -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='dotnet.exe'\\\\\" | Select-Object ProcessId,CommandLine | Format-List\")"
+      "Bash(powershell.exe -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='dotnet.exe'\\\\\" | Select-Object ProcessId,CommandLine | Format-List\")",
+      "Bash(tasklist //FI \"IMAGENAME eq dotnet.exe\")",
+      "PowerShell(dotnet test *)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')",
+      "Bash(gh run *)",
+      "Bash(xargs grep -n \"AddColumn\\\\|DropColumn\\\\|CreateTable\\\\|CoverImageFit\")",
+      "Bash(sed -n '/UploadCoverImageAsync/,/^    }/p' Planora.Web/Services/BoardService.cs)",
+      "Bash(sed -n '/async Task OnCoverFileSelected/,/^    }/p' Planora.Web/Pages/Board.razor)",
+      "Bash(grep -n \"modal-backdrop\\\\|modal d-block\\\\|@if \\(_show\\\\|</div>$\" Planora.Web/Pages/Board.razor)",
+      "mcp__plugin_ecc_chrome-devtools__fill_form",
+      "mcp__plugin_ecc_chrome-devtools__upload_file",
+      "Bash(xargs grep -n \"AddColumn\\\\|DropColumn\\\\|CoverImageFit\\\\|CreateTable\")",
+      "Bash(xargs grep -l \"Priority\")",
+      "Bash(xargs cat)",
+      "Read(//c/Users/Matias/.claude/**)",
+      "Read(//c/Users/Matias/.claude/rules/ecc/common/**)",
+      "PowerShell(foreach \\($id in 16568,15552,14864,23452\\) { try { Stop-Process -Id $id -Force -ErrorAction Stop; \"killed $id\" } catch { \"already gone: $id\" } }; Start-Sleep -Milliseconds 800; \"--- ports now ---\"; \\(Get-NetTCPConnection -State Listen -LocalPort 8080,5076 -ErrorAction SilentlyContinue | Measure-Object\\).Count)"
     ]
   }
 }

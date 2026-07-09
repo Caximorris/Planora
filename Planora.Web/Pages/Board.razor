@@ -34,23 +34,221 @@ else
                 <button type="button" class="board-header-action" @onclick="OpenActivity">Activity</button>
                 <button type="button" class="settings-gear-btn" title="Board settings" aria-label="Board settings" @onclick="() => _showBoardSettings = true">⚙️</button>
             </div>
-            <div class="board-filter">
-                <span class="board-filter-label">Filter:</span>
-                <button class="filter-pill @(_filter == null ? "active" : "")" aria-pressed="@(_filter == null)" @onclick="() => _filter = null">All</button>
-                <button class="filter-pill @(_filter == CardPriority.Low ? "active" : "")" aria-pressed="@(_filter == CardPriority.Low)" @onclick="() => _filter = CardPriority.Low">Low</button>
-                <button class="filter-pill @(_filter == CardPriority.Medium ? "active" : "")" aria-pressed="@(_filter == CardPriority.Medium)" @onclick="() => _filter = CardPriority.Medium">Medium</button>
-                <button class="filter-pill @(_filter == CardPriority.High ? "active" : "")" aria-pressed="@(_filter == CardPriority.High)" @onclick="() => _filter = CardPriority.High">High</button>
-                <button class="filter-pill @(_filter == CardPriority.Critical ? "active" : "")" aria-pressed="@(_filter == CardPriority.Critical)" @onclick="() => _filter = CardPriority.Critical">Critical</button>
+            <div class="board-filter-shell">
+                <div class="board-filter-main">
+                    <label class="filter-search-wrap">
+                        <span class="visually-hidden">Search cards</span>
+                        <input @ref="_filterSearchInput"
+                               class="board-filter-search"
+                               type="search"
+                               placeholder="Search cards"
+                               autocomplete="off"
+                               @oninput="OnSearchInput" />
+                    </label>
+                    <div class="quick-filter-row" aria-label="Quick filters">
+                        <button type="button"
+                                class="filter-pill @(IsMyCardsFilterActive ? "active" : "")"
+                                aria-pressed="@IsMyCardsFilterActive"
+                                disabled="@string.IsNullOrWhiteSpace(_currentUserId)"
+                                @onclick="ToggleMyCardsFilter">My cards</button>
+                        <button type="button"
+                                class="filter-pill @(_filters.DueDate == DueDateFilter.Overdue ? "active" : "")"
+                                aria-pressed="@(_filters.DueDate == DueDateFilter.Overdue)"
+                                @onclick="ToggleOverdueFilter">Overdue</button>
+                        <button type="button"
+                                class="filter-pill @(IsHighPriorityFilterActive ? "active" : "")"
+                                aria-pressed="@IsHighPriorityFilterActive"
+                                @onclick="ToggleHighPriorityFilter">High priority</button>
+                        <button type="button"
+                                class="filter-pill @(IsCriticalFilterActive ? "active" : "")"
+                                aria-pressed="@IsCriticalFilterActive"
+                                @onclick="ToggleCriticalFilter">Critical</button>
+                        <button type="button"
+                                class="filter-pill @(_filters.IncludeUnassigned ? "active" : "")"
+                                aria-pressed="@_filters.IncludeUnassigned"
+                                @onclick="ToggleUnassignedFilter">Unassigned</button>
+                        <button type="button"
+                                class="filter-pill @(_filters.UpdatedWithinDays == RecentlyUpdatedDays ? "active" : "")"
+                                aria-pressed="@(_filters.UpdatedWithinDays == RecentlyUpdatedDays)"
+                                @onclick="ToggleRecentlyUpdatedFilter">Recently updated</button>
+                    </div>
+                    <button type="button"
+                            class="filter-panel-toggle @(_filtersAdvancedOpen ? "active" : "")"
+                            aria-expanded="@_filtersAdvancedOpen"
+                            @onclick="ToggleAdvancedFilters">Filters</button>
+                    <span class="filter-count">Showing @_filterResult.MatchingCards of @_filterResult.TotalCards cards</span>
+                </div>
+
+                @if (ActiveFilterChips.Count > 0)
+                {
+                    <div class="active-filter-chips" aria-label="Active filters">
+                        @foreach (var chip in ActiveFilterChips)
+                        {
+                            <button type="button"
+                                    class="active-filter-chip"
+                                    title="Remove @chip.Label"
+                                    @onclick="chip.Remove">
+                                <span>@chip.Label</span>
+                                <span aria-hidden="true">x</span>
+                            </button>
+                        }
+                        <button type="button" class="filter-clear-btn" @onclick="ClearAllFilters">Clear all filters</button>
+                    </div>
+                }
+
+                @if (_filtersAdvancedOpen)
+                {
+                    <div class="board-filter-panel">
+                        <div class="filter-saved-row">
+                            <select class="filter-control"
+                                    value="@_selectedSavedFilterName"
+                                    aria-label="Saved filter views"
+                                    @onchange="OnSavedViewSelected">
+                                <option value="">Saved views</option>
+                                @foreach (var view in _savedFilterViews.OrderBy(v => v.Name))
+                                {
+                                    <option value="@view.Name">@view.Name</option>
+                                }
+                            </select>
+                            <input class="filter-control filter-control--name"
+                                   placeholder="View name"
+                                   maxlength="40"
+                                   @bind="_savedFilterName"
+                                   @bind:event="oninput" />
+                            <button type="button" class="filter-secondary-btn" disabled="@(!CanSaveFilterView)" @onclick="SaveCurrentFilterView">Save view</button>
+                            <button type="button" class="filter-secondary-btn" disabled="@string.IsNullOrWhiteSpace(_selectedSavedFilterName)" @onclick="DeleteSelectedFilterView">Delete</button>
+                        </div>
+
+                        <div class="filter-grid">
+                            <div class="filter-group">
+                                <label class="filter-group-label">Priority</label>
+                                <div class="filter-inline">
+                                    <select class="filter-control" value="@(_filters.Priority?.ToString() ?? "")" @onchange="OnPriorityChanged">
+                                        <option value="">Any priority</option>
+                                        <option value="@CardPriority.None">No priority</option>
+                                        @foreach (var priority in BoardFilterEngine.OrderedPriorities)
+                                        {
+                                            <option value="@priority">@priority</option>
+                                        }
+                                    </select>
+                                    <select class="filter-control"
+                                            value="@_filters.PriorityOperator"
+                                            disabled="@(!_filters.Priority.HasValue || _filters.Priority == CardPriority.None)"
+                                            @onchange="OnPriorityOperatorChanged">
+                                        @foreach (var op in Enum.GetValues<PriorityFilterOperator>())
+                                        {
+                                            <option value="@op">@PriorityOperatorLabel(op)</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-group-label">Due date</label>
+                                <select class="filter-control" value="@_filters.DueDate" @onchange="OnDueDateChanged">
+                                    @foreach (var due in Enum.GetValues<DueDateFilter>())
+                                    {
+                                        <option value="@due">@DueDateLabel(due)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-group-label">Assignees</label>
+                                <div class="filter-check-list">
+                                    <label class="filter-check">
+                                        <input type="checkbox"
+                                               checked="@_filters.AssignedToCurrentUser"
+                                               disabled="@string.IsNullOrWhiteSpace(_currentUserId)"
+                                               @onchange="e => ToggleAssignedToMe(IsChecked(e))" />
+                                        <span>Assigned to me</span>
+                                    </label>
+                                    <label class="filter-check">
+                                        <input type="checkbox"
+                                               checked="@_filters.IncludeUnassigned"
+                                               @onchange="e => ToggleUnassigned(IsChecked(e))" />
+                                        <span>Unassigned</span>
+                                    </label>
+                                    @foreach (var member in _membersByUserId.Values.OrderBy(m => m.DisplayName))
+                                    {
+                                        <label class="filter-check" @key="member.UserId">
+                                            <input type="checkbox"
+                                                   checked="@_filters.AssigneeIds.Contains(member.UserId)"
+                                                   @onchange="e => ToggleAssignee(member.UserId, IsChecked(e))" />
+                                            <span>@member.DisplayName</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="filter-group">
+                                <div class="filter-group-heading">
+                                    <label class="filter-group-label">Labels</label>
+                                    <div class="filter-segmented" role="group" aria-label="Label match mode">
+                                        <button type="button"
+                                                class="@SegmentButtonClass(_filters.LabelMatchMode == LabelMatchMode.Any)"
+                                                aria-pressed="@(_filters.LabelMatchMode == LabelMatchMode.Any)"
+                                                @onclick="() => SetLabelMatchMode(LabelMatchMode.Any)">Any</button>
+                                        <button type="button"
+                                                class="@SegmentButtonClass(_filters.LabelMatchMode == LabelMatchMode.All)"
+                                                aria-pressed="@(_filters.LabelMatchMode == LabelMatchMode.All)"
+                                                @onclick="() => SetLabelMatchMode(LabelMatchMode.All)">All</button>
+                                    </div>
+                                </div>
+                                <div class="filter-check-list">
+                                    @if (_workspaceLabels.Count == 0)
+                                    {
+                                        <span class="filter-muted">No labels yet.</span>
+                                    }
+                                    @foreach (var label in _workspaceLabels.OrderBy(l => l.Name))
+                                    {
+                                        <label class="filter-check" @key="label.Id">
+                                            <input type="checkbox"
+                                                   checked="@_filters.LabelIds.Contains(label.Id)"
+                                                   @onchange="e => ToggleFilterLabel(label.Id, IsChecked(e))" />
+                                            <span class="filter-label-swatch" style="@SwatchStyle(label.Color)"></span>
+                                            <span>@label.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-group-label">Columns</label>
+                                <div class="filter-check-list">
+                                    @foreach (var column in _board.Columns.OrderBy(c => c.Position))
+                                    {
+                                        <label class="filter-check" @key="column.Id">
+                                            <input type="checkbox"
+                                                   checked="@_filters.ColumnIds.Contains(column.Id)"
+                                                   @onchange="e => ToggleColumnFilter(column.Id, IsChecked(e))" />
+                                            <span>@column.Title</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
 
-        <div class="board-columns">
+        @if (_filterResult.HasActiveFilters && _filterResult.MatchingCards == 0)
+        {
+            <div class="board-filter-empty">
+                <span>No cards match these filters.</span>
+                <button type="button" class="filter-clear-btn" @onclick="ClearAllFilters">Clear filters</button>
+            </div>
+        }
+
+        <div class="board-columns" data-dnd-disabled="@(_filterResult.HasActiveFilters ? "true" : "false")">
             <CascadingValue Value="_membersByUserId" Name="BoardMembers">
-            @foreach (var col in _board.Columns.OrderBy(c => c.Position))
+            @foreach (var col in _filterResult.Columns.OrderBy(c => c.Position))
             {
                 <KanbanColumn @key="col.Id"
                     Column="col"
-                    Filter="_filter"
+                    FiltersActive="_filterResult.HasActiveFilters"
+                    DragDisabled="_filterResult.HasActiveFilters"
                     OnAddCard="@(title => AddCard(col.Id, title))"
                     OnDeleteColumn="@(() => DeleteColumn(col.Id))"
                     OnCardClick="@(card => OpenCard(card))"
@@ -618,17 +816,29 @@ else
     [Inject] AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
     [Inject] NavigationManager Nav { get; set; } = null!;
     [Inject] IJSRuntime JS { get; set; } = null!;
+    [Inject] ILocalStorageService LocalStorage { get; set; } = null!;
 
     private DotNetObjectReference<Board>? _jsRef;
     private readonly Dictionary<Guid, int> _pendingColumnPositions = [];
     private readonly Dictionary<Guid, (Guid ColumnId, int Position)> _pendingCardPositions = [];
     private CancellationTokenSource? _saveCts;
+    private CancellationTokenSource? _searchDebounceCts;
 
     private BoardDetailDto? _board;
     private string? _workspaceName;
-    private CardPriority? _filter;
+    private Guid? _loadedBoardId;
     private bool _loading = true;
     private bool _saving;
+    private const int RecentlyUpdatedDays = 7;
+    private BoardFilterState _filters = new();
+    private BoardFilterResult _filterResult = BoardFilterResult.Empty;
+    private bool _filtersAdvancedOpen;
+    private ElementReference _filterSearchInput;
+    private bool _syncSearchInputValue;
+    private string _searchDraft = string.Empty;
+    private List<SavedBoardFilterView> _savedFilterViews = [];
+    private string _savedFilterName = string.Empty;
+    private string _selectedSavedFilterName = string.Empty;
 
     private bool _addingColumn;
     private string _newColTitle = "";
@@ -713,9 +923,427 @@ else
     private static string FormatActivityTime(DateTime createdAt) =>
         createdAt.ToLocalTime().ToString("MMM d, HH:mm");
 
+    private bool IsMyCardsFilterActive => _filters.AssignedToCurrentUser;
+
+    private bool IsHighPriorityFilterActive =>
+        _filters.Priority == CardPriority.High
+        && _filters.PriorityOperator == PriorityFilterOperator.AtOrAbove;
+
+    private bool IsCriticalFilterActive =>
+        _filters.Priority == CardPriority.Critical
+        && _filters.PriorityOperator == PriorityFilterOperator.Exact;
+
+    private bool CanSaveFilterView =>
+        _filters.HasActiveFilters && !string.IsNullOrWhiteSpace(_savedFilterName);
+
+    private string SavedFiltersKey => $"planora:board:{Id}:filter-views";
+
+    private IReadOnlyList<BoardFilterChip> ActiveFilterChips => BuildActiveFilterChips();
+
+    private sealed record BoardFilterChip(string Label, Func<Task> Remove);
+
+    private IReadOnlyList<BoardFilterChip> BuildActiveFilterChips()
+    {
+        var chips = new List<BoardFilterChip>();
+
+        if (!string.IsNullOrWhiteSpace(_filters.SearchText))
+            chips.Add(new($"Search: {ShortChipText(_filters.SearchText.Trim())}", () => SetSearchText(string.Empty, syncInput: true)));
+
+        if (_filters.Priority.HasValue)
+            chips.Add(new($"Priority: {BoardFilterEngine.DescribePriority(_filters.Priority.Value, _filters.PriorityOperator)}", ClearPriorityFilter));
+
+        if (_filters.AssignedToCurrentUser)
+            chips.Add(new("Assigned to me", () => ToggleAssignedToMe(false)));
+
+        if (_filters.IncludeUnassigned)
+            chips.Add(new("Unassigned", () => ToggleUnassigned(false)));
+
+        foreach (var assigneeId in _filters.AssigneeIds.OrderBy(AssigneeName))
+        {
+            var id = assigneeId;
+            chips.Add(new($"Assignee: {AssigneeName(id)}", () => ToggleAssignee(id, false)));
+        }
+
+        foreach (var labelId in _filters.LabelIds.OrderBy(LabelName))
+        {
+            var id = labelId;
+            var mode = _filters.LabelMatchMode == LabelMatchMode.All ? "All label" : "Any label";
+            chips.Add(new($"{mode}: {LabelName(id)}", () => ToggleFilterLabel(id, false)));
+        }
+
+        if (_filters.DueDate != DueDateFilter.Any)
+            chips.Add(new($"Due: {DueDateLabel(_filters.DueDate)}", ClearDueDateFilter));
+
+        foreach (var columnId in _filters.ColumnIds.OrderBy(ColumnName))
+        {
+            var id = columnId;
+            chips.Add(new($"Column: {ColumnName(id)}", () => ToggleColumnFilter(id, false)));
+        }
+
+        if (_filters.UpdatedWithinDays is { } days)
+            chips.Add(new($"Updated in {days}d", ClearRecentlyUpdatedFilter));
+
+        return chips;
+    }
+
+    private async Task ApplyFiltersChanged(bool updateUrl = true, bool keepSelectedView = false)
+    {
+        RefreshFilteredBoard();
+        if (!keepSelectedView)
+            _selectedSavedFilterName = string.Empty;
+        if (updateUrl)
+            UpdateFilterUrl();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshFilteredBoard()
+    {
+        _filterResult = _board is null
+            ? BoardFilterResult.Empty
+            : BoardFilterEngine.Apply(_board, _filters, DateTime.UtcNow, _currentUserId);
+    }
+
+    private void SyncFiltersFromUrl()
+    {
+        var parsed = BoardFilterQueryString.FromQueryString(Nav.ToAbsoluteUri(Nav.Uri).Query);
+        if (BoardFilterQueryString.ToQueryString(_filters) == BoardFilterQueryString.ToQueryString(parsed))
+            return;
+
+        _filters = parsed;
+        _searchDraft = parsed.SearchText;
+        _selectedSavedFilterName = string.Empty;
+        _syncSearchInputValue = true;
+    }
+
+    private void UpdateFilterUrl()
+    {
+        var baseUri = Nav.ToAbsoluteUri(Nav.Uri).GetLeftPart(UriPartial.Path);
+        var query = BoardFilterQueryString.ToQueryString(_filters);
+        var target = string.IsNullOrWhiteSpace(query) ? baseUri : $"{baseUri}?{query}";
+
+        if (!string.Equals(Nav.Uri, target, StringComparison.Ordinal))
+            Nav.NavigateTo(target, replace: true);
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? string.Empty;
+        _searchDraft = value;
+
+        CancelSearchDebounce();
+        _searchDebounceCts = new CancellationTokenSource();
+        _ = ApplySearchAfterDelay(value, _searchDebounceCts.Token);
+    }
+
+    private async Task ApplySearchAfterDelay(string value, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(250, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(async () =>
+        {
+            _filters.SearchText = value;
+            await ApplyFiltersChanged();
+        });
+    }
+
+    private async Task SetSearchText(string value, bool syncInput)
+    {
+        CancelSearchDebounce();
+        _searchDraft = value;
+        _filters.SearchText = value;
+        if (syncInput)
+            _syncSearchInputValue = true;
+        await ApplyFiltersChanged();
+    }
+
+    private void CancelSearchDebounce()
+    {
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts?.Dispose();
+        _searchDebounceCts = null;
+    }
+
+    private async Task ClearAllFilters()
+    {
+        CancelSearchDebounce();
+        _filters = new BoardFilterState();
+        _searchDraft = string.Empty;
+        _syncSearchInputValue = true;
+        await ApplyFiltersChanged();
+    }
+
+    private void ToggleAdvancedFilters() => _filtersAdvancedOpen = !_filtersAdvancedOpen;
+
+    private async Task OnPriorityChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            _filters.Priority = null;
+        }
+        else if (Enum.TryParse<CardPriority>(raw, out var priority))
+        {
+            _filters.Priority = priority;
+            if (priority == CardPriority.None)
+                _filters.PriorityOperator = PriorityFilterOperator.Exact;
+        }
+
+        await ApplyFiltersChanged();
+    }
+
+    private async Task OnPriorityOperatorChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<PriorityFilterOperator>(e.Value?.ToString(), out var op))
+            _filters.PriorityOperator = op;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ClearPriorityFilter()
+    {
+        _filters.Priority = null;
+        _filters.PriorityOperator = PriorityFilterOperator.Exact;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task OnDueDateChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<DueDateFilter>(e.Value?.ToString(), out var due))
+            _filters.DueDate = due;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ClearDueDateFilter()
+    {
+        _filters.DueDate = DueDateFilter.Any;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleMyCardsFilter()
+    {
+        _filters.AssignedToCurrentUser = !_filters.AssignedToCurrentUser;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleOverdueFilter()
+    {
+        _filters.DueDate = _filters.DueDate == DueDateFilter.Overdue
+            ? DueDateFilter.Any
+            : DueDateFilter.Overdue;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleHighPriorityFilter()
+    {
+        if (IsHighPriorityFilterActive)
+        {
+            await ClearPriorityFilter();
+            return;
+        }
+
+        _filters.Priority = CardPriority.High;
+        _filters.PriorityOperator = PriorityFilterOperator.AtOrAbove;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleCriticalFilter()
+    {
+        if (IsCriticalFilterActive)
+        {
+            await ClearPriorityFilter();
+            return;
+        }
+
+        _filters.Priority = CardPriority.Critical;
+        _filters.PriorityOperator = PriorityFilterOperator.Exact;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleUnassignedFilter()
+    {
+        _filters.IncludeUnassigned = !_filters.IncludeUnassigned;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleRecentlyUpdatedFilter()
+    {
+        _filters.UpdatedWithinDays = _filters.UpdatedWithinDays == RecentlyUpdatedDays ? null : RecentlyUpdatedDays;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ClearRecentlyUpdatedFilter()
+    {
+        _filters.UpdatedWithinDays = null;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleAssignedToMe(bool isChecked)
+    {
+        _filters.AssignedToCurrentUser = isChecked;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleUnassigned(bool isChecked)
+    {
+        _filters.IncludeUnassigned = isChecked;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleAssignee(string userId, bool isChecked)
+    {
+        if (isChecked) _filters.AssigneeIds.Add(userId);
+        else _filters.AssigneeIds.Remove(userId);
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleFilterLabel(Guid labelId, bool isChecked)
+    {
+        if (isChecked) _filters.LabelIds.Add(labelId);
+        else _filters.LabelIds.Remove(labelId);
+        await ApplyFiltersChanged();
+    }
+
+    private async Task SetLabelMatchMode(LabelMatchMode mode)
+    {
+        _filters.LabelMatchMode = mode;
+        await ApplyFiltersChanged();
+    }
+
+    private async Task ToggleColumnFilter(Guid columnId, bool isChecked)
+    {
+        if (isChecked) _filters.ColumnIds.Add(columnId);
+        else _filters.ColumnIds.Remove(columnId);
+        await ApplyFiltersChanged();
+    }
+
+    private async Task LoadSavedFilterViewsAsync()
+    {
+        try
+        {
+            _savedFilterViews = await LocalStorage.GetItemAsync<List<SavedBoardFilterView>>(SavedFiltersKey) ?? [];
+        }
+        catch
+        {
+            _savedFilterViews = [];
+        }
+    }
+
+    private async Task SaveCurrentFilterView()
+    {
+        var name = _savedFilterName.Trim();
+        if (string.IsNullOrWhiteSpace(name) || !_filters.HasActiveFilters) return;
+
+        var now = DateTime.UtcNow;
+        var existing = _savedFilterViews.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            _savedFilterViews.Add(new SavedBoardFilterView
+            {
+                Name = name,
+                Filters = _filters.Clone(),
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+        else
+        {
+            existing.Name = name;
+            existing.Filters = _filters.Clone();
+            existing.UpdatedAt = now;
+        }
+
+        _selectedSavedFilterName = name;
+        await PersistSavedFilterViewsAsync();
+    }
+
+    private async Task OnSavedViewSelected(ChangeEventArgs e)
+    {
+        _selectedSavedFilterName = e.Value?.ToString() ?? string.Empty;
+        var view = _savedFilterViews.FirstOrDefault(v => string.Equals(v.Name, _selectedSavedFilterName, StringComparison.OrdinalIgnoreCase));
+        if (view is null) return;
+
+        _filters = view.Filters.Clone();
+        _savedFilterName = view.Name;
+        _searchDraft = _filters.SearchText;
+        _syncSearchInputValue = true;
+        await ApplyFiltersChanged(keepSelectedView: true);
+    }
+
+    private async Task DeleteSelectedFilterView()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedSavedFilterName)) return;
+        _savedFilterViews.RemoveAll(v => string.Equals(v.Name, _selectedSavedFilterName, StringComparison.OrdinalIgnoreCase));
+        _selectedSavedFilterName = string.Empty;
+        await PersistSavedFilterViewsAsync();
+    }
+
+    private async Task PersistSavedFilterViewsAsync() =>
+        await LocalStorage.SetItemAsync(SavedFiltersKey, _savedFilterViews.OrderBy(v => v.Name).ToList());
+
+    private string AssigneeName(string userId) =>
+        _membersByUserId.TryGetValue(userId, out var member) && !string.IsNullOrWhiteSpace(member.DisplayName)
+            ? member.DisplayName
+            : $"Unknown member {ShortId(userId)}";
+
+    private string LabelName(Guid labelId) =>
+        _workspaceLabels.FirstOrDefault(l => l.Id == labelId)?.Name
+            ?? $"Deleted label {ShortId(labelId)}";
+
+    private string ColumnName(Guid columnId) =>
+        _board?.Columns.FirstOrDefault(c => c.Id == columnId)?.Title
+            ?? $"Deleted column {ShortId(columnId)}";
+
+    private static bool IsChecked(ChangeEventArgs e) => e.Value is bool value && value;
+
+    private static string SegmentButtonClass(bool active) =>
+        active ? "filter-segment active" : "filter-segment";
+
+    private static string PriorityOperatorLabel(PriorityFilterOperator op) =>
+        op switch
+        {
+            PriorityFilterOperator.AtOrAbove => "At or above",
+            PriorityFilterOperator.AtOrBelow => "At or below",
+            _ => "Exact"
+        };
+
+    private static string DueDateLabel(DueDateFilter due) =>
+        due switch
+        {
+            DueDateFilter.Overdue => "Overdue",
+            DueDateFilter.DueToday => "Due today",
+            DueDateFilter.DueThisWeek => "Due this week",
+            DueDateFilter.NextSevenDays => "Next 7 days",
+            DueDateFilter.NoDueDate => "No due date",
+            _ => "Any due date"
+        };
+
+    private static string ShortChipText(string text) =>
+        text.Length <= 32 ? text : $"{text[..29]}...";
+
+    private static string ShortId(Guid id) => id.ToString("N")[..8];
+
+    private static string ShortId(string id) =>
+        id.Length <= 8 ? id : id[..8];
+
     protected override async Task OnParametersSetAsync()
     {
+        SyncFiltersFromUrl();
+
+        if (_loadedBoardId == Id)
+        {
+            RefreshFilteredBoard();
+            _loading = false;
+            return;
+        }
+
         _loading = true;
+        _loadedBoardId = Id;
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? authState.User.FindFirst("sub")?.Value;
@@ -728,7 +1356,9 @@ else
             var members = await WorkspaceService.GetMembersAsync(_board.WorkspaceId) ?? [];
             _membersByUserId = members.ToDictionary(m => m.UserId);
             _workspaceLabels = await LabelService.GetWorkspaceLabelsAsync(_board.WorkspaceId) ?? [];
+            await LoadSavedFilterViewsAsync();
         }
+        RefreshFilteredBoard();
         _loading = false;
     }
 
@@ -772,6 +1402,12 @@ else
             await JS.InvokeVoidAsync("planoraInitCardLists", _jsRef);
         }
 
+        if (_syncSearchInputValue)
+        {
+            _syncSearchInputValue = false;
+            await JS.InvokeVoidAsync("planoraSetInputValue", _filterSearchInput, _searchDraft);
+        }
+
         // Initialize the cropper once the modal (and its <img>) has actually rendered.
         if (_cropperNeedsInit && _cropSrc is not null)
         {
@@ -799,6 +1435,7 @@ else
             _pendingColumnPositions[columns[i].Id] = i;
         }
 
+        RefreshFilteredBoard();
         StateHasChanged();
         ScheduleSave();
         return Task.CompletedTask;
@@ -843,6 +1480,7 @@ else
             }
         }
 
+        RefreshFilteredBoard();
         StateHasChanged();
         ScheduleSave();
         return Task.CompletedTask;
@@ -873,7 +1511,10 @@ else
 
             var updated = await ColumnService.UpdateAsync(colId, new() { RowVersion = column.RowVersion, Position = pos });
             if (updated is not null)
+            {
                 ApplyColumnUpdate(column, updated);
+                RefreshFilteredBoard();
+            }
         }
 
         foreach (var (cardId, (colId, pos)) in cardSnap)
@@ -883,7 +1524,10 @@ else
 
             var updated = await CardService.UpdateAsync(cardId, new() { RowVersion = card.RowVersion, ColumnId = colId, Position = pos });
             if (updated is not null)
+            {
                 ApplyCardUpdate(card, updated);
+                RefreshFilteredBoard();
+            }
         }
     }
 
@@ -892,6 +1536,8 @@ else
         _jsRef?.Dispose();
         _saveCts?.Cancel();
         _saveCts?.Dispose();
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts?.Dispose();
         if (_cropModule is not null) _ = _cropModule.DisposeAsync();
     }
 
@@ -1005,6 +1651,7 @@ else
         var updated = await ColumnService.UpdateAsync(columnId, new() { RowVersion = column.RowVersion, Title = title });
         if (updated is null) return;
         ApplyColumnUpdate(column, updated);
+        RefreshFilteredBoard();
     }
 
     private async Task ChangeColumnColor(Guid columnId, string? color)
@@ -1018,6 +1665,7 @@ else
         var updated = await ColumnService.UpdateAsync(columnId, request);
         if (updated is null) return;
         ApplyColumnUpdate(column, updated);
+        RefreshFilteredBoard();
     }
 
     private async Task AddColumn()
@@ -1025,7 +1673,10 @@ else
         if (string.IsNullOrWhiteSpace(_newColTitle)) return;
         var created = await ColumnService.CreateAsync(new() { Title = _newColTitle, BoardId = Id });
         if (created is not null)
+        {
             _board!.Columns.Add(created);
+            RefreshFilteredBoard();
+        }
         CancelColumn();
     }
 
@@ -1042,12 +1693,15 @@ else
         var created = await CardService.CreateAsync(new() { Title = title, ColumnId = columnId });
         if (created is null) return;
         _board!.Columns.FirstOrDefault(c => c.Id == columnId)?.Cards.Add(created);
+        RefreshFilteredBoard();
     }
 
     private async Task DeleteColumn(Guid columnId)
     {
         if (!await ColumnService.DeleteAsync(columnId)) return;
         _board!.Columns.RemoveAll(c => c.Id == columnId);
+        _filters.ColumnIds.Remove(columnId);
+        RefreshFilteredBoard();
     }
 
     private async Task OpenCard(CardDto card)
@@ -1203,8 +1857,9 @@ else
             foreach (var col in _board!.Columns)
             {
                 var idx = col.Cards.FindIndex(c => c.Id == _editCard.Id);
-                if (idx >= 0) { col.Cards[idx] = updated; break; }
+                if (idx >= 0) { ApplyCardUpdate(col.Cards[idx], updated); break; }
             }
+            RefreshFilteredBoard();
         }
         _saving = false;
         CloseCard();
@@ -1262,6 +1917,7 @@ else
         {
             foreach (var col in _board!.Columns)
                 col.Cards.RemoveAll(c => c.Id == _editCard.Id);
+            RefreshFilteredBoard();
         }
         _saving = false;
         CloseCard();
@@ -1276,6 +1932,7 @@ else
         {
             _editCard.IsArchived = false;
             _archivedCards.RemoveAll(c => c.Id == _editCard.Id);
+            RefreshFilteredBoard();
         }
         _saving = false;
         CloseCard();
@@ -1310,6 +1967,7 @@ else
         _archivedCards.Remove(card);
         var col = _board!.Columns.FirstOrDefault(c => c.Id == updated.ColumnId);
         col?.Cards.Add(updated);
+        RefreshFilteredBoard();
     }
 
     // Soft delete: moves an archived card to the board's Trash (recoverable).
@@ -1349,6 +2007,7 @@ else
         {
             var col = _board!.Columns.FirstOrDefault(c => c.Id == updated.ColumnId);
             col?.Cards.Add(updated);
+            RefreshFilteredBoard();
         }
     }
 
@@ -1364,6 +2023,7 @@ else
         if (_editCard is null) return;
         if (!await CardService.DeleteAsync(_editCard.Id)) return;
         foreach (var col in _board!.Columns) col.Cards.RemoveAll(c => c.Id == _editCard.Id);
+        RefreshFilteredBoard();
         CloseCard();
     }
 
@@ -1400,6 +2060,7 @@ else
             {
                 _editCardLabelIds.Remove(label.Id);
                 _editCard.Labels.RemoveAll(l => l.Id == label.Id);
+                RefreshFilteredBoard();
             }
         }
         else
@@ -1408,6 +2069,7 @@ else
             {
                 _editCardLabelIds.Add(label.Id);
                 _editCard.Labels.Add(label);
+                RefreshFilteredBoard();
             }
         }
     }
@@ -1422,6 +2084,7 @@ else
             _workspaceLabels.Add(created);
             _newLabelName = "";
             _newLabelColor = PlanoraColors.DefaultLabelColor;
+            RefreshFilteredBoard();
         }
     }
 
@@ -1431,6 +2094,8 @@ else
         _workspaceLabels.Remove(label);
         _editCardLabelIds.Remove(label.Id);
         _editCard?.Labels.RemoveAll(l => l.Id == label.Id);
+        _filters.LabelIds.Remove(label.Id);
+        RefreshFilteredBoard();
     }
 
     // ── Checklists ──────────────────────────────────────────────────────────

@@ -17,10 +17,14 @@
 
     <div class="kanban-cards-list"
          data-column-id="@Column.Id"
-         data-dnd-disabled="@(Filter is not null ? "true" : "false")">
+         data-dnd-disabled="@(DragDisabled ? "true" : "false")">
         @foreach (var card in VisibleCards)
         {
             <KanbanCard @key="card.Id" Card="card" OnClick="() => OnCardClick.InvokeAsync(card)" />
+        }
+        @if (FiltersActive && VisibleCards.Count == 0)
+        {
+            <div class="kanban-column-empty">No matching cards</div>
         }
     </div>
 
@@ -118,7 +122,8 @@
 
 @code {
     [Parameter, EditorRequired] public ColumnDto Column { get; set; } = null!;
-    [Parameter] public CardPriority? Filter { get; set; }
+    [Parameter] public bool FiltersActive { get; set; }
+    [Parameter] public bool DragDisabled { get; set; }
     [Parameter] public EventCallback<string> OnAddCard { get; set; }
     [Parameter] public EventCallback OnDeleteColumn { get; set; }
     [Parameter] public EventCallback<CardDto> OnCardClick { get; set; }
@@ -139,9 +144,7 @@
     // which talks directly to Board.razor via JS interop — this component no longer needs any
     // drag event wiring of its own.
     private List<CardDto> VisibleCards =>
-        Filter is null
-            ? Column.Cards.OrderBy(c => c.Position).ToList()
-            : Column.Cards.Where(c => c.Priority == Filter).OrderBy(c => c.Position).ToList();
+        Column.Cards.OrderBy(c => c.Position).ToList();
 
     private async Task Submit()
     {
