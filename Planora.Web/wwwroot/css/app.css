@@ -1776,6 +1776,13 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
         top: auto; bottom: calc(var(--bottom-nav-h) + 8px + env(safe-area-inset-bottom));
         max-height: calc(var(--viewport-h) - var(--bottom-nav-h) - 24px);
     }
+    /* .side-nav's backdrop-filter makes it the containing block for these fixed children, so
+       the backdrop's inset:0 collapses to the 54px bar. Anchor it to the bar's bottom and
+       stretch a full viewport up so an outside tap anywhere dismisses the sheet. */
+    .side-nav .nav-dropdown-backdrop {
+        top: auto; bottom: 0; left: 0; right: 0;
+        height: var(--viewport-h);
+    }
 
     .ws-layout {
         grid-template-columns: 1fr;
