@@ -171,6 +171,9 @@ it respects notification preferences and logs/swallow provider failures so user 
 
 ## AI collaboration rules
 
+- **Full toolbox is authorized for this project.** Use any tool, hook, skill, agent, plugin, library,
+  or Chrome DevTools as needed — no need to ask permission to reach for them. (Standing approval covers
+  *using* tools; still ask before outward-facing/irreversible actions: pushing, deploying, deleting.)
 - Inspect the relevant files before editing; prefer minimal diffs; don't refactor unrelated areas.
 - Don't replace a working pattern with new architecture unless asked. When uncertain, state the
   uncertainty and choose the smallest safe change.

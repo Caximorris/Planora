@@ -395,9 +395,9 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 > wired (export blob download, delete confirm panel). Tests: `Planora.Tests/Account/`
 > (`AccountExportTests`, `AccountDeletionTests`). (c) **Update-path validators** (§2.3 / enabler #6) —
 > seven `Update*RequestValidator`s (partial-update aware) wired into Boards/Cards/Columns/Workspaces/
-> Labels/Checklists; `Planora.Tests/Validation/UpdateValidationTests.cs`. No new migrations. NOTE:
-> (b) and (c) were implemented in an environment without `dotnet`, so they are **pending local
-> `dotnet build` + `dotnet test` verification** (and CI) — confirm green before treating as done.
+> Labels/Checklists; `Planora.Tests/Validation/UpdateValidationTests.cs`. No new migrations.
+> **Verified locally (2026-07-09):** `dotnet build Planora.slnx` clean (0 warnings) and
+> `dotnet test Planora.slnx` green (112 tests) — (b) and (c) confirmed, caveat cleared.
 
 1. ✅ **Add health checks.** Goal: `/health/live` + `/health/ready` (DB). Files: `Program.cs`,
    `Infrastructure/HealthChecks/DatabaseHealthCheck.cs`. Risk: L. Deps: none.
@@ -569,7 +569,7 @@ states, and bUnit coverage for Profile/WorkspaceSettings/Board modal flows.
 **Done now:** health checks, tests/CI, account recovery, email verification, Resend transactional
 delivery, workspace settings/member lifecycle, activity feed, attachments, soft-delete/trash,
 background cleanup, optimistic concurrency, frontend primitives, 2FA, **data export + account
-deletion, and update-path validators** (last two pending local build/test verification).
+deletion, and update-path validators** (verified locally 2026-07-09: build clean, 112 tests green).
 
 **Waste of time for this project right now:** Stripe billing, Gantt/sprints, real-time SignalR
 presence, AI assistant, plugin marketplace, native mobile, and enterprise SSO. Each is a large,
