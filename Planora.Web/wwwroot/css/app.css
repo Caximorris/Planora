@@ -108,9 +108,19 @@
     --radius-xl:   20px;
     --radius-full: 9999px;
 
-    /* Motion */
-    --transition:      0.18s ease;
-    --transition-slow: 0.32s ease;
+    /* Motion — single source of truth for every animation/transition in the app.
+       dur-1 = micro-interactions (hover, press) · dur-2 = small UI (dropdowns, fades,
+       exits) · dur-3 = entrances (modals, page content). Easing: --ease-out for things
+       entering/appearing (fast start, soft landing), --ease-in-out for state changes
+       that stay on screen (hover, color, theme). */
+    --dur-1: 120ms;
+    --dur-2: 180ms;
+    --dur-3: 240ms;
+    --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+    --transition:      var(--dur-2) var(--ease-in-out);
+    --transition-slow: 320ms var(--ease-in-out);
 
     /* Layout — --nav-h is "reserved chrome height": 0 with the desktop left rail,
        and the bottom-nav height on mobile (see responsive section). Every
@@ -151,7 +161,7 @@
     --glass-blur:             blur(18px) saturate(140%);
     --shadow-glass:           0 8px 30px rgba(15,23,42,0.10);
     --color-primary-hover:    var(--wine-900);
-    --transition-fast:        0.12s ease;
+    --transition-fast:        var(--dur-1) var(--ease-in-out);
     --transition-normal:      var(--transition);
 
     /* z-index layers */
@@ -190,6 +200,53 @@ html[data-theme="dark"] {
     --color-border-strong:    rgba(148,163,184,0.28);
     --nav-glass:              rgba(15,17,32,0.80);
     --shadow-glass:           0 12px 40px rgba(0,0,0,0.45);
+}
+
+/* ── Motion system ───────────────────────────────────────────────
+   One shared keyframe vocabulary; components reference these instead of
+   defining their own. transform/opacity only — never layout properties.
+   Entrance animations go on elements Blazor INSERTS (page roots behind
+   @if(_loading), modals, dropdowns, empty states) and never on keyed
+   list items that SortableJS or DnD reorders — Blazor moves those via
+   re-insertion, which would replay the animation on every reorder.    */
+@keyframes fade-in {
+    from { opacity: 0; }
+}
+@keyframes rise-in {           /* content entering from rest, slightly below */
+    from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes drop-in {           /* dropdowns/panels unfolding downward */
+    from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+@keyframes sheet-in {          /* mobile bottom sheets rising above the tab bar */
+    from { opacity: 0; transform: translateY(14px); }
+}
+@keyframes pop-in {            /* modal dialogs */
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+}
+@keyframes toast-out {
+    to { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+@keyframes skeleton-sweep {
+    to { transform: translateX(100%); }
+}
+
+/* Skeleton placeholders — shimmer is a translated overlay (compositor-only),
+   not an animated background-position. */
+.skeleton {
+    position: relative; overflow: hidden;
+    background: var(--color-surface-2);
+    border-radius: var(--radius-sm);
+}
+.skeleton::after {
+    content: ''; position: absolute; inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    animation: skeleton-sweep 1.4s var(--ease-in-out) infinite;
+}
+html[data-theme="dark"] .skeleton { background: var(--color-surface-2); }
+html[data-theme="dark"] .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
 }
 
 /* ── Reset & base ────────────────────────────────────────────── */
@@ -237,6 +294,16 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
 .app-shell { display: flex; min-height: var(--viewport-h); }
 
 .main-content { flex: 1; min-width: 0; min-height: var(--viewport-h); }
+
+/* Page-content entrance — these roots are only (re)inserted on navigation or when a
+   page's @if(_loading) flips to content, so this plays exactly once per page load. */
+.profile-root, .ws-content, .calendar-root, .notif-page-root,
+.auth-card, .invite-card {
+    animation: rise-in var(--dur-3) var(--ease-out);
+}
+/* Board canvas: fade only — a transform here would become a temporary containing
+   block for the fixed/sticky chrome (board header, modals) during the entrance. */
+.board-root { animation: fade-in var(--dur-3) var(--ease-out); }
 
 .side-nav {
     flex-shrink: 0;
@@ -301,6 +368,11 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
 .side-nav .nav-notif-wrap, .side-nav .nav-user-wrap { position: relative; margin: 0; }
 .side-nav .nav-notif-dropdown { left: calc(100% + 10px); right: auto; top: auto; bottom: 8px; }
 .side-nav .nav-dropdown       { left: calc(100% + 10px); right: auto; top: auto; bottom: 0; }
+/* Rail fly-outs are bottom-anchored, so they rise into place (drop-in would read
+   as falling from the wrong edge). Mobile overrides this again with sheet-in. */
+.side-nav .nav-notif-dropdown, .side-nav .nav-dropdown {
+    animation-name: rise-in;
+}
 .side-nav .nav-notif-badge    { top: 3px; right: 11px; }
 
 /* ── Auth pages ─────────────────────────────────────────────── */
@@ -344,7 +416,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     min-height: calc(var(--viewport-h) - var(--nav-h));
     padding: 3rem 2.5rem; max-width: 1020px; margin: 0 auto;
 }
-.home-welcome { margin-bottom: 2.5rem; }
+.home-welcome { margin-bottom: 2.5rem; animation: rise-in var(--dur-3) var(--ease-out); }
 .home-welcome h1 { font-size: 1.7rem; font-weight: 800; color: var(--color-text); margin-bottom: 0.4rem; letter-spacing: -0.5px; }
 .home-welcome p { color: var(--color-text-mid); font-size: 15px; }
 .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1rem; }
@@ -364,6 +436,15 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     border-color: var(--teal-400); text-decoration: none; color: var(--color-text);
 }
 .home-card--disabled { opacity: 0.5; cursor: not-allowed; }
+/* Stagger is safe here: the home grid is static markup, never reordered.
+   `backwards` holds the from-state during the delay so late cards don't flash in. */
+.home-grid .home-card { animation: rise-in var(--dur-3) var(--ease-out) backwards; }
+.home-grid .home-card:nth-child(2) { animation-delay: 40ms; }
+.home-grid .home-card:nth-child(3) { animation-delay: 80ms; }
+.home-grid .home-card:nth-child(4) { animation-delay: 120ms; }
+.home-grid .home-card:nth-child(5) { animation-delay: 160ms; }
+.home-grid .home-card:nth-child(n+6) { animation-delay: 200ms; }
+
 .home-card-icon { font-size: 1.75rem; margin-bottom: 0.2rem; }
 .home-card-title { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.2px; }
 .home-card-desc { font-size: 12px; color: var(--color-text-mid); line-height: 1.4; }
@@ -1156,7 +1237,12 @@ body.planora-modal-open { overflow: hidden; }
     z-index: calc(var(--z-modal) - 10);
     -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
     background: rgba(23,24,43,0.35) !important;
+    animation: fade-in var(--dur-2) var(--ease-out);
 }
+/* Entrance only: Blazor removes the dialog node the instant it closes, so there is
+   no exit phase to animate. Animating .modal-content (not .modal) keeps the fixed
+   overlay itself transform-free. */
+.modal.d-block .modal-content { animation: pop-in var(--dur-3) var(--ease-out); }
 .modal-dialog { max-height: calc(var(--viewport-h) - 1rem); }
 .modal-content {
     background: var(--color-surface); color: var(--color-text);
@@ -1434,11 +1520,7 @@ body.planora-modal-open { overflow: hidden; }
     box-shadow: 0 16px 40px rgba(0,0,0,0.40), 0 4px 12px rgba(0,0,0,0.25);
     padding: 6px;
     z-index: var(--z-dropdown);
-    animation: dropdownIn 0.14s ease;
-}
-@keyframes dropdownIn {
-    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0)   scale(1); }
+    animation: drop-in var(--dur-2) var(--ease-out);
 }
 
 .nav-dropdown-backdrop {
@@ -1661,6 +1743,7 @@ html[data-theme="dark"] .checklist-block { background: var(--cream-500); border-
     display: flex; flex-direction: column;
     overflow: hidden;
     z-index: var(--z-dropdown);
+    animation: drop-in var(--dur-2) var(--ease-out);
 }
 
 .nav-notif-header {
@@ -1775,6 +1858,7 @@ html[data-theme="dark"] .nav-notif-dropdown { background: var(--nav-glass); }
         left: 8px; right: 8px; width: auto; max-width: 420px; margin: 0 auto;
         top: auto; bottom: calc(var(--bottom-nav-h) + 8px + env(safe-area-inset-bottom));
         max-height: calc(var(--viewport-h) - var(--bottom-nav-h) - 24px);
+        animation-name: sheet-in;
     }
     /* .side-nav's backdrop-filter makes it the containing block for these fixed children, so
        the backdrop's inset:0 collapses to the 54px bar. Anchor it to the bar's bottom and
