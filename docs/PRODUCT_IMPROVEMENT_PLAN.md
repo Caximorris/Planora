@@ -40,9 +40,10 @@ This is a strong base. The gaps below are about **depth and trust**, not fixing 
 
 Ranked by how much they undermine the "serious SaaS" impression today:
 
-1. **Durable upload storage is still not implemented.** `IFileStorage` exists and local disk works,
-   but Azure Blob is still a throw in `Program.cs`. Board covers and card attachments are still at
-   risk on Container Apps restart/deploy/scale-out.
+1. ~~**Durable upload storage.**~~ ✅ **Done (2026-07-09)** — `BlobFileStorage` implements
+   `IFileStorage` on Azure Blob, selected by `Storage:Provider=AzureBlob`; dual-read means legacy
+   `/uploads/...` covers still render and blob deletes ignore them. **Remaining:** provision the Azure
+   Storage account + set `Storage__*` secrets before prod cutover (code is ready; infra is not).
 2. ~~**Data export and account deletion.**~~ ✅ **Done (2026-07-08)** — `GET /api/users/export`
    (full profile + member workspaces JSON) and `POST /api/users/delete-account` (password re-auth;
    solo-owned workspaces removed with the account, shared-owned block with 409) in `AccountService`.
@@ -417,11 +418,17 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
    `Infrastructure/Storage/LocalFileStorage.cs`, `BoardsController`, `Program.cs`,
    `Planora.Tests/Boards/CoverImageTests.cs`. Risk: M. Validated: `dotnet build` clean; cover
    upload/validation/scope covered by tests (20 green). Deps: none.
-8. **Azure Blob impl + config.** Goal: Blob-backed `IFileStorage` selected by config. Files:
-   `Infrastructure/Storage/BlobFileStorage.cs`, `Program.cs`, appsettings keys. Risk: M. Validate:
-   upload → object in blob; restart container → image persists. Deps: 7.
-9. **Migrate cover-image URLs / dual-read.** Goal: serve old disk URLs + new blob URLs. Files:
-   `BoardsController`, mapper. Risk: M. Validate: existing boards still show covers. Deps: 8.
+8. ✅ **Azure Blob impl + config.** Goal: Blob-backed `IFileStorage` selected by config. Files:
+   `Infrastructure/Storage/BlobFileStorage.cs`, `Program.cs` (switch arm + `Configure<StorageOptions>`),
+   `Planora.Api.csproj` (`Azure.Storage.Blobs` 12.29.1), `Planora.Tests/Storage/BlobFileStorageTests.cs`.
+   Risk: M. Validated: `dotnet build Planora.slnx` clean; 21 unit assertions cover blob-name/URL/
+   content-type logic; full suite green (133). Anonymous blob-read (parity with static-file serving).
+   **Not yet done:** Azure resource provisioning + `Storage__*` secrets (infra, outside repo). Deps: 7.
+9. ✅ **Dual-read (no migration needed).** Goal: serve old disk URLs + new blob URLs. Implemented for
+   free: frontend `new Uri(base, url)` passes absolute Blob URLs through and resolves legacy
+   `/uploads/...` against the API; `BlobFileStorage.DeleteAsync` no-ops on legacy paths. Files:
+   none new (verified against `BoardService`/`CardService` resolvers + `TryGetBlobName` tests).
+   Risk: L. Validated: unit tests + design note in `docs/azure-blob-storage.md`. Deps: 8.
 10. ✅ **`IEmailSender` + console dev sink.** Goal: interface + no-op/console impl registered. Files:
     `Application/Interfaces/IEmailSender.cs`, `Infrastructure/Email/ConsoleEmailSender.cs`, `Program.cs`.
     Risk: L. Validated: `dotnet build` clean; dev sink logs the email (dev-only, replace in prod). Deps: none.
@@ -559,25 +566,29 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 
 ## 10. Final recommendation (blunt)
 
-**Build next: Azure Blob storage, then the remaining small hardening gaps (upload rate limits, and
-the filtered drag-reorder bug fix).** The storage bug is the remaining production-risk item:
-uploaded covers and attachments can still disappear on Container Apps restart/deploy/scale-out.
+**Build next: the remaining small hardening gaps — upload rate limits and the filtered drag-reorder
+bug fix.** Azure Blob storage is now implemented (`BlobFileStorage`, 2026-07-09); the only residual
+storage work is provisioning the Azure account + secrets, which is infra, not code. Once the app is
+pointed at a real Storage account, uploaded covers/attachments survive Container Apps
+restart/deploy/scale-out.
 
 **Then add product polish that compounds the existing base:** saved filters/recent items, deeper empty
 states, and bUnit coverage for Profile/WorkspaceSettings/Board modal flows.
 
 **Done now:** health checks, tests/CI, account recovery, email verification, Resend transactional
 delivery, workspace settings/member lifecycle, activity feed, attachments, soft-delete/trash,
-background cleanup, optimistic concurrency, frontend primitives, 2FA, **data export + account
-deletion, and update-path validators** (verified locally 2026-07-09: build clean, 112 tests green).
+background cleanup, optimistic concurrency, frontend primitives, 2FA, data export + account
+deletion, update-path validators, and **Azure Blob storage** (`BlobFileStorage` + dual-read; verified
+locally 2026-07-09: build clean, 133 tests green — pending only Azure resource provisioning).
 
 **Waste of time for this project right now:** Stripe billing, Gantt/sprints, real-time SignalR
 presence, AI assistant, plugin marketplace, native mobile, and enterprise SSO. Each is a large,
 fragile investment that — half-finished — makes the project look *less* serious, not more. If you want
 one "wow" system, pick **activity feed + attachments**, not real-time or billing.
 
-**What most improves the portfolio piece now:** eliminating ephemeral upload storage. The security
-model is already proven by tests; the next credibility jump is making uploaded user files durable.
+**What most improves the portfolio piece now:** the durable-storage code gap is closed
+(`BlobFileStorage`); the last mile is provisioning the Azure Storage account so covers/attachments
+are actually durable in prod. The security model is already proven by tests.
 
 ---
 

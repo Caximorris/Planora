@@ -156,9 +156,11 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
-// File storage: provider selected by config. Local disk today; production sets Storage:Provider
-// to "AzureBlob". The Blob backend is not implemented yet (see docs/azure-blob-storage.md) — this
-// seam is the only wiring that remains, so implementing it is a single new class + this switch arm.
+// File storage: provider selected by config. Local disk in dev; production sets Storage:Provider
+// to "AzureBlob" (durable — the container filesystem is ephemeral). Existing on-disk cover URLs keep
+// resolving after cutover because the frontend and Blob backend both accept absolute Blob URLs and
+// legacy "/uploads/..." paths (dual-read; see docs/azure-blob-storage.md).
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 var storageOptions = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
     ?? new StorageOptions();
 switch (storageOptions.Provider.Trim().ToLowerInvariant())
@@ -167,10 +169,8 @@ switch (storageOptions.Provider.Trim().ToLowerInvariant())
         builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
         break;
     case "azureblob":
-        // TODO(Task 8-9): register BlobFileStorage(storageOptions.Blob) here once implemented.
-        throw new NotSupportedException(
-            "Storage:Provider 'AzureBlob' is not implemented yet. See docs/azure-blob-storage.md. " +
-            "Set Storage:Provider to 'Local' until BlobFileStorage lands.");
+        builder.Services.AddSingleton<IFileStorage, BlobFileStorage>();
+        break;
     default:
         throw new NotSupportedException(
             $"Unknown Storage:Provider '{storageOptions.Provider}'. Use 'Local' or 'AzureBlob'.");

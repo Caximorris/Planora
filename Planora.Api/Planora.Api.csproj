@@ -26,6 +26,8 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <!-- Object mapping (source-generated, zero-overhead) -->
     <PackageReference Include="Riok.Mapperly" Version="4.3.1" />
+    <!-- Durable upload storage (production): Azure Blob backend for IFileStorage -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
   </ItemGroup>
 
   <ItemGroup>

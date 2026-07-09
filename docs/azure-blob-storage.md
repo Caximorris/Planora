@@ -1,8 +1,12 @@
 # Azure Blob storage — implementation handoff (Tasks 8–9)
 
-> **Status:** groundwork prepared, backend **not implemented**. The deploy-target decision is
-> settled: **Azure Blob** (matches the Azure Container Apps hosting). This doc is the exact
-> remaining work so implementing it is a single new class plus config — no re-architecture.
+> **Status (2026-07-09): implemented.** `BlobFileStorage`
+> (`Planora.Api/Infrastructure/Storage/BlobFileStorage.cs`) is the durable backend, selected by
+> `Storage:Provider = AzureBlob` in `Program.cs`. Dual-read is automatic (see Task 9 below). Verified
+> by `dotnet build Planora.slnx` (clean) and `Planora.Tests/Storage/BlobFileStorageTests.cs`
+> (133 tests green). **Still required before prod:** provision the Azure resources and set the
+> `Storage__*` secrets/env (see "Azure resources to provision"). The sections below are retained as
+> the design record.
 
 ## Why this exists
 
@@ -49,19 +53,19 @@ can be swapped without touching the board/card upload controllers. Only the dura
    need either Azurite (local emulator) in CI or a thin fake `IFileStorage`; do not hit real Azure
    from tests.
 
-### Task 9 — dual-read / migration
+### Task 9 — dual-read / migration ✅
 
-Existing rows hold on-disk URLs like `/uploads/boards/{guid}.png`. After the cutover those files no
-longer exist in the container. Choose one, and cover it with a test:
+**Chosen: dual-read, and it needs no extra code.** Both frontend resolvers
+(`BoardService.ResolveImageUrl`, `CardService.ResolveAttachmentUrl`) build the final URL with
+`new Uri(_http.BaseAddress!, storedUrl)`, whose behavior is: a **relative** legacy path
+(`/uploads/boards/{guid}.png`) resolves against the API origin and is served by `UseStaticFiles`;
+an **absolute** Blob URL is returned unchanged. So legacy disk covers and new Blob covers both render
+with zero frontend changes. On the backend, `BlobFileStorage.DeleteAsync` no-ops for legacy
+`/uploads/...` values (they aren't blobs it owns — verified by `TryGetBlobName` tests), so deleting a
+board that predates the cutover never misfires against the container.
 
-- **Dual-read (recommended):** when resolving a cover URL, if it is a legacy `/uploads/...` path
-  serve it via the existing static-files path; new uploads return Blob URLs. Both must render.
-- **One-time copy:** a small migration/console step that uploads existing disk files to Blob and
-  rewrites `Board.CoverImageUrl`. Simpler long-term, but only viable if the current disk still holds
-  the originals at migration time (on ephemeral storage it may not).
-
-**Acceptance:** a cover uploaded in prod survives a container restart; existing boards still show
-their covers; dev still works on disk (`Provider: "Local"`).
+**Acceptance:** a cover uploaded in prod survives a container restart (durable blob); existing boards
+still show their covers (dual-read above); dev still works on disk (`Provider: "Local"`, the default).
 
 ## Azure resources to provision (outside the repo)
 
