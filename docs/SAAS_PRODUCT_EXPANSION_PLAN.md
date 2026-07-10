@@ -35,7 +35,7 @@ Planora is no longer just a portfolio Kanban board. The repo already has a serio
 
 ### Current gaps that matter for SaaS expansion
 
-- No subscription, plan, usage metering, billing, or feature-gate model.
+- No payment, subscription, billing, or feature-gate model. This is intentional for now: charging is not part of the current roadmap.
 - No workspace dashboard or workspace-level operating view.
 - Search covers boards and cards only; it does not search docs, comments, attachments, files, people, templates, or command actions.
 - Saved board filter views are client/localStorage-backed in `Planora.Web/Pages/Board.razor`, not workspace-shared or server-backed.
@@ -49,10 +49,10 @@ Planora is no longer just a portfolio Kanban board. The repo already has a serio
 
 ### Assumptions
 
-- The goal is a paid SaaS direction and a stronger portfolio story, not immediate revenue collection.
+- The goal is a product-quality SaaS direction and a stronger portfolio story. Charging for usage is undecided and explicitly out of scope for now.
 - The target buyer is a small team that wants fewer tools, not an enterprise procurement department.
 - The app should stay opinionated and lightweight. "Workspace OS" means one focused home for team work, not an infinite object database.
-- Stripe should wait until at least several premium-worthy features and plan limits exist behind an internal plan model.
+- Stripe, payment methods, checkout, subscription creation, billing portals, and billing webhooks are not-to-do for now. Revisit only after the product is substantially better and there is an explicit decision to charge.
 
 ## 1. Product positioning
 
@@ -133,31 +133,42 @@ The focused alternative is better:
 - No full block editor, no public websites, no formulas/relations/rollups, no arbitrary databases.
 - Treat docs as supporting project work, not as the product's center of gravity.
 
-## 2. Subscription-ready product model
+## 2. Charge-optional product model
 
-### Billing recommendation
+### Payment and subscription recommendation
 
-Do not implement Stripe immediately. Planora has a credible base, but the next paid-value work should create premium surfaces first: workspace dashboard, shared saved views, docs/wiki, advanced search, templates, custom fields, workspace files, mentions/watchers, and automations.
+Do not implement Stripe, payment methods, subscription creation, checkout, billing portals, billing webhooks, invoices, plan purchase flows, or any live monetization surface now.
 
-Build in this order:
+The roadmap should improve the product first: workspace dashboard, shared saved views, docs/wiki, advanced search, templates, custom fields, workspace files, mentions/watchers, and automations. After those improvements exist, decide whether charging for usage is even desirable.
 
-1. Internal plan model and feature-limit service.
-2. Usage metering for storage, members, boards, documents, automations, and activity retention.
-3. UI copy and gates that work in dev/demo mode without payment.
-4. Stripe only after premium features are real and gated cleanly.
+Allowed now:
 
-### Proposed plans
+1. Track usage when it protects reliability or storage safety.
+2. Keep product packaging ideas as planning notes only.
+3. Preserve local/demo mode without any charge friction.
+4. Build features because they improve Planora, not because they need a paywall.
 
-| Plan | Intended user | Workspaces | Members | Boards | Storage | Attachments/files | Activity retention | Automations | Templates | Search | Views/custom fields | Support |
+Not-to-do now:
+
+1. Stripe or any payment provider.
+2. Subscription entities and subscription lifecycle.
+3. Checkout, customer portal, invoices, webhooks, proration, dunning, tax, coupons, trials, or paid seats.
+4. Hard paywalls or upgrade prompts inside the portfolio/demo experience.
+
+### Hypothetical packaging only, not an implementation plan
+
+| Hypothetical package | Intended user | Workspaces | Members | Boards | Storage | Attachments/files | Activity retention | Automations | Templates | Search | Views/custom fields | Support |
 | - | - | - | - | - | - | - | - | - | - | - | - | - |
 | Free | trial, portfolio demo, solo/light teams | 1 active workspace | 3 members | 5 active boards | 250 MB | card attachments only, 10 MB/file | 14 days | none except built-in reminders | sample templates only | cards/boards | local saved filters only | docs/FAQ |
 | Pro | solo operators, freelancers | 3 workspaces | 5 members/workspace | 25 boards/workspace | 5 GB/user | card attachments + workspace files | 90 days | simple due/assignment reminders | personal/team templates | cards/boards/comments/docs | server saved views, list view | email support |
 | Team | small teams | unlimited workspaces within account/team | 25 members/workspace | unlimited practical limit | 20 GB/workspace + 5 GB/member | workspace files, previews, quotas | 1 year | rule templates with monthly run limit | workspace templates | advanced ranked search | list/table/calendar, custom fields | priority support |
-| Business | larger paid teams later | unlimited | 100 members/workspace | unlimited practical limit | 100 GB/workspace + add-ons | larger files, export bundles | 3 years or configurable | higher limits + history | shared template library | advanced filters/saved searches | advanced permissions, audit/export | priority/SLA-ish support |
+| Business | larger teams if charging is chosen later | unlimited | 100 members/workspace | unlimited practical limit | 100 GB/workspace + add-ons | larger files, export bundles | 3 years or configurable | higher limits + history | shared template library | advanced filters/saved searches | advanced permissions, audit/export | priority/SLA-ish support |
+
+These tiers are only a thinking tool for future packaging. Do not create plan purchase flows, subscriptions, billing records, or payment integration for them now.
 
 ### What should be free
 
-- instant demo with no paid friction
+- instant demo with no charge friction
 - register/login/recovery/security basics
 - one workspace with enough boards/cards to evaluate the product
 - core Kanban: columns, cards, labels, checklists, comments, due dates, assignees, priority, colors
@@ -166,7 +177,7 @@ Build in this order:
 - basic calendar
 - profile, email verification, password reset, 2FA, session revoke
 
-### What should be paid
+### What could become premium only if charging is chosen later
 
 - shared server-backed saved views
 - docs/wiki beyond a tiny free allowance
@@ -200,9 +211,9 @@ Build in this order:
 - security/account features
 - enough seeded demo data to show the product without setup
 
-### Premium features that actually justify payment
+### Features that would justify charging only if that decision is made later
 
-The strongest paid bundle is:
+The strongest future commercial bundle would be:
 
 - shared views + multiple views
 - docs/wiki + templates
@@ -242,9 +253,9 @@ Billing for "more boards" alone is weak. Billing for "a real team workspace laye
 | Advanced filters | P1 hardening | Current board filters are good; persist/share them and support search URLs. |
 | Sorting | P1 | Needed for list/table views and saved views. |
 | Grouping | P2 | Useful after list/table; keep first grouping to status/assignee/priority. |
-| Custom fields | P1/P2 | Strong paid value; start with text/number/date/select/checkbox. |
+| Custom fields | P1/P2 | Strong product value; start with text/number/date/select/checkbox. |
 | Card templates | P1 | Repeated work is a major small-team need. |
-| Board templates | P1 | High activation and subscription value. |
+| Board templates | P1 | High activation and future commercial value. |
 | Recurring cards | P2 | Valuable, but needs background jobs and careful duplicate prevention. |
 | Dependencies/blockers | P2 | Useful but can quickly become Jira-ish; start with one-to-many blockers only. |
 | Start date + due date | P2 | Needed for timeline later; not urgent before list/table. |
@@ -254,7 +265,7 @@ Billing for "more boards" alone is weak. Billing for "a real team workspace laye
 | Board analytics | P3 | Keep to simple counts/cycle indicators; avoid dashboards. |
 | Timeline view | P3 | Delay until start date, custom fields, and list/table are stable. |
 | List view | P1 | Best next view; low conceptual overhead. |
-| Table view | P1 | High paid value with custom fields. |
+| Table view | P1 | High product value with custom fields. |
 | Calendar improvements | P2 | Add filters, drag due dates later, scoped workspace/board switching. |
 
 ### C. Lightweight docs/wiki system
@@ -271,10 +282,10 @@ Planora should add docs, but only as lightweight project documentation.
 | Document folders/pages | P1 | Simple tree or flat sections. Avoid deeply nested databases. |
 | Mentioning cards inside docs | P2 | Valuable once search/indexing exists. |
 | Linking docs to boards/cards | P1 | The key Notion-inspired behavior for Planora. |
-| Templates for meeting notes/project briefs/specs | P1 | High activation and paid value. |
+| Templates for meeting notes/project briefs/specs | P1 | High activation and product value. |
 | Search docs through Ctrl+K | P1 | Docs are only useful if findable. |
 | Permissions inherited from workspace | P1 | Simpler and safer than per-page permissions. |
-| Version history | P2/P3 | Start with updated timestamps; add snapshot history later for paid plans. |
+| Version history | P2/P3 | Start with updated timestamps; add snapshot history later if docs become central. |
 | Full Notion block editor | Avoid | Maintenance trap and not necessary for Planora's positioning. |
 
 ### D. Files and attachments
@@ -292,7 +303,7 @@ Planora should add docs, but only as lightweight project documentation.
 | Image thumbnails | P2 | Useful, but can wait until workspace files exist. |
 | Cover image cleanup | Done | Existing cleanup and delete paths handle covers. |
 | Attachment deletion cleanup | Done | Existing cleanup handles card attachment files. |
-| Storage quotas per plan | P1 | Required before billing. |
+| Storage usage visibility | P1 | Useful for reliability and future decision-making; not a billing prerequisite now. |
 | File previews | P2 | Start with images/PDF metadata; avoid full document rendering. |
 | Export/download | P1/P2 | Account export exists; add workspace export bundle later. |
 
@@ -303,11 +314,11 @@ Planora should add docs, but only as lightweight project documentation.
 | Activity feed | P1 expansion | ActivityEvent exists; expand verbs and workspace feed. |
 | Audit log | P2/Business | Same backbone as activity but retention/access differs. |
 | SignalR real-time board updates | P3 | Valuable later, not before docs/search/templates. |
-| Comment editing/deletion | P2 | Delete exists; edit is useful but not a paid driver. |
+| Comment editing/deletion | P2 | Delete exists; edit is useful but not a major commercial driver. |
 | @mentions | P1 | High collaboration value and notification value. |
 | Email notifications | Done/P1 expansion | Provider exists; add mention/watch/digest preferences. |
 | Notification preferences | Done/P1 expansion | Current email toggles are coarse; add channel/topic granularity. |
-| Card watchers | P1 | Better targeted notifications and subscription value. |
+| Card watchers | P1 | Better targeted notifications and strong collaboration value. |
 | Presence indicators | P3 | Nice, but not central. |
 | Currently editing indicators | P3 | Requires real-time/conflict semantics; delay. |
 | Reactions | Avoid/P3 | Low product value for current scope. |
@@ -324,7 +335,7 @@ Planora should add docs, but only as lightweight project documentation.
 | Recurring tasks | P2 | High small-team value but needs safe background job logic. |
 | Rule builder | P3 | Delay until fixed rule templates prove demand. |
 | Automation history | P2 | Needed once rules exist; important for debugging. |
-| Automation limits by plan | P2 | Required for paid automation. |
+| Automation usage limits | P2 | Useful to protect the system from runaway jobs; not tied to pricing now. |
 | Zapier clone | Avoid | Not the product. |
 
 ### G. Search and command center
@@ -369,7 +380,7 @@ Planora should add docs, but only as lightweight project documentation.
 | Account deletion | Done | Present with workspace ownership guard. |
 | Export my data | Done | Present. |
 | Data retention | P1 | Document and enforce retention for trash/activity/files. |
-| Terms/privacy pages | P1 | Required before paid launch. |
+| Terms/privacy pages | P1 | Required before inviting real users, even without charging. |
 | Workspace data export | P1 | Strong admin/trust feature; account export is not enough for team owners. |
 | Permission test suite | P1 ongoing | Existing suite is strong; expand for every new domain. |
 | Audit trail | P1/P2 | ActivityEvent exists; formalize retention and admin visibility. |
@@ -382,7 +393,7 @@ Planora should add docs, but only as lightweight project documentation.
 | - | - | - |
 | Health checks | Done | `/health/live` and `/health/ready` exist. |
 | Structured logging | Done | JSON logging in production exists. |
-| Error tracking | P1 | Add a provider or structured sink before paid launch. |
+| Error tracking | P1 | Add a provider or structured sink before broader real-user use. |
 | Metrics | P1 | Request rate, errors, latency, DB, background jobs, storage usage. |
 | Admin dashboard | P3 | Internal-only later; not user-facing value now. |
 | Background jobs | Done/P1 expansion | Cleanup exists; reminders/recurrence/export jobs can reuse pattern. |
@@ -391,8 +402,8 @@ Planora should add docs, but only as lightweight project documentation.
 | Expired refresh tokens cleanup | Done | Present. |
 | Orphan files cleanup | P1 | Add storage reconciliation once workspace files exist. |
 | CI pipeline | Done | Present. |
-| Staging environment | P1 | Needed before paid launch. |
-| Migration strategy | P1 | Auto-migrate on boot is convenient; paid SaaS needs explicit rollout policy. |
+| Staging environment | P1 | Needed before broader real-user use. |
+| Migration strategy | P1 | Auto-migrate on boot is convenient; serious SaaS operation needs explicit rollout policy. |
 | Monitoring | P1 | Required before real users. |
 | Rollback strategy | P1 | Need deployment rollback notes and migration caution. |
 
@@ -430,22 +441,22 @@ Planora should be Notion-inspired only where it helps project work.
 | Recent pages | Build now | Recent boards/docs/cards stored per user. |
 | Workspace search | Build now | Search cards, boards, docs, comments, files. |
 | Comments on docs | Build later | Useful after docs MVP; do not add comments to every object. |
-| Page history | Build later | Snapshot history for paid plans after docs are used. |
+| Page history | Build later | Snapshot history after docs are used enough to justify the maintenance cost. |
 | Public share links | Avoid | Not aligned with team workspace focus; high permission/security risk. |
 | Full block editor | Avoid | Too expensive and not central to Planora. |
 | Formulas/rollups/relations | Avoid | Turns Planora into a weak database platform. |
 
 ## 5. Feature prioritization
 
-Scale: user value, subscription value, portfolio value, complexity, maintenance, and risk are Low/Medium/High. Priority meanings:
+Scale: user value, future commercial value, portfolio value, complexity, maintenance, and risk are Low/Medium/High. Priority meanings:
 
-- P0: necessary for trust, security, data safety, or subscription readiness.
+- P0: necessary for trust, security, data safety, or serious SaaS readiness.
 - P1: strong product value and should be built soon.
 - P2: useful differentiator, but not essential.
 - P3: future polish.
 - Avoid: not worth building now.
 
-| Feature | User value | Subscription value | Portfolio value | Complexity | Backend impact | Frontend impact | DB impact | Security impact | Testing impact | Maintenance | Risk | Priority |
+| Feature | User value | Future commercial value | Portfolio value | Complexity | Backend impact | Frontend impact | DB impact | Security impact | Testing impact | Maintenance | Risk | Priority |
 | - | - | - | - | - | - | - | - | - | - | - | - | - |
 | Central workspace authorization service | Medium | Medium | High | Medium | High | Low | None | High | High | Low | Medium | P0 |
 | Internal plan/feature limit service | Medium | High | High | Medium | High | Medium | Medium | High | High | Medium | Medium | P0 |
@@ -477,14 +488,14 @@ Scale: user value, subscription value, portfolio value, complexity, maintenance,
 | Enterprise SSO/SAML | Low now | Medium later | Medium | XL | High | Medium | Medium | High | High | High | High | Avoid |
 | Native mobile app | Low now | Low | Medium | XL | Medium | XL | None | Medium | High | Very high | High | Avoid |
 
-## 6. Top 15 subscription-worthy features
+## 6. Top 15 charge-worthy product features
 
-Exactly 15 features selected for subscription readiness.
+Exactly 15 features selected because they make Planora valuable enough that charging could be reconsidered later. They are not a mandate to add payments or subscriptions.
 
 ### 1. Workspace dashboard
 
 - Description: A workspace home showing assigned cards, due soon, recent boards/docs/files, activity, and onboarding checklist.
-- Why users pay: It turns scattered boards into a team operating center.
+- Why users value it: It turns scattered boards into a team operating center.
 - MVP scope: one dashboard page, summary endpoint, recent activity, due cards, recent boards, setup checklist.
 - What not to build yet: customizable widgets, analytics suite, admin dashboard.
 - Backend work: `WorkspacesController`, new query DTOs in `Planora.Shared/DTOs/Workspace`, maybe dashboard service.
@@ -500,7 +511,7 @@ Exactly 15 features selected for subscription readiness.
 ### 2. Server-backed saved board views
 
 - Description: Persist filter/sort/group view definitions per board or workspace, shareable with teammates.
-- Why users pay: Teams reuse the same operating views instead of each user rebuilding filters.
+- Why users value it: Teams reuse the same operating views instead of each user rebuilding filters.
 - MVP scope: save/update/delete views for a board; filters from `Planora.Shared/Filtering`; owner vs workspace-shared flag.
 - What not to build yet: permissions per view, cross-board dashboards.
 - Backend work: new `SavedView` entity/controller/service; reuse `BoardFilterState`.
@@ -516,7 +527,7 @@ Exactly 15 features selected for subscription readiness.
 ### 3. List and table views over cards
 
 - Description: Alternate board data views with columns for title, status, assignee, priority, due date, labels, and later custom fields.
-- Why users pay: Many team workflows need scan/sort/edit, not just Kanban.
+- Why users value it: Many team workflows need scan/sort/edit, not just Kanban.
 - MVP scope: list view first, then table view; read from existing board detail data; update card fields inline where safe.
 - What not to build yet: spreadsheet formulas, frozen columns, bulk import editing.
 - Backend work: optional card query endpoint for efficient view data; existing card update endpoints can serve MVP edits.
@@ -532,7 +543,7 @@ Exactly 15 features selected for subscription readiness.
 ### 4. Custom fields MVP
 
 - Description: Per-board fields of type text, number, date, select, checkbox attached to cards.
-- Why users pay: Custom fields make Planora fit real team workflows without becoming Jira.
+- Why users value it: Custom fields make Planora fit real team workflows without becoming Jira.
 - MVP scope: board-level field definitions; card values; render/edit in card modal and table view.
 - What not to build yet: formulas, relations, rollups, cross-board fields, field-level permissions.
 - Backend work: `CustomField`, `CustomFieldOption`, `CardCustomFieldValue`; validators and endpoints.
@@ -548,7 +559,7 @@ Exactly 15 features selected for subscription readiness.
 ### 5. Lightweight docs/wiki
 
 - Description: Workspace and board documents with simple rich text/Markdown content.
-- Why users pay: Teams can keep project briefs, meeting notes, specs, and decisions next to tasks.
+- Why users value it: Teams can keep project briefs, meeting notes, specs, and decisions next to tasks.
 - MVP scope: docs list, create/edit/archive/delete, title/body, board link, workspace inherited permissions.
 - What not to build yet: block editor, public pages, nested databases, real-time collaborative editing.
 - Backend work: `Document` entity, docs controller, validators, mapping, search indexing hooks.
@@ -564,7 +575,7 @@ Exactly 15 features selected for subscription readiness.
 ### 6. Board, card, and doc templates
 
 - Description: Reusable templates for common boards, cards with checklists/labels, and docs.
-- Why users pay: Templates save setup time and make repeatable work feel professional.
+- Why users value it: Templates save setup time and make repeatable work feel professional.
 - MVP scope: built-in templates plus workspace templates; create board/card/doc from template.
 - What not to build yet: template marketplace, versioned template releases, public sharing.
 - Backend work: `Template` entity or seeded JSON plus endpoints; copy logic.
@@ -580,7 +591,7 @@ Exactly 15 features selected for subscription readiness.
 ### 7. Workspace files library
 
 - Description: A workspace-level file area using existing `IFileStorage`, with metadata and secure downloads.
-- Why users pay: Files become findable project context rather than hidden card-only attachments.
+- Why users value it: Files become findable project context rather than hidden card-only attachments.
 - MVP scope: upload/list/delete workspace files, file metadata, search by filename, storage quota accounting.
 - What not to build yet: folder sync, office editing, versioning, full preview renderer.
 - Backend work: `WorkspaceFile` or generalized `Attachment`; endpoints; quota checks.
@@ -596,7 +607,7 @@ Exactly 15 features selected for subscription readiness.
 ### 8. Advanced search across cards, docs, comments, and files
 
 - Description: Expand `/api/search` and `SearchModal.razor` to include richer result types and ranking.
-- Why users pay: The workspace becomes useful only when everything is findable.
+- Why users value it: The workspace becomes useful only when everything is findable.
 - MVP scope: search cards/boards/docs/comments/filenames; filters by workspace and result type.
 - What not to build yet: external search service, semantic search, AI answers.
 - Backend work: expand `SearchResultType`, `SearchController`, indexes; maybe query service.
@@ -612,7 +623,7 @@ Exactly 15 features selected for subscription readiness.
 ### 9. Favorites and recent items
 
 - Description: Per-user favorites and recent boards/docs/cards surfaced in nav, dashboard, and command center.
-- Why users pay: It improves daily navigation and makes large workspaces manageable.
+- Why users value it: It improves daily navigation and makes large workspaces manageable.
 - MVP scope: favorite board/doc; recent item tracking on open; nav/dashboard display.
 - What not to build yet: folders, pins per team, shared navigation policies.
 - Backend work: `FavoriteItem`, `RecentItem` entities/endpoints.
@@ -628,7 +639,7 @@ Exactly 15 features selected for subscription readiness.
 ### 10. Command center actions
 
 - Description: Expand Ctrl+K from search into actions: create card/board/doc, jump to dashboard, invite member, open settings.
-- Why users pay: Power-user efficiency and premium polish.
+- Why users value it: Power-user efficiency and premium polish.
 - MVP scope: action result rows with keyboard execution and context-aware quick create.
 - What not to build yet: command scripting, plugin commands, natural language commands.
 - Backend work: minimal; use existing endpoints. Add quick create docs once docs exist.
@@ -644,7 +655,7 @@ Exactly 15 features selected for subscription readiness.
 ### 11. @mentions and card watchers
 
 - Description: Mention users in comments/docs and let users watch cards for updates.
-- Why users pay: Targeted collaboration beats noisy notifications.
+- Why users value it: Targeted collaboration beats noisy notifications.
 - MVP scope: comment mentions, card watchers, notification/email preferences.
 - What not to build yet: mentions for every object, threaded comments, reactions.
 - Backend work: mention parsing service, `CardWatcher`, notification events, email templates.
@@ -660,7 +671,7 @@ Exactly 15 features selected for subscription readiness.
 ### 12. Workspace activity and audit trail expansion
 
 - Description: Expand `ActivityEvent` into a workspace-wide history with event taxonomy and retention.
-- Why users pay: Teams trust tools that explain what changed and who did it.
+- Why users value it: Teams trust tools that explain what changed and who did it.
 - MVP scope: events for member/invite/board/card/doc/file/template actions; workspace feed page.
 - What not to build yet: immutable compliance export, SIEM integration, admin policy UI.
 - Backend work: activity service wrapper, event names/constants, endpoints, retention config.
@@ -676,9 +687,9 @@ Exactly 15 features selected for subscription readiness.
 ### 13. Due date reminders
 
 - Description: Background job creates notifications/email reminders before due dates.
-- Why users pay: Reduces missed deadlines without complex automation.
+- Why users value it: Reduces missed deadlines without complex automation.
 - MVP scope: user preference for due reminders; daily/hourly job; one reminder per card/window.
-- What not to build yet: arbitrary reminder schedules, calendars subscriptions.
+- What not to build yet: arbitrary reminder schedules or calendar feed subscriptions.
 - Backend work: reminder runner, notification creation, preference extension.
 - Frontend work: preference controls and reminder copy.
 - Database work: store reminder sent state or event idempotency key.
@@ -692,7 +703,7 @@ Exactly 15 features selected for subscription readiness.
 ### 14. Recurring cards
 
 - Description: Cards that regenerate on a schedule for weekly/monthly operations.
-- Why users pay: Real teams have repeated chores, reviews, invoices, reports, and maintenance.
+- Why users would value it: Real teams have repeated chores, reviews, invoices, reports, and maintenance.
 - MVP scope: simple recurrence pattern on card template, next run, background creation.
 - What not to build yet: complex RRULE UI, timezone-heavy calendar recurrence, exceptions/skip logic.
 - Backend work: recurrence entity or fields, background runner, duplicate prevention.
@@ -708,7 +719,7 @@ Exactly 15 features selected for subscription readiness.
 ### 15. Simple automation rules
 
 - Description: Template-based rules such as "when card moves to Done, notify watchers" or "when priority becomes Critical, notify admins".
-- Why users pay: Saves manual coordination without a complex workflow platform.
+- Why users value it: Saves manual coordination without a complex workflow platform.
 - MVP scope: fixed trigger/action templates, enable/disable, run history, plan limits.
 - What not to build yet: arbitrary rule builder, webhooks, multi-step branching, third-party integrations.
 - Backend work: `AutomationRule`, runner hooks in card update/move paths, history table.
@@ -727,7 +738,7 @@ Exactly 15 features selected for subscription readiness.
 | - | - | - |
 | Full Notion block editor | Avoid | Editor complexity will swallow the product. Use simple rich text/Markdown. |
 | AI assistant | Avoid | No clear core problem yet; likely to read as gimmick and add cost/privacy concerns. |
-| Full billing before premium value exists | Avoid | Stripe without paid-worthy features is fake SaaS theater. Build internal limits first. |
+| Payment, billing, checkout, or subscription creation | Avoid now | Charging is not part of the current roadmap. Build the product first and decide at the end whether charging makes sense. |
 | Complex Gantt | Delay/Avoid | High UI/data cost; weak fit for small-team lightweight positioning. |
 | Full Jira sprint system | Avoid | Would reposition Planora into a bad Jira competitor. |
 | Plugin marketplace | Avoid | Architecture burden with no user base. |
@@ -742,31 +753,29 @@ Exactly 15 features selected for subscription readiness.
 
 ## 8. Suggested phased roadmap
 
-### Phase 1 - Make it subscription-safe
+### Phase 1 - Make it product-safe
 
-- Goal: Prepare the existing product for plan limits, data ownership, observability, and continued expansion.
+- Goal: Prepare the existing product for data ownership, observability, usage visibility, and continued expansion.
 - Features:
   - central workspace authorization/role guard service
-  - internal plan and feature-limit model without Stripe
-  - storage usage metering
+  - usage visibility for storage and object counts
   - workspace export
   - change email flow
   - terms/privacy/data-retention pages
   - health probe wiring validation in Azure Container Apps
   - error tracking/metrics baseline
   - permission test matrix for existing and new domains
-- Rationale: The repo already has most account lifecycle/security foundations. The next safety work is expansion safety: every new docs/files/views/automation feature must reuse the same authorization, quota, and audit patterns.
+- Rationale: The repo already has most account lifecycle/security foundations. The next safety work is expansion safety: every new docs/files/views/automation feature must reuse the same authorization, usage, and audit patterns.
 - Implementation order:
   1. Workspace authorization helper.
-  2. Plan/limits interfaces with dev/demo bypass.
-  3. Usage counters for storage and object counts.
-  4. Workspace export.
-  5. Change email.
-  6. Legal/retention pages.
-  7. Observability/probe hardening.
-  8. Tests.
+  2. Usage counters for storage and object counts.
+  3. Workspace export.
+  4. Change email.
+  5. Legal/retention pages.
+  6. Observability/probe hardening.
+  7. Tests.
 - Risks: over-abstracting permissions; adding limits that hurt demo value; relying on counters that drift.
-- Validation requirements: API integration tests for cross-workspace denial, limit enforcement, export scoping, and account changes.
+- Validation requirements: API integration tests for cross-workspace denial, usage safety, export scoping, and account changes.
 - Do not include in this phase: Stripe, docs/wiki, automations, SignalR, table view.
 
 ### Phase 2 - Make it team-useful
@@ -793,7 +802,7 @@ Exactly 15 features selected for subscription readiness.
   8. Onboarding checklist.
 - Risks: notification spam, event taxonomy drift, saved view schema migration.
 - Validation requirements: role-gated action tests, notification recipient tests, dashboard scope tests, component/E2E tests for command center.
-- Do not include in this phase: custom fields, docs editor, automations builder, billing.
+- Do not include in this phase: custom fields, docs editor, automations builder, payment/subscription implementation.
 
 ### Phase 3 - Make it workspace-complete
 
@@ -821,29 +830,26 @@ Exactly 15 features selected for subscription readiness.
 - Validation requirements: sanitization tests, cross-workspace search tests, file quota tests, component/E2E coverage for views.
 - Do not include in this phase: real-time collaborative editing, public pages, formulas, rollups.
 
-### Phase 4 - Make it monetizable
+### Phase 4 - Make it charge-optional
 
-- Goal: Convert premium value into a real paid model without damaging demo/local development.
+- Goal: Make the product mature enough that charging could be evaluated later, without implementing payments or subscriptions now.
 - Features:
-  - plan limits wired through the feature-limit service
   - usage meters displayed in settings
-  - storage quotas
-  - premium gates for docs, files, custom fields, shared views, templates, automations
-  - Stripe billing
-  - subscription management page
-  - billing webhooks
-  - invoice/customer portal links
-- Rationale: Billing becomes justified only after users can see what paid plans unlock.
+  - storage safety limits
+  - admin/account settings polish
+  - workspace export improvements
+  - support/help pages
+  - clear packaging notes kept as documentation only
+- Rationale: This phase should prove Planora is valuable and operable. It should not add a payment provider.
 - Implementation order:
-  1. Finish internal plan gates.
-  2. Add settings usage UI.
-  3. Add fake/dev plan switching.
-  4. Add Stripe checkout/customer portal.
-  5. Add webhook processing.
-  6. Add billing tests.
-- Risks: webhook idempotency, plan bypass, demo friction, local development pain.
-- Validation requirements: webhook replay tests, limit tests, dev/demo bypass tests, downgrade behavior tests.
-- Do not include in this phase: tax automation, complex proration UI, enterprise contracts.
+  1. Add settings usage UI.
+  2. Add storage safety checks.
+  3. Add workspace/account admin polish.
+  4. Add support/legal/help pages.
+  5. Document optional future packaging.
+- Risks: accidentally building paywall architecture too early; demo friction; usage counters drifting.
+- Validation requirements: usage tests, storage-limit tests, export tests, settings UI checks.
+- Do not include in this phase: Stripe, checkout, customer portal, invoices, billing webhooks, payment methods, subscriptions, trials, coupons, tax, proration, or enterprise contracts.
 
 ### Phase 5 - Make it competitive
 
@@ -852,7 +858,7 @@ Exactly 15 features selected for subscription readiness.
   - SignalR board updates
   - recurring cards
   - simple automation rules
-  - automation history and plan limits
+  - automation history and safety limits
   - advanced search ranking
   - CSV/Trello import
   - simple reporting summaries
@@ -874,8 +880,8 @@ Exactly 15 features selected for subscription readiness.
 | # | Priority | Task | Goal | Complexity | Likely backend areas | Likely frontend areas | DB changes | Dependencies | Validation | Manual testing | Risk notes |
 | - | - | - | - | - | - | - | - | - | - | - | - |
 | 1 | P0 | Add workspace authorization helper | Centralize member/role checks before more domains are added | M | `Application/Services`, controllers | none | none | none | `dotnet test Planora.slnx` | existing board/workspace flows | Avoid changing behavior silently |
-| 2 | P0 | Add internal plan/feature-limit service | Gate future premium features without Stripe | M | `Application/Interfaces`, `Program.cs`, options | settings copy later | maybe `WorkspacePlans` later | task 1 | unit/integration tests | local/demo mode | Must not break demo |
-| 3 | P0 | Add usage metering skeleton | Count members, boards, storage, docs later | M | new usage service | settings display later | `UsageCounters` optional | task 2 | integration tests | upload/delete counters | Counter drift |
+| 2 | P0 | Add workspace usage visibility service | Report storage/object counts for product safety, not billing | M | `Application/Interfaces`, `Program.cs`, options | settings copy later | `UsageCounters` optional | task 1 | unit/integration tests | local/demo mode | Must not break demo |
+| 3 | P0 | Add storage safety checks | Prevent unbounded uploads without creating pricing plans | M | usage/storage service | settings warnings later | `UsageCounters` optional | task 2 | integration tests | upload/delete counters | Counter drift |
 | 4 | P0 | Wire Azure health probes | Ensure Container Apps actually uses `/health/live` and `/health/ready` | S | deploy workflow/docs | none | none | none | workflow/config review | deploy smoke | Outward deployment action requires approval |
 | 5 | P1 | Add workspace export | Export a workspace as JSON for owners/admins | M | `WorkspacesController`, account export mapper reuse | settings export button | none | task 1 | export scoping tests | download file | Data leak risk |
 | 6 | P1 | Add change email flow | Complete account lifecycle | M | `AuthController`/`UsersController`, email service | `Profile.razor` | maybe none | email system | auth tests | change/confirm email | Token/account takeover risk |
@@ -914,7 +920,7 @@ Exactly 15 features selected for subscription readiness.
 | 39 | P2 | Calendar filter improvements | Filter calendar by assignee/priority/board | M | calendar endpoint query | `Calendar.razor` | none | filters shared | tests | mobile calendar | Query complexity |
 | 40 | P2 | Recurring cards MVP | Generate repeated tasks | L | recurrence entity/job | card/template settings | recurrence table | templates/jobs | job tests | recurrence flow | Idempotency |
 | 41 | P2 | Automation rule templates | Fixed rule templates, not builder | L | `AutomationRule`, hooks | automation settings | rules/history | activity/notifications | trigger tests | enable/disable | Side effects |
-| 42 | P2 | Automation history and limits | Debuggable paid automations | M | run history, plan limit checks | history UI | `AutomationRuns` | task 41 | limit/idempotency tests | run history | Storage growth |
+| 42 | P2 | Automation history and safety limits | Debuggable automations without runaway jobs | M | run history, safety checks | history UI | `AutomationRuns` | task 41 | limit/idempotency tests | run history | Storage growth |
 | 43 | P2 | Workspace usage UI | Show plan usage and limits | M | usage endpoints | settings panels | counters | tasks 2-3 | tests | quota display | Demo friction |
 | 44 | P2/P3 | CSV import | Import cards/boards simply | M | import endpoint/validator | import modal | maybe import jobs | templates/views | validation tests | import file | Malformed data |
 | 45 | P3 | SignalR board update notifications | Refresh board when others change it | L | hub/auth/events | board client handler | none | stable activity | hub tests | two-browser test | Scaling/auth |
@@ -932,23 +938,23 @@ These are first because the obvious examples in the prompt - password reset, ema
 - Risks: accidental status-code changes.
 - Do not include: broad controller rewrites.
 
-### 2. Add internal plan and feature-limit service
+### 2. Add workspace usage visibility service
 
-- Exact goal: create interfaces/options for plan checks with local/dev/demo bypass.
-- Why early: prevents retrofitting paid gates later.
-- Acceptance criteria: limits can answer questions like `CanCreateBoard`, `CanUploadBytes`, `CanCreateDocument`.
-- Tests required: free/team/dev scenarios.
-- Risks: demo friction and over-engineering.
-- Do not include: Stripe, checkout, webhooks.
+- Exact goal: create a service that reports storage bytes and key object counts per workspace.
+- Why early: docs/files/templates will add new storage and growth pressure; visibility prevents accidental runaway usage.
+- Acceptance criteria: usage can answer questions like current storage bytes, active boards, attachments, docs, files, and automations.
+- Tests required: upload/delete and create/delete scenarios keep usage accurate or recomputable.
+- Risks: counter drift and over-engineering.
+- Do not include: pricing plans, subscriptions, Stripe, checkout, billing portals, or webhooks.
 
-### 3. Add usage metering skeleton
+### 3. Add storage safety checks
 
-- Exact goal: track or compute storage bytes, boards, members, docs, saved views, automations.
-- Why early: limits and billing need trusted usage.
-- Acceptance criteria: API can return usage summary for a workspace.
-- Tests required: upload/delete updates storage usage; membership/board counts are scoped.
+- Exact goal: prevent unbounded upload growth with configurable safety thresholds that apply equally in free/local/demo use.
+- Why early: files and docs will increase storage pressure even if Planora never charges.
+- Acceptance criteria: API can return usage summary and reject obviously unsafe upload growth with clear errors.
+- Tests required: upload/delete updates storage usage; thresholds are scoped and configurable.
 - Risks: counter drift.
-- Do not include: billing UI.
+- Do not include: billing UI, upgrade prompts, pricing tiers, or subscription logic.
 
 ### 4. Wire and verify Azure health probes
 
@@ -1013,38 +1019,51 @@ These are first because the obvious examples in the prompt - password reset, ema
 - Risks: fragile test setup around Blazor WASM/dev servers.
 - Do not include: exhaustive visual regression suite.
 
-## 11. Billing/subscription strategy
+## 11. Payment/subscription not-to-do strategy
 
-### When billing should be added
+### Current decision
 
-Add Stripe only after Planora has at least these paid-value features working:
+Do not build payments or subscriptions now. The product roadmap should improve Planora first, then revisit whether charging is desirable after the product is clearly useful.
 
-- server-backed saved views
-- workspace dashboard
-- docs/wiki MVP
-- workspace files and quotas
-- advanced search across docs/comments/files
-- templates
-- at least one premium view or custom-field MVP
-- internal plan limits and usage metering
+### Explicit not-to-do list
 
-### What must exist before billing
+- Stripe
+- payment methods
+- checkout
+- subscription creation
+- subscription management
+- customer portal
+- invoices
+- tax handling
+- proration
+- coupons
+- trials
+- dunning
+- billing webhooks
+- paid seats
+- paid-plan downgrade behavior
+- hard paywalls
+- upgrade prompts
+- billing admin screens
+- fake subscription tables that will be thrown away later
 
-- `WorkspacePlan` or subscription representation
-- feature-limit service used by endpoints and UI
-- usage summary endpoint and settings UI
-- storage quota checks
-- plan bypass for local/dev/demo mode
-- downgrade behavior
-- tests for limit enforcement and bypass prevention
-- legal/privacy/terms pages
+### What is still useful without charging
 
-### What to meter
+- storage usage visibility
+- file-size safety limits
+- object-count summaries
+- activity retention policy
+- export job tracking
+- admin/account settings polish
+- legal/privacy/data-retention pages
+- documentation of possible future packaging, kept separate from implementation
+
+### What to track for product health, not billing
 
 - active members
 - active boards
 - storage bytes
-- file size
+- largest files
 - docs/pages
 - saved views
 - custom fields
@@ -1053,39 +1072,24 @@ Add Stripe only after Planora has at least these paid-value features working:
 - activity/audit retention
 - export jobs
 
-### What to limit
+### Revisit criteria
 
-- Free: members, boards, storage, docs, automations, activity retention.
-- Pro/Team: storage, automations, custom fields, activity retention.
-- Business: higher limits and retention rather than unlimited everything.
+Only reconsider payment/subscription work after Planora has:
 
-### Feature gates that make sense
+- workspace dashboard
+- server-backed shared views
+- docs/wiki MVP
+- workspace files with safe storage limits
+- advanced search across docs/comments/files
+- templates
+- list/table view
+- custom fields MVP
+- mentions/watchers
+- polished onboarding
+- frontend smoke coverage
+- clear evidence that charging would improve, not distort, the product
 
-- shared saved views
-- docs/wiki count
-- workspace files and storage quota
-- custom fields
-- table view
-- workspace export
-- templates beyond built-ins
-- automations and recurring cards
-- longer activity/audit history
-
-### Avoid making portfolio/demo worse
-
-- Instant demo should never hit a paywall.
-- Local/dev mode should be able to switch plans through config or seeded data.
-- Demo workspace can show premium UI with "included in demo" behavior.
-- Public README/portfolio can mention billing-ready architecture without requiring live payment.
-
-### Recommended billing build path
-
-1. Fake/internal plan system first.
-2. Usage and limit enforcement second.
-3. UI gates third.
-4. Stripe later.
-
-This avoids a brittle Stripe integration wrapped around features that do not yet justify payment.
+Even then, the next step should be a product decision, not an automatic Stripe implementation.
 
 ## 12. Database and domain model implications
 
@@ -1095,7 +1099,7 @@ This avoids a brittle Stripe integration wrapped around features that do not yet
 | Attachment | Exists for cards, generalize | File metadata for cards/boards/workspaces | target + uploader + storage URL | workspace membership and upload limits | target id, workspace id if generalized | delete row must delete storage object | Medium |
 | WorkspaceSettings | New | Store onboarding, defaults, retention, feature prefs | one-to-one Workspace | Owner/Admin edit | unique WorkspaceId | cascade with workspace | Low |
 | NotificationPreference | Partial on AppUser | Control email/in-app notification topics | User, maybe workspace overrides | user owns personal prefs; workspace admins may set defaults later | UserId, optional WorkspaceId | cascade user/workspace | Medium if migrating booleans |
-| WorkspacePlan or Subscription | New | Plan/feature gates | Workspace or billing account | Owner/Admin billing access | WorkspaceId, Stripe ids later | restrict delete if external subscription active | Medium/High |
+| WorkspacePlan or Subscription | Avoid now | Do not model payment plans or subscriptions until charging is explicitly chosen later | none now | none now | none now | none now | High if built prematurely |
 | UsageCounter | New | Efficient limit checks | Workspace, period maybe | internal only; admins can view summary | WorkspaceId, metric, period | cascade workspace | Medium due drift |
 | Document/Page | New | Lightweight docs/wiki | Workspace, optional Board, author/updater | workspace members read; edit by members initially | WorkspaceId+UpdatedAt, BoardId, title/search | soft delete; cascade workspace | Medium |
 | Template | New | Reusable board/card/doc structure | Workspace optional; creator; type | built-ins global; workspace templates scoped | WorkspaceId+Type, CreatedBy | cascade workspace; copy not reference | Medium |
@@ -1118,14 +1122,14 @@ Expansion increases the IDOR surface. Every new feature must keep workspace scop
 - User identity always comes from `ClaimTypes.NameIdentifier`, never from request bodies.
 - Every resource must resolve to a workspace before read/write.
 - Every read must verify `WorkspaceMembers` membership.
-- Every privileged write must verify role: Owner/Admin for workspace settings, templates, custom fields, automations, billing, member management.
+- Every privileged write must verify role: Owner/Admin for workspace settings, templates, custom fields, automations, usage safety, member management.
 - Feature-limit checks must happen server-side, not only in Blazor.
 - Plan limits must be evaluated after authorization and before mutation.
 - File reads must go through authorized API responses and signed URLs; do not expose raw private blob URLs.
 - Uploads must validate size, extension, content type, and magic bytes where applicable.
 - New searchable content must never leak snippets from inaccessible workspaces.
 - Background jobs must be idempotent and must not act on archived/trashed/deleted objects unless intended.
-- Invite tokens, reset tokens, verification tokens, refresh tokens, and billing secrets must never be logged.
+- Invite tokens, reset tokens, verification tokens, refresh tokens, and provider secrets must never be logged.
 - Activity/audit payloads must not store secrets, tokens, raw email bodies, or large document content.
 - Account deletion/export must preserve workspace ownership rules.
 - Data export must include only data the requester is allowed to administer or access.
@@ -1139,7 +1143,7 @@ Expansion increases the IDOR surface. Every new feature must keep workspace scop
 - Search: snippet leakage and cross-workspace result leakage.
 - Custom fields: type validation and query performance.
 - Automations: permission bypass through background actions.
-- Billing: webhook replay, downgrade behavior, plan bypass, and local/dev coupling.
+- Payment/subscription implementation: intentionally out of scope; if reconsidered later, webhook replay, downgrade behavior, plan bypass, and local/dev coupling would be high-risk areas.
 - Real-time: hub authentication, group membership, reconnect state, and cross-workspace broadcasts.
 
 ## 14. Testing strategy
@@ -1151,7 +1155,7 @@ Expansion increases the IDOR surface. Every new feature must keep workspace scop
 ### Add first
 
 - Permission/IDOR tests for every new domain: docs, files, saved views, templates, custom fields, automations, workspace export.
-- Plan-limit tests before billing: create board/doc/file/custom field at limit, above limit, and in dev/demo bypass.
+- Usage safety tests: create board/doc/file/custom field at configured safety thresholds and above them.
 - Search leakage tests for every result type.
 - File upload/quota/delete cleanup tests.
 - Activity event emission tests through a shared service.
@@ -1164,7 +1168,7 @@ Expansion increases the IDOR surface. Every new feature must keep workspace scop
 - Accessibility checks in Playwright or axe tooling.
 - Visual regression for dashboard/docs/table view if UI churn becomes high.
 - Load/performance smoke tests for search and dashboard queries.
-- Billing webhook integration tests when Stripe arrives.
+- Payment and subscription tests are intentionally not needed now because payment/subscription implementation is not on the roadmap.
 - SignalR multi-client tests if real-time updates are built.
 
 ### Test priorities
@@ -1178,7 +1182,7 @@ Expansion increases the IDOR surface. Every new feature must keep workspace scop
 
 ## 15. Product quality definition
 
-Planora is complete enough to offer as a subscription only when:
+Planora is complete enough to consider broader real-world use only when:
 
 - Onboarding: a new user can create or demo a workspace, choose a template, invite teammates, and understand next steps.
 - Account lifecycle: register, login, 2FA, sessions, password reset, email verification, change email, export, and delete account all work.
@@ -1186,7 +1190,7 @@ Planora is complete enough to offer as a subscription only when:
 - Reliability: health probes, CI, monitoring, error tracking, cleanup jobs, and rollback notes exist.
 - Security: permission tests cover every workspace-scoped domain; upload/search/export flows are leak-tested.
 - UX polish: dashboard, boards, docs, files, search, profile, settings, and empty/error states feel coherent on desktop and mobile.
-- Billing readiness: plan limits and usage are enforced internally before Stripe.
+- Payment/subscription stance: no payment or subscription implementation exists unless a later explicit product decision changes that.
 - Supportability: logs have correlation IDs, user-facing errors are understandable, and admin/support workflows are documented.
 - Data ownership: account and workspace exports exist; retention rules are documented.
 - Documentation: README, API endpoints, architecture, and product roadmap stay current.
@@ -1199,8 +1203,8 @@ Planora should become a focused small-team workspace OS: tasks, boards, lightwei
 Build first:
 
 1. central workspace authorization helper
-2. internal plan/limit service
-3. usage metering
+2. workspace usage visibility
+3. storage safety checks
 4. workspace dashboard
 5. expanded activity taxonomy/feed
 6. favorites/recent items
@@ -1212,8 +1216,8 @@ Build first:
 Delay:
 
 - custom fields until list/table foundations exist
-- automations until activity/notifications/plan limits are stable
-- billing until premium features are real
+- automations until activity, notifications, and safety limits are stable
+- payment/subscription implementation until an explicit future decision says charging is worth it
 - SignalR until the app has enough collaborative surfaces to justify real-time infrastructure
 
 Avoid:
@@ -1233,9 +1237,9 @@ What most improves Planora as a portfolio piece:
 - lightweight docs with safe search
 - workspace files with quota/security
 - bUnit/Playwright coverage
-- clean plan-limit architecture before billing
+- clean usage visibility and storage safety architecture before any future charging discussion
 
-What most improves Planora as a real paid SaaS:
+What most improves Planora as a real product that could later support charging:
 
 - docs/wiki
 - shared saved views
@@ -1247,18 +1251,18 @@ What most improves Planora as a real paid SaaS:
 - simple automations
 - workspace export and longer activity retention
 
-Minimum state before Stripe:
+Minimum state before reconsidering whether to charge:
 
-- internal plan model
-- usage metering
+- usage visibility
+- storage safety limits
 - workspace dashboard
 - server-backed shared views
 - docs MVP
 - workspace files/quota
 - advanced search
 - templates
-- at least one premium view/custom-field capability
+- at least one advanced view/custom-field capability
 - legal/privacy pages
-- tests proving plan limits cannot be bypassed
+- tests proving usage safety and permissions cannot be bypassed
 
-The uncomfortable answer: billing is not the next milestone. The next milestone is making Planora feel like the place a small team starts its day.
+The uncomfortable answer: payment and subscriptions are not a milestone right now. The next milestone is making Planora feel like the place a small team starts its day.
