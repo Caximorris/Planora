@@ -7,8 +7,10 @@
 > `MediaUrlResolutionFilter` — a browser only ever gets a working URL through an API response it was
 > already authorized to receive, and that URL expires (`Storage:Blob:SasMinutes`, default 60).
 > Dual-read is automatic (see Task 9 below). Verified by `dotnet build Planora.slnx` (clean) and
-> `Planora.Tests/Storage/` (139 tests green). **Still required before prod:** provision the Azure
-> resources and set the `Storage__*` secrets/env (see "Azure resources to provision"). The sections
+> `Planora.Tests/Storage/` (139 tests green). **Production is configured (2026-07-10):**
+> `deploy-api.yml` sets `Storage__Provider=AzureBlob`,
+> `Storage__Blob__ConnectionString=secretref:storage-connection-string`, and
+> `Storage__Blob__PublicBaseUrl=https://planorabs.blob.core.windows.net/uploads`. The sections
 > below are retained as the design record.
 
 ## Why this exists

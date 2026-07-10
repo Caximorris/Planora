@@ -13,7 +13,7 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 | Mapping | Mapperly (source-generated) |
 | Validation | FluentValidation |
 | Drag & Drop | SortableJS (columns/cards) + HTML5 DnD (board tiles) |
-| Storage | `IFileStorage` abstraction — local disk (dev); Azure Blob backend scaffolded, not yet implemented ([docs](docs/azure-blob-storage.md)) |
+| Storage | `IFileStorage` abstraction — local disk (dev), Azure Blob Storage in production with private container + short-lived SAS read URLs ([docs](docs/azure-blob-storage.md)) |
 | Email | `IEmailSender` abstraction — console sink locally, Resend in production from `notifications@planora.website` |
 | Hosting | Azure Container Apps (API) + Azure Static Web Apps (frontend) |
 
@@ -116,9 +116,9 @@ dotnet test Planora.slnx
 - API email delivery uses Resend. Required production settings are `Email__Provider=Resend`,
   `Email__From__Address=notifications@planora.website`, `App__WebBaseUrl=https://planora.website`,
   and the GitHub `RESEND_API_KEY` secret.
-- File storage is selected by `Storage:Provider` (`Local` by default). **Known limitation:** on
-  Container Apps the local disk is ephemeral, so board cover images and card attachments do **not**
-  survive a restart or scale-out yet — the durable Azure Blob backend is scaffolded but not implemented
+- File storage is selected by `Storage:Provider` (`Local` by default). Production deploys with
+  `Storage__Provider=AzureBlob`: uploads go to a **private** Azure Blob container and are served as
+  short-lived SAS URLs signed per response, so covers and attachments survive restarts and scale-out
   ([docs/azure-blob-storage.md](docs/azure-blob-storage.md))
 
 ## Roadmap

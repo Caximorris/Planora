@@ -65,4 +65,6 @@ _db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == X && m.UserId == UserId)
 - bUnit Blazor component tests not set up yet (API integration tests exist in `Planora.Tests`)
 - No rate limiting on upload endpoints
 - SortableJS reorder + active priority filter → `evt.newIndex` is relative to filtered list, not full collection
-- Azure Blob storage backend is scaffolded but not implemented; uploaded files still use local disk
+- ~~Azure Blob storage backend~~ implemented: `BlobFileStorage` (private container + SAS reads via
+  `MediaUrlResolutionFilter`) runs in production (`Storage__Provider=AzureBlob` in `deploy-api.yml`);
+  local dev still uses `LocalFileStorage` on disk. See `docs/azure-blob-storage.md`

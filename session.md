@@ -18,7 +18,7 @@ Planora is a Kanban project management SaaS. Full-stack .NET 10 monorepo: REST A
 | Mapping | Mapperly (source-generated, zero-reflection) |
 | Validation | FluentValidation (Create* and Update* requests) |
 | Drag & drop | SortableJS 1.15.6 (vendored) — columns & cards (touch-guarded: delay+threshold); HTML5 DnD — board tiles (mouse), touch move buttons on mobile |
-| Storage | `IFileStorage` — local disk (dev); Azure Blob backend scaffolded, not implemented (see `docs/azure-blob-storage.md`) |
+| Storage | `IFileStorage` — `LocalFileStorage` (dev default); `BlobFileStorage` in production (private Azure Blob container, short-lived SAS read URLs applied to responses by `MediaUrlResolutionFilter`; see `docs/azure-blob-storage.md`) |
 | Email | `IEmailSender` — console sink locally; Resend in production from `notifications@planora.website` |
 | CI/CD | GitHub Actions → Docker → Azure Container Apps (API), Azure Static Web Apps (Web) |
 
@@ -38,7 +38,7 @@ Planora.slnx
 │   │   └── Interfaces/
 │   ├── Infrastructure/Data/  ApplicationDbContext, EF config
 │   ├── Migrations/
-│   └── wwwroot/uploads/      Board covers + card attachments (local disk; ephemeral in prod until Blob lands)
+│   └── wwwroot/uploads/      Board covers + card attachments (Local storage backend only — dev; prod uses Azure Blob)
 ├── Planora.Web/
 │   ├── Auth/                 PlanorAuthStateProvider, AuthHeaderHandler
 │   ├── Pages/                Landing, Login, Register, Home, Workspaces, Board, Profile, Notifications
@@ -198,8 +198,12 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
   `Email__From__Address=notifications@planora.website`, `App__WebBaseUrl=https://planora.website`,
   and `Email__Resend__ApiKey=secretref:resend-api-key` (sourced from GitHub `RESEND_API_KEY`).
 - API port: `PORT` env var → fallback 8080
-- Board/card uploads still use local disk (`IFileStorage` Local) unless `Storage:Provider=AzureBlob`
-  is implemented and enabled; Container Apps local disk is ephemeral.
+- Uploads: production runs `Storage__Provider=AzureBlob` (set in `deploy-api.yml`) with
+  `Storage__Blob__ConnectionString=secretref:storage-connection-string` and
+  `PublicBaseUrl=https://planorabs.blob.core.windows.net/uploads`. The container is **private**;
+  reads are short-lived SAS URLs signed by `IFileStorage.GetReadUrl` and applied to every response
+  by the global `MediaUrlResolutionFilter` — never return stored file URLs that bypass it. Dual-read
+  keeps legacy `/uploads/...` covers resolving. Local dev defaults to `LocalFileStorage` on disk.
 - Scale-to-zero on Container Apps → ~20 s cold start; demo page shows "Server is waking up…" after 4 s
 
 ---
