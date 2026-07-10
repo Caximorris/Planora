@@ -86,6 +86,7 @@ emails while respecting profile notification preferences.
 - Search input is **uncontrolled** (no `value=` binding) — binding causes Blazor re-renders to overwrite typed text mid-debounce.
 - Dark mode: `data-theme="dark"` on `<html>`. Kanban canvas intentionally excluded — card/column pastels need dark text.
 - Board tile drag-reorder in `Workspaces.razor` uses HTML5 native DnD — not SortableJS.
+- Motion: use the `app.css` motion system (tokens `--dur-1/2/3`, `--ease-out/in-out`; keyframes `fade/rise/drop/sheet/pop-in`, `toast-out`, `skeleton-sweep`) — no ad-hoc durations. **Never** put entrance animations on `@key`-ed sorted lists (kanban cards, board tiles — reorder re-inserts nodes and replays them). `.board-root` entrance is fade-only (a transform breaks `position:fixed` descendants). Toast dismiss is two-phase in `ToastService`; its 200 ms removal delay must stay ≥ `--dur-2`.
 
 ## References
 

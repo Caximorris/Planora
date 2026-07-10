@@ -91,6 +91,11 @@ Planora.slnx
 - **Dark mode** — `data-theme="dark"` on `<html>`, persisted in localStorage; kanban canvas excluded (pastel card colors need light text)
 - **Profile page** — display name edit, email verification status/resend, theme switcher, password change, 2FA, sessions, notification preferences
 - **Calendar view** — cards with due dates shown in a calendar on the Board page
+- **Motion system** — centralized CSS animation layer in `app.css` (tokens `--dur-1/2/3`,
+  `--ease-out`/`--ease-in-out`; shared keyframes `fade/rise/drop/sheet/pop-in`, `toast-out`,
+  `skeleton-sweep`). Page-root/modal/dropdown entrances, home + landing staggers, skeleton loading
+  states (notification dropdown, board tiles), two-phase animated toast dismiss. Transform/opacity
+  only; `prefers-reduced-motion` zeroes durations **and** delays. No dependencies added.
 
 ### Security (hardened)
 - 15-min JWT + 7-day rotating refresh tokens
@@ -171,6 +176,8 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 **SortableJS init** — `planoraInitColumnsSortable` and `planoraInitCardLists` are idempotent (check `dataset.sortableInit`). Call them every `OnAfterRenderAsync`.
 
 **Uncontrolled inputs in Blazor** — search input has no `value="@_query"` binding. If bound, every debounce re-render overwrites the DOM value and loses intermediate keystrokes. Use `@oninput` + `_focusPending` flag for focus management.
+
+**Motion system** — all animation goes through the tokens/keyframes in `app.css` ("Motion system" section, before Reset & base). Hard rules: **no entrance animations on `@key`-ed sorted lists** (kanban cards, board tiles) — Blazor moves keyed nodes by re-inserting them, replaying the animation on every drag/reorder; `.board-root` entrance is fade-only — a transform creates a containing block and breaks `position:fixed` descendants; desktop rail fly-outs use `rise-in` (bottom-anchored), mobile ≤768px dropdowns use `sheet-in`. Toast exit is two-phase in `ToastService`: `Dismiss` sets `IsLeaving` → CSS `toast-out` plays → removal after `ExitAnimationDuration` (200 ms — must stay ≥ `--dur-2`). Scoped `.razor.css` files can reference the shared keyframes (CSS isolation rewrites selectors, not animation names). Modal *exits* are infeasible (Blazor removes nodes instantly) — entrance-only by design.
 
 **`dotnet watch` + hot reload** — CSS/JS changes hot-reload fine. C# Razor changes trigger ENC; if `dotnet watch` says "Waiting for file change" after a C# edit → kill the process and restart. Never run `dotnet build` while a dev server is live (fingerprint mismatch causes 404 on all Blazor assets).
 

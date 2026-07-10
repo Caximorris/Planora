@@ -122,6 +122,14 @@ it respects notification preferences and logs/swallow provider failures so user 
   (`.board-header`, `.kanban-column`, and **`.side-nav`**), which creates a containing block/stacking
   context and breaks `inset:0`. The mobile nav dropdowns work around this by anchoring their backdrop
   to the bar bottom + `height:var(--viewport-h)` (see `app.css`, `.side-nav .nav-dropdown-backdrop`).
+- **Motion:** all animation goes through the `app.css` motion system (tokens `--dur-1/2/3`,
+  `--ease-out`/`--ease-in-out`; shared keyframes `fade/rise/drop/sheet/pop-in`, `toast-out`,
+  `skeleton-sweep`) — no ad-hoc durations, transform/opacity only. **Never** add entrance animations
+  to `@key`-ed sorted lists (kanban cards, board tiles): Blazor re-inserts moved keyed nodes and
+  replays the animation on every drag. `.board-root` entrance is fade-only (a transform creates a
+  containing block and breaks `position:fixed` descendants). Toast dismiss is two-phase in
+  `ToastService` (`IsLeaving` → `toast-out` → removal at 200 ms, keep ≥ `--dur-2`); modal exits are
+  entrance-only by design. The reduced-motion block zeroes durations *and* delays — keep both.
 - Watch event propagation in nested card/board/modal/drag zones (stop where clicks must not bubble).
 - Only the notifications bell polls (30s). Don't add new polling loops; preserve responsive layout.
 - **Mobile (≤768px)** the left rail becomes a fixed bottom tab bar with 6 tabs (Home, Spaces,

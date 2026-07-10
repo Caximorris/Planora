@@ -32,6 +32,7 @@ Kanban project management app — .NET 10, Blazor WebAssembly, PostgreSQL, deplo
 - **Notifications** — in-app bell, unread badge, 30 s polling, mark-read, dismiss
 - **Calendar view** — cards with due dates shown on a calendar
 - **Dark mode** — persisted in localStorage
+- **Polished motion** — centralized CSS animation system (duration/easing tokens, shared keyframes), skeleton loading states, staggered entrances, animated toasts; `prefers-reduced-motion` respected; zero JS animation dependencies
 - **Profile page** — display name, theme switcher, email status, notification preferences
 - **Transactional email** — verification, password reset, workspace invites, card assignment/comment notifications
 - **Demo workspace** — auto-created on first login with sample board
