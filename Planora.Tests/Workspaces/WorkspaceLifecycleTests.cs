@@ -122,6 +122,31 @@ public class WorkspaceLifecycleTests(PlanoraWebAppFactory factory)
     }
 
     [Fact]
+    public async Task Admin_can_create_list_and_revoke_workspace_invitations()
+    {
+        var (owner, _) = await factory.RegisterAndAuthenticateAsync();
+        var workspace = await owner.CreateWorkspaceAsync("Admin Invitation Workspace");
+
+        var adminEmail = $"admin.{Guid.NewGuid():N}@planora.test";
+        var (admin, _) = await RegisterAndAuthenticateAsync(adminEmail);
+        var adminInvitation = await CreateInvitationAsync(owner, workspace.Id, adminEmail, WorkspaceRole.Admin);
+        var accept = await admin.PostAsync($"/api/invitations/{adminInvitation.Token}/accept", null);
+        Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
+
+        var pending = await CreateInvitationAsync(admin, workspace.Id, $"pending.{Guid.NewGuid():N}@planora.test");
+
+        var invitations = await admin.GetFromJsonAsync<List<InvitationDto>>($"/api/workspaces/{workspace.Id}/invitations");
+        Assert.NotNull(invitations);
+        Assert.Contains(invitations!, i => i.Id == pending.Id);
+
+        var revoke = await admin.DeleteAsync($"/api/workspaces/{workspace.Id}/invitations/{pending.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+
+        var lookup = await factory.CreateClient().GetFromJsonAsync<InvitationDto>($"/api/invitations/{pending.Token}");
+        Assert.Equal(InvitationStatus.Revoked, lookup!.Status);
+    }
+
+    [Fact]
     public async Task Non_member_cannot_list_workspace_invitations()
     {
         var (owner, _) = await factory.RegisterAndAuthenticateAsync();

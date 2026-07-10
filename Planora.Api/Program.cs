@@ -176,6 +176,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IDemoWorkspaceSeeder, DemoWorkspaceSeeder>();
+builder.Services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
 // File storage: provider selected by config. Local disk in dev; production sets Storage:Provider
 // to "AzureBlob" (durable — the container filesystem is ephemeral). Existing on-disk cover URLs keep
 // resolving after cutover because the frontend and Blob backend both accept absolute Blob URLs and

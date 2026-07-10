@@ -35,17 +35,20 @@ public class BoardsController : ControllerBase
     private readonly IValidator<CreateBoardRequest> _createValidator;
     private readonly IValidator<UpdateBoardRequest> _updateValidator;
     private readonly IFileStorage _storage;
+    private readonly IWorkspaceAccessService _workspaceAccess;
 
     public BoardsController(
         ApplicationDbContext db,
         IValidator<CreateBoardRequest> createValidator,
         IValidator<UpdateBoardRequest> updateValidator,
-        IFileStorage storage)
+        IFileStorage storage,
+        IWorkspaceAccessService workspaceAccess)
     {
         _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _storage = storage;
+        _workspaceAccess = workspaceAccess;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -67,9 +70,7 @@ public class BoardsController : ControllerBase
         // IgnoreQueryFilters also un-hides trashed boards — a trashed board must read as gone.
         if (board is null || board.DeletedAt is not null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         return Ok(board.ToDetailDto());
     }
@@ -84,9 +85,7 @@ public class BoardsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id);
         if (board is null || board.DeletedAt is not null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         var events = await _db.ActivityEvents
             .Include(e => e.Actor)
@@ -117,9 +116,7 @@ public class BoardsController : ControllerBase
         if (!validation.IsValid)
             return BadRequest(validation.Errors.Select(e => e.ErrorMessage));
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == request.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(request.WorkspaceId, UserId)) return Forbid();
 
         var maxPosition = await _db.Boards
             .Where(b => b.WorkspaceId == request.WorkspaceId)
@@ -152,9 +149,7 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         _db.Entry(board).Property(b => b.RowVersion).OriginalValue = request.RowVersion;
 
@@ -187,9 +182,7 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         board.IsArchived = true;
         await _db.SaveChangesAsync();
@@ -204,9 +197,7 @@ public class BoardsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         board.IsArchived = false;
         await _db.SaveChangesAsync();
@@ -222,9 +213,7 @@ public class BoardsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         board.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -234,9 +223,7 @@ public class BoardsController : ControllerBase
     [HttpGet("trash")]
     public async Task<IActionResult> GetTrash([FromQuery] Guid workspaceId)
     {
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(workspaceId, UserId)) return Forbid();
 
         var boards = await _db.Boards
             .IgnoreQueryFilters()
@@ -254,9 +241,7 @@ public class BoardsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt != null);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         board.DeletedAt = null;
         await _db.SaveChangesAsync();
@@ -271,9 +256,7 @@ public class BoardsController : ControllerBase
             .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt != null);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         var attachmentUrls = await _db.CardAttachments
             .IgnoreQueryFilters()
@@ -298,9 +281,7 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         if (file is null || file.Length == 0) return BadRequest("No file uploaded.");
         if (file.Length > BoardLimits.MaxCoverImageBytes) return BadRequest($"Image must be smaller than {BoardLimits.MaxCoverImageBytes / 1024 / 1024} MB.");
@@ -336,9 +317,7 @@ public class BoardsController : ControllerBase
         var board = await _db.Boards.FirstOrDefaultAsync(b => b.Id == id);
         if (board is null) return NotFound();
 
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == board.WorkspaceId && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(board.WorkspaceId, UserId)) return Forbid();
 
         await _storage.DeleteAsync(board.CoverImageUrl);
         board.CoverImageUrl = null;

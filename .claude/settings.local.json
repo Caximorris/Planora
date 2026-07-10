@@ -146,7 +146,13 @@
       "mcp__plugin_ecc_chrome-devtools__emulate",
       "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --no-launch-profile)",
       "mcp__plugin_ecc_chrome-devtools__list_pages",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "PowerShell(Test-NetConnection *)",
+      "PowerShell(dotnet run *)",
+      "PowerShell($deadline = \\(Get-Date\\).AddSeconds\\(60\\); $apiUp = $false; $webUp = $false; while \\(\\(Get-Date\\) -lt $deadline -and \\(-not $apiUp -or -not $webUp\\)\\) { if \\(-not $apiUp\\) { $apiUp = Test-NetConnection localhost -Port 8080 -InformationLevel Quiet -WarningAction SilentlyContinue }; if \\(-not $webUp\\) { $webUp = Test-NetConnection localhost -Port 5076 -InformationLevel Quiet -WarningAction SilentlyContinue }; if \\(-not $apiUp -or -not $webUp\\) { Start-Sleep -Seconds 3 } }; \"API up: $apiUp / Web up: $webUp\")",
+      "PowerShell(git push *)",
+      "PowerShell(gh run *)",
+      "PowerShell(git *)"
     ]
   }
 }

@@ -19,21 +19,26 @@ namespace Planora.Api.Controllers;
 [Route("api/[controller]")]
 public class WorkspacesController : ControllerBase
 {
+    private static readonly WorkspaceRole[] OwnerOrAdminRoles = [WorkspaceRole.Owner, WorkspaceRole.Admin];
+
     private readonly ApplicationDbContext _db;
     private readonly IValidator<CreateWorkspaceRequest> _createValidator;
     private readonly IValidator<UpdateWorkspaceRequest> _updateValidator;
     private readonly IActivityEmailNotifier _emailNotifier;
+    private readonly IWorkspaceAccessService _workspaceAccess;
 
     public WorkspacesController(
         ApplicationDbContext db,
         IValidator<CreateWorkspaceRequest> createValidator,
         IValidator<UpdateWorkspaceRequest> updateValidator,
-        IActivityEmailNotifier emailNotifier)
+        IActivityEmailNotifier emailNotifier,
+        IWorkspaceAccessService workspaceAccess)
     {
         _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _emailNotifier = emailNotifier;
+        _workspaceAccess = workspaceAccess;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -57,7 +62,7 @@ public class WorkspacesController : ControllerBase
             .FirstOrDefaultAsync(w => w.Id == id);
 
         if (workspace is null) return NotFound();
-        if (!workspace.Members.Any(m => m.UserId == UserId)) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(id, UserId)) return Forbid();
 
         return Ok(workspace.ToDto());
     }
@@ -65,10 +70,7 @@ public class WorkspacesController : ControllerBase
     [HttpGet("{id:guid}/boards")]
     public async Task<IActionResult> GetBoards(Guid id, [FromQuery] bool includeArchived = false)
     {
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(id, UserId)) return Forbid();
 
         var boardsQuery = includeArchived
             // Show archived boards too, but never trashed ones (those live in the workspace trash).
@@ -83,10 +85,7 @@ public class WorkspacesController : ControllerBase
     [HttpGet("{id:guid}/members")]
     public async Task<IActionResult> GetMembers(Guid id)
     {
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(id, UserId)) return Forbid();
 
         var members = await _db.WorkspaceMembers
             .Include(m => m.User)
@@ -110,12 +109,10 @@ public class WorkspacesController : ControllerBase
     [HttpDelete("{id:guid}/members/{userId}")]
     public async Task<IActionResult> RemoveMember(Guid id, string userId)
     {
-        var callerMember = await _db.WorkspaceMembers
-            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
+        var callerMember = await _workspaceAccess.GetMembershipAsync(id, UserId);
 
         if (callerMember is null) return Forbid();
-        if (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin)
-            return Forbid();
+        if (!OwnerOrAdminRoles.Contains(callerMember.Role)) return Forbid();
 
         // Owner cannot be removed
         var workspace = await _db.Workspaces.FindAsync(id);
@@ -135,8 +132,7 @@ public class WorkspacesController : ControllerBase
     [HttpPatch("{id:guid}/members/{userId}")]
     public async Task<IActionResult> UpdateMemberRole(Guid id, string userId, [FromBody] UpdateMemberRoleRequest request)
     {
-        var callerMember = await _db.WorkspaceMembers
-            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
+        var callerMember = await _workspaceAccess.GetMembershipAsync(id, UserId);
 
         if (callerMember is null || callerMember.Role != WorkspaceRole.Owner) return Forbid();
 
@@ -169,7 +165,7 @@ public class WorkspacesController : ControllerBase
 
         if (workspace is null) return NotFound();
 
-        var callerMember = workspace.Members.FirstOrDefault(m => m.UserId == UserId);
+        var callerMember = await _workspaceAccess.GetMembershipAsync(id, UserId);
         if (callerMember is null) return Forbid();
         if (workspace.OwnerId != UserId || callerMember.Role != WorkspaceRole.Owner)
             return Forbid();
@@ -202,7 +198,7 @@ public class WorkspacesController : ControllerBase
 
         if (workspace is null) return NotFound();
 
-        var member = workspace.Members.FirstOrDefault(m => m.UserId == UserId);
+        var member = await _workspaceAccess.GetMembershipAsync(id, UserId);
         if (member is null) return Forbid();
 
         if (workspace.OwnerId == UserId)
@@ -216,9 +212,7 @@ public class WorkspacesController : ControllerBase
     [HttpGet("{id:guid}/calendar")]
     public async Task<IActionResult> GetCalendar(Guid id, [FromQuery] string? month)
     {
-        var isMember = await _db.WorkspaceMembers
-            .AnyAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-        if (!isMember) return Forbid();
+        if (!await _workspaceAccess.IsMemberAsync(id, UserId)) return Forbid();
 
         // Parse month as "yyyy-MM"; default to current month
         DateTime start;
@@ -269,10 +263,7 @@ public class WorkspacesController : ControllerBase
     [HttpGet("{id:guid}/invitations")]
     public async Task<IActionResult> GetInvitations(Guid id)
     {
-        var callerMember = await _db.WorkspaceMembers
-            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-
-        if (callerMember is null || (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin))
+        if (!await _workspaceAccess.HasAnyRoleAsync(id, UserId, OwnerOrAdminRoles))
             return Forbid();
 
         // Mark stale pending invitations as expired so the list reflects reality.
@@ -311,10 +302,7 @@ public class WorkspacesController : ControllerBase
     [HttpPost("{id:guid}/invitations")]
     public async Task<IActionResult> CreateInvitation(Guid id, [FromBody] CreateInvitationRequest request)
     {
-        var callerMember = await _db.WorkspaceMembers
-            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-
-        if (callerMember is null || (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin))
+        if (!await _workspaceAccess.HasAnyRoleAsync(id, UserId, OwnerOrAdminRoles))
             return Forbid();
 
         if (string.IsNullOrWhiteSpace(request.InviteeEmail))
@@ -379,10 +367,7 @@ public class WorkspacesController : ControllerBase
     [HttpDelete("{id:guid}/invitations/{invitationId:guid}")]
     public async Task<IActionResult> RevokeInvitation(Guid id, Guid invitationId)
     {
-        var callerMember = await _db.WorkspaceMembers
-            .FirstOrDefaultAsync(m => m.WorkspaceId == id && m.UserId == UserId);
-
-        if (callerMember is null || (callerMember.Role != WorkspaceRole.Owner && callerMember.Role != WorkspaceRole.Admin))
+        if (!await _workspaceAccess.HasAnyRoleAsync(id, UserId, OwnerOrAdminRoles))
             return Forbid();
 
         var invitation = await _db.WorkspaceInvitations
@@ -446,8 +431,7 @@ public class WorkspacesController : ControllerBase
 
         if (workspace is null) return NotFound();
 
-        var member = workspace.Members.FirstOrDefault(m => m.UserId == UserId);
-        if (member is null || (member.Role != WorkspaceRole.Owner && member.Role != WorkspaceRole.Admin))
+        if (!await _workspaceAccess.HasAnyRoleAsync(id, UserId, OwnerOrAdminRoles))
             return Forbid();
 
         if (request.Name is not null) workspace.Name = request.Name;
