@@ -63,7 +63,9 @@ _db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == X && m.UserId == UserId)
 ## Known Gaps
 
 - bUnit Blazor component tests not set up yet (API integration tests exist in `Planora.Tests`)
-- No rate limiting on upload endpoints
+- ~~No rate limiting on upload endpoints~~ fixed 2026-07-10: per-user `uploads` fixed-window policy
+  (15/min, `RateLimiting:UploadPermitLimit`) on cover-image + attachment uploads; `UseRateLimiter`
+  moved after `UseAuthentication` so the user partition sees the principal
 - SortableJS reorder + active priority filter → `evt.newIndex` is relative to filtered list, not full collection
 - ~~Azure Blob storage backend~~ implemented: `BlobFileStorage` (private container + SAS reads via
   `MediaUrlResolutionFilter`) runs in production (`Storage__Provider=AzureBlob` in `deploy-api.yml`);

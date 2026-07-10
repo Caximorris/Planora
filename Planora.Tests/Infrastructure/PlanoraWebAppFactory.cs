@@ -42,6 +42,9 @@ public sealed class PlanoraWebAppFactory : WebApplicationFactory<Program>, IAsyn
         // suite fires many auth calls in one minute, so raise the limit to avoid spurious 429s.
         // Lockout still returns 429 through its own path, which these tests assert independently.
         Environment.SetEnvironmentVariable("RateLimiting__AuthPermitLimit", "10000");
+        // The uploads limiter is partitioned per user, so other tests (one-ish upload per
+        // fresh user) never hit it; a low limit keeps UploadRateLimitTests cheap.
+        Environment.SetEnvironmentVariable("RateLimiting__UploadPermitLimit", "10");
     }
 
     /// <summary>Records emails the API "sends" so tests can assert on them.</summary>

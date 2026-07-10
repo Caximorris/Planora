@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Mappers;
@@ -290,6 +291,7 @@ public class BoardsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/cover-image")]
+    [EnableRateLimiting("uploads")]
     [RequestSizeLimit(BoardLimits.MaxCoverImageBytes + 1024)]
     public async Task<IActionResult> UploadCoverImage(Guid id, IFormFile? file)
     {

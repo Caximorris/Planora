@@ -210,8 +210,8 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 
 ## Known Issues / Technical Debt
 
-- No rate limiting on cover image upload endpoint
-- SortableJS `evt.newIndex` is relative to filtered list when priority filter is active — reorder sends wrong position
+- Card reorder is disabled while a priority filter is active (safe mitigation; the real fix —
+  mapping the filtered index to the full-list position — is still unbuilt)
 - API integration tests exist (`Planora.Tests`); no bUnit Blazor component tests yet
 - `dotnet test` needs local Postgres up and dev servers stopped (API locks `Planora.Shared.dll`)
 - `appsettings.Development.json` not committed — contains local DB password and dev JWT key
@@ -225,7 +225,7 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 - [ ] Analytics dashboard
 - [x] Data export and account deletion
 - [ ] Mobile layout improvements
-- [ ] Rate limiting on upload endpoints
+- [x] Rate limiting on upload endpoints (per-user `uploads` policy, 15/min default)
 - [x] `Update*Request` validators
 
 ---

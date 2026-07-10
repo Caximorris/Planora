@@ -149,6 +149,25 @@ builder.Services.AddRateLimiter(options =>
         limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         limiterOptions.QueueLimit = 0;
     });
+
+    // Upload endpoints (board covers, card attachments) are partitioned per authenticated
+    // user so one abusive client can't exhaust a shared window for everyone. Requires
+    // UseRateLimiter to run after UseAuthentication or the principal is always empty.
+    var uploadPermitLimit = builder.Configuration.GetValue<int?>("RateLimiting:UploadPermitLimit") ?? 15;
+    options.AddPolicy("uploads", context =>
+    {
+        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = uploadPermitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -255,7 +274,6 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 
 app.UseHttpsRedirection();
-app.UseRateLimiter();
 
 // ── Correlation ID middleware ─────────────────────────────────────────────────
 app.Use(async (context, next) =>
@@ -282,6 +300,9 @@ app.Use(async (context, next) =>
 
 app.UseStaticFiles();
 app.UseAuthentication();
+// After UseAuthentication on purpose: the "uploads" limiter partitions by the authenticated
+// user id. Only named endpoint policies exist (no global limiter), so nothing else changes.
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Planora.Api.Application.Interfaces;
 using Planora.Api.Application.Mappers;
@@ -270,6 +271,7 @@ public class CardsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/attachments")]
+    [EnableRateLimiting("uploads")]
     [RequestSizeLimit(CardLimits.MaxAttachmentBytes + 1024)]
     public async Task<IActionResult> UploadAttachment(Guid id, IFormFile? file)
     {

@@ -42,8 +42,9 @@ Ranked by how much they undermine the "serious SaaS" impression today:
 
 1. ~~**Durable upload storage.**~~ ✅ **Done (2026-07-09)** — `BlobFileStorage` implements
    `IFileStorage` on Azure Blob, selected by `Storage:Provider=AzureBlob`; dual-read means legacy
-   `/uploads/...` covers still render and blob deletes ignore them. **Remaining:** provision the Azure
-   Storage account + set `Storage__*` secrets before prod cutover (code is ready; infra is not).
+   `/uploads/...` covers still render and blob deletes ignore them. **Production live (2026-07-10):**
+   `deploy-api.yml` sets `Storage__Provider=AzureBlob` + `Storage__Blob__*` secrets against the
+   `planorabs` storage account — no remaining storage work.
 2. ~~**Data export and account deletion.**~~ ✅ **Done (2026-07-08)** — `GET /api/users/export`
    (full profile + member workspaces JSON) and `POST /api/users/delete-account` (password re-auth;
    solo-owned workspaces removed with the account, shared-owned block with 409) in `AccountService`.
@@ -51,8 +52,10 @@ Ranked by how much they undermine the "serious SaaS" impression today:
    FluentValidation validators (partial-update aware), wired into all six write controllers.
 4. **No bUnit/component test layer.** API integration coverage is strong; Blazor UI behavior is still
    validated mostly by build/manual browser passes.
-5. **Upload endpoints are not rate-limited.** File type/size/scope validation exists, but upload abuse
-   controls are still a gap.
+5. ~~**Upload endpoints are not rate-limited.**~~ ✅ **Done (2026-07-10)** — per-user `uploads`
+   fixed-window policy (15/min default, `RateLimiting:UploadPermitLimit`) on board-cover and
+   card-attachment uploads; `UseRateLimiter` moved after `UseAuthentication` so the partition key is
+   the real user id. Pinned by `Planora.Tests/Security/UploadRateLimitTests.cs`.
 6. **Filtered drag reorder still needs a fix.** SortableJS `evt.newIndex` is relative to the filtered
    list when priority filtering is active, so reorder can send the wrong full-list position.
 
@@ -101,7 +104,8 @@ cover image survives a container restart; password-reset token is single-use and
 - Session/device management page (list + revoke refresh-token sessions).
 - Workspace settings + full member/invite management UI (revoke invite, change role, transfer
   ownership, leave workspace).
-- Saved filters / favorites / recently-viewed (frontend-heavy, low backend risk).
+- Saved filters ✅ (shipped — per-board saved filter views, localStorage-backed in `Board.razor`);
+  favorites / recently-viewed still open.
 
 **Why now:** these are the highest *portfolio* signal per unit of risk once the foundation is safe.
 Activity feed and attachments are the features reviewers remember.
@@ -178,7 +182,7 @@ Impact legend: **H/M/L**. Complexity/Risk: **H/M/L**.
 | **P2** | Optimistic concurrency (`xmin`) | M | H | M | M | M | L | S | 409 on conflict | Worthwhile |
 | **P2** | Background cleanup job (tokens/invites) | L | M | L | L | M | – | – | Job removes expired only | Worthwhile |
 | **P2** | Notification preferences + email notifications | M | M | M | M | M | M | M | Respects prefs | Worthwhile |
-| **P2** | Saved filters / favorites / recent items | M | M | M | L | M | H | S | Persist + isolation | Worthwhile |
+| **P2** | Saved filters ✅ (shipped) / favorites / recent items | M | M | M | L | M | H | S | Persist + isolation | Saved views done; rest optional |
 | **P2** | Data export + account deletion | M | H | M | M | H | M | – | No cross-tenant leak | Worthwhile |
 | **P2** | Toast / error-boundary / empty states | M | M | L | L | – | H | – | Component render | Polish |
 | **P2** | 2FA/TOTP + recovery codes | M | H | M | M | H | M | S | Enroll/verify/recovery | Later |
@@ -426,8 +430,8 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
    Risk: M. Validated: `dotnet build Planora.slnx` clean; 27 unit assertions (blob-name/URL/content-type
    + the filter reaching every URL-bearing DTO shape); full suite green (139). **Private** container —
    reads are short-lived read-SAS URLs (default 60 min) minted per response; only the API (holding the
-   account key) writes or signs. **Not yet done:** Azure resource provisioning + `Storage__*` secrets
-   (infra, outside repo). Deps: 7.
+   account key) writes or signs. **Provisioning done (2026-07-10):** `deploy-api.yml` sets the
+   `Storage__*` env/secrets; production runs on AzureBlob. Deps: 7.
 9. ✅ **Dual-read (no migration needed).** Goal: serve old disk URLs + new blob URLs. Implemented for
    free: frontend `new Uri(base, url)` passes absolute Blob URLs through and resolves legacy
    `/uploads/...` against the API; `BlobFileStorage.DeleteAsync` no-ops on legacy paths. Files:
@@ -570,14 +574,15 @@ Small, safe, agent-sized steps. `Risk` = L/M/H. Validation assumes no dev server
 
 ## 10. Final recommendation (blunt)
 
-**Build next: the remaining small hardening gaps — upload rate limits and the filtered drag-reorder
-bug fix.** Azure Blob storage is now implemented (`BlobFileStorage`, 2026-07-09); the only residual
-storage work is provisioning the Azure account + secrets, which is infra, not code. Once the app is
-pointed at a real Storage account, uploaded covers/attachments survive Container Apps
-restart/deploy/scale-out.
+**Build next: the filtered drag-reorder fix (re-enable card reorder under an active filter by
+mapping filtered index → full-list position) — upload rate limits shipped 2026-07-10.**
+Azure Blob storage is implemented **and provisioned in production** (2026-07-10:
+`deploy-api.yml` runs `Storage__Provider=AzureBlob` against the `planorabs` account) — uploaded
+covers/attachments survive Container Apps restart/deploy/scale-out. Storage is closed.
 
-**Then add product polish that compounds the existing base:** saved filters/recent items, deeper empty
-states, and bUnit coverage for Profile/WorkspaceSettings/Board modal flows.
+**Then add product polish that compounds the existing base:** favorites/recent items (saved filter
+views already shipped), deeper empty states, and bUnit coverage for Profile/WorkspaceSettings/Board
+modal flows.
 
 **Done now:** health checks, tests/CI, account recovery, email verification, Resend transactional
 delivery, workspace settings/member lifecycle, activity feed, attachments, soft-delete/trash,
@@ -590,9 +595,10 @@ presence, AI assistant, plugin marketplace, native mobile, and enterprise SSO. E
 fragile investment that — half-finished — makes the project look *less* serious, not more. If you want
 one "wow" system, pick **activity feed + attachments**, not real-time or billing.
 
-**What most improves the portfolio piece now:** the durable-storage code gap is closed
-(`BlobFileStorage`); the last mile is provisioning the Azure Storage account so covers/attachments
-are actually durable in prod. The security model is already proven by tests.
+**What most improves the portfolio piece now:** error states on the Calendar/Workspaces load paths
+(the toast service makes this cheap) and de-duplicating the notification logic shared by the bell
+dropdown and the Notifications page. Storage and upload rate limiting are closed. The security
+model is proven by tests.
 
 ---
 
