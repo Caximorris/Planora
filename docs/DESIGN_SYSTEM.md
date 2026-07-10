@@ -93,8 +93,10 @@ Global `:focus-visible` ring (cyan) on links/buttons/inputs/nav; icon-only nav b
 `aria-label` + `aria-expanded`; `@media (prefers-reduced-motion: reduce)` zeroes animation/transition
 durations **and** `animation-delay` (staggered entrances use `backwards` fill and would otherwise be
 held invisible). Modals get scroll-lock, focus-trap, Escape and focus-restore globally via
-`modal-a11y.js` (any `.modal.d-block` + `.btn-close`). Known gap (deferred): kanban cards / board
-tiles are clickable `<div>`s (no keyboard activation). See `docs/FRONTEND_AUDIT.md` A2.
+`modal-a11y.js` (any `.modal.d-block` + `.btn-close`). Kanban cards, board tiles and notification
+rows are keyboard-activatable (`role="button"` + `tabindex="0"` + Enter/Space) — the A2 gap from
+`docs/FRONTEND_AUDIT.md` was closed in the senior QA pass. Remaining a11y debt: form labels are not
+consistently associated with inputs via `for`/`id`.
 
 ## Responsive
 
