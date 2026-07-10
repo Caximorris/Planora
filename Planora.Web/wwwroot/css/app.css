@@ -249,6 +249,24 @@ html[data-theme="dark"] .skeleton::after {
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
 }
 
+/* Skeleton variants. The notif ones sit on the dark glass nav in both themes,
+   so they use their own translucent-light surface instead of --color-surface-2. */
+.nav-notif-skeleton {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 16px;
+}
+.nav-notif-skeleton-line {
+    height: 12px;
+    background: rgba(226,232,240,0.10);
+}
+.nav-notif-skeleton-line--short { width: 60%; }
+html[data-theme="dark"] .nav-notif-skeleton-line { background: rgba(226,232,240,0.10); }
+
+.board-tile-skeleton {
+    height: 168px;
+    border-radius: var(--radius-lg);
+}
+
 /* ── Reset & base ────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -342,13 +360,15 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     color: rgba(226,232,240,0.55);
     font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: -0.1px;
     text-decoration: none; text-align: center;
-    transition: background var(--transition), color var(--transition);
+    transition: background var(--transition), color var(--transition), transform var(--transition-fast);
 }
 .side-nav-item:hover { background: rgba(226,232,240,0.08); color: rgba(226,232,240,0.95); text-decoration: none; }
+.side-nav-item:active { transform: scale(0.95); }
 .side-nav-item.active { background: rgba(34,211,238,0.12); color: var(--mint-300); }
 .side-nav-item.active::before {
     content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
     width: 3px; height: 22px; border-radius: 0 3px 3px 0; background: var(--mint-300);
+    animation: fade-in var(--dur-2) var(--ease-out);
 }
 .side-nav-item svg { width: 21px; height: 21px; flex-shrink: 0; }
 .side-nav-label { line-height: 1; }
@@ -644,6 +664,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 5rem 1rem;
     color: var(--color-text-low); text-align: center;
+    animation: rise-in var(--dur-3) var(--ease-out);
 }
 .ws-empty-icon { font-size: 2.75rem; margin-bottom: 1rem; opacity: 0.4; }
 .ws-empty-text { font-size: 1rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--color-text-mid); }
@@ -905,6 +926,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     border: 1px solid rgba(226,232,240,0.14);
     background: rgba(15,17,32,0.58);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: drop-in var(--dur-2) var(--ease-out);
 }
 .filter-saved-row {
     display: flex;
@@ -1018,6 +1040,7 @@ a:hover { color: var(--color-primary-d); text-decoration: underline; }
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    animation: rise-in var(--dur-3) var(--ease-out);
     margin: 10px 16px 0;
     padding: 9px 12px;
     border-radius: var(--radius-md);
@@ -1133,6 +1156,9 @@ html[data-theme="dark"] .kanban-col-count { background: rgba(34,211,238,0.12); c
     align-items: center;
     justify-content: center;
     min-height: 54px;
+    /* Fade only — this appears mid-drag when the last card leaves a column,
+       and a transform entrance would read as jitter next to the drag ghost. */
+    animation: fade-in var(--dur-2) var(--ease-out);
     border: 1px dashed rgba(100,116,139,0.28);
     border-radius: var(--radius-sm);
     color: var(--color-text-low);
@@ -1277,10 +1303,11 @@ body.planora-modal-open { overflow: hidden; }
 /* ── Bootstrap overrides ────────────────────────────────────── */
 .btn { font-weight: 600; letter-spacing: -0.1px; transition: var(--transition); border-radius: var(--radius-sm); }
 .btn:disabled, button:disabled { cursor: not-allowed; }
+.btn:not(:disabled):active { transform: scale(0.98); }
 
 .btn-primary { background: var(--wine-800); border-color: var(--wine-800); color: var(--mint-300); }
 .btn-primary:hover { background: var(--wine-900); border-color: var(--wine-900); color: var(--mint); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.btn-primary:active { background: var(--wine-950); border-color: var(--wine-950); transform: none; }
+.btn-primary:active { background: var(--wine-950); border-color: var(--wine-950); }
 .btn-primary:focus-visible { box-shadow: 0 0 0 3px rgba(34,211,238,0.40); }
 
 .btn-outline-primary { color: var(--wine-800); border-color: var(--rose-200); }
@@ -1690,7 +1717,9 @@ html[data-theme="dark"] .checklist-block { background: var(--cream-500); border-
 }
 .checklist-progress-fill {
     height: 100%; background: var(--teal); border-radius: 3px;
-    transition: width .25s ease;
+    /* Width transition kept deliberately: a 5px progress bar animating width is the
+       whole point, and it's far too small to cause meaningful layout work. */
+    transition: width var(--dur-3) var(--ease-in-out);
 }
 .checklist-progress-fill--done { background: #28a745; }
 
@@ -2116,6 +2145,9 @@ select:focus-visible,
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
+        /* Delays must be zeroed too: staggered entrances use `backwards` fill,
+           which would otherwise hold elements invisible for the delay. */
+        animation-delay: 0s !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
@@ -2142,7 +2174,13 @@ select:focus-visible,
     box-shadow: var(--shadow-lg);
     color: var(--color-text);
     font-size: 0.9rem; line-height: 1.35;
-    animation: toast-in var(--transition) ease;
+    animation: rise-in var(--dur-2) var(--ease-out);
+}
+/* ToastService marks a toast IsLeaving, waits ~--dur-2, then removes it — so this
+   exit animation gets to finish before Blazor drops the node. */
+.toast-item--leaving {
+    animation: toast-out var(--dur-2) var(--ease-in-out) forwards;
+    pointer-events: none;
 }
 .toast-item--success { border-left-color: var(--color-success); }
 .toast-item--error   { border-left-color: var(--color-danger); }
@@ -2173,11 +2211,6 @@ select:focus-visible,
     transition: color var(--transition);
 }
 .toast-close:hover { color: var(--color-text); }
-
-@keyframes toast-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
 
 @media (max-width: 640px) {
     .toast-host {
@@ -2243,6 +2276,7 @@ select:focus-visible,
     justify-content: center; text-align: center;
     gap: 8px; padding: 48px 24px;
     color: var(--color-text-mid);
+    animation: rise-in var(--dur-3) var(--ease-out);
 }
 .empty-state--compact { padding: 24px 16px; }
 .empty-state-icon {

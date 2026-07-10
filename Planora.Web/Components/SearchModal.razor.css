@@ -4,7 +4,7 @@
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
     z-index: var(--z-search, 900);
-    animation: search-fade-in 0.1s ease;
+    animation: search-fade-in var(--dur-2) var(--ease-out);
 }
 
 /* ── Container ────────────────────────────────────────────── */
@@ -23,7 +23,7 @@
     box-shadow: var(--shadow-glass), 0 24px 60px rgba(15, 23, 42, 0.22);
     z-index: calc(var(--z-search, 900) + 1);
     overflow: hidden;
-    animation: search-slide-in 0.12s ease;
+    animation: search-slide-in var(--dur-2) var(--ease-out);
     max-height: calc(var(--viewport-h, 100vh) - 2rem);
     display: flex;
     flex-direction: column;
@@ -121,7 +121,7 @@
     border: none;
     cursor: pointer;
     color: var(--color-text);
-    transition: background 0.08s;
+    transition: background var(--transition-fast);
     border-radius: 0;
 }
 
@@ -160,7 +160,9 @@
     margin-top: 0.1rem;
 }
 
-/* ── Animations ───────────────────────────────────────────── */
+/* ── Animations ───────────────────────────────────────────────
+   Private keyframes on purpose: the container's centering translateX(-50%)
+   must be baked into every frame, so app.css's shared entrances don't fit. */
 @keyframes search-fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }

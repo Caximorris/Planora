@@ -76,7 +76,11 @@
 
                         @if (_loadingNotifs)
                         {
-                            <div class="nav-notif-empty"><span class="spinner-border spinner-border-sm"></span></div>
+                            <div class="nav-notif-skeleton" aria-hidden="true">
+                                <div class="skeleton nav-notif-skeleton-line"></div>
+                                <div class="skeleton nav-notif-skeleton-line"></div>
+                                <div class="skeleton nav-notif-skeleton-line nav-notif-skeleton-line--short"></div>
+                            </div>
                         }
                         else if (_notifications.Count == 0)
                         {

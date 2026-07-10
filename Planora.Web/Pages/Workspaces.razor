@@ -70,7 +70,11 @@
 
             @if (_loadingBoards)
             {
-                <div class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></div>
+                <div class="boards-grid" aria-hidden="true">
+                    <div class="skeleton board-tile-skeleton"></div>
+                    <div class="skeleton board-tile-skeleton"></div>
+                    <div class="skeleton board-tile-skeleton"></div>
+                </div>
             }
             else if (_boards.Count == 0)
             {

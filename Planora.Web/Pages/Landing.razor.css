@@ -52,6 +52,23 @@
     width: 100%;
 }
 
+/* Hero entrance stagger — references app.css's global rise-in keyframes
+   (Blazor CSS isolation rewrites selectors, not animation names).
+   `backwards` fill keeps delayed items hidden until their turn. */
+.landing-title,
+.landing-subtitle,
+.landing-demo-btn,
+.landing-demo-hint,
+.landing-divider,
+.landing-secondary-links {
+    animation: rise-in var(--dur-3) var(--ease-out) backwards;
+}
+.landing-subtitle        { animation-delay: 60ms; }
+.landing-demo-btn        { animation-delay: 120ms; }
+.landing-demo-hint       { animation-delay: 160ms; }
+.landing-divider         { animation-delay: 200ms; }
+.landing-secondary-links { animation-delay: 200ms; }
+
 .landing-title {
     font-size: clamp(2.2rem, 6vw, 3.5rem);
     font-weight: 800;

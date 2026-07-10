@@ -4,7 +4,8 @@
 <div class="toast-host" aria-live="polite" aria-atomic="false">
     @foreach (var t in Toasts.Toasts)
     {
-        <div class="toast-item toast-item--@(t.Type.ToString().ToLowerInvariant())" @key="t.Id" role="status">
+        var cls = $"toast-item toast-item--{t.Type.ToString().ToLowerInvariant()}{(t.IsLeaving ? " toast-item--leaving" : "")}";
+        <div class="@cls" @key="t.Id" role="status">
             <span class="toast-icon" aria-hidden="true">@Icon(t.Type)</span>
             <span class="toast-msg">@t.Message</span>
             <button class="toast-close" aria-label="Dismiss notification" @onclick="() => Toasts.Dismiss(t.Id)">✕</button>

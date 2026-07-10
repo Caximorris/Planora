@@ -7,6 +7,9 @@ public sealed class Toast
     public Guid Id { get; } = Guid.NewGuid();
     public required string Message { get; init; }
     public ToastType Type { get; init; }
+
+    /// <summary>True once dismissal has started; ToastHost renders the exit animation.</summary>
+    public bool IsLeaving { get; internal set; }
 }
 
 /// <summary>
@@ -40,8 +43,14 @@ public sealed class ToastService
 
     public void Dismiss(Guid id)
     {
-        if (_toasts.RemoveAll(t => t.Id == id) > 0)
-            OnChange?.Invoke();
+        var toast = _toasts.Find(t => t.Id == id);
+        if (toast is null || toast.IsLeaving) return;
+
+        // Two-phase removal: flag it so ToastHost plays the CSS exit animation
+        // (.toast-item--leaving, --dur-2 = 180ms), then drop it after the animation ran.
+        toast.IsLeaving = true;
+        OnChange?.Invoke();
+        _ = RemoveAfterExitAsync(id);
     }
 
     private static TimeSpan DefaultDuration(ToastType type) =>
@@ -52,4 +61,14 @@ public sealed class ToastService
         try { await Task.Delay(delay); } catch { /* fire-and-forget */ }
         Dismiss(id);
     }
+
+    private async Task RemoveAfterExitAsync(Guid id)
+    {
+        try { await Task.Delay(ExitAnimationDuration); } catch { /* fire-and-forget */ }
+        if (_toasts.RemoveAll(t => t.Id == id) > 0)
+            OnChange?.Invoke();
+    }
+
+    /// <summary>Must stay >= the CSS toast-out duration (--dur-2).</summary>
+    private static readonly TimeSpan ExitAnimationDuration = TimeSpan.FromMilliseconds(200);
 }
