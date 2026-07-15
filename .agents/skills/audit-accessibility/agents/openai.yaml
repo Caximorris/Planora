@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Accessibility"
+  short_description: "Audit Planora keyboard semantics focus and contrast"
+  default_prompt: "Use $audit-accessibility to audit a Planora UI flow for accessibility."

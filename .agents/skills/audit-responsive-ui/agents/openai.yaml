@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Responsive UI"
+  short_description: "Audit Planora mobile and responsive behavior"
+  default_prompt: "Use $audit-responsive-ui to audit Planora responsive behavior across viewports."

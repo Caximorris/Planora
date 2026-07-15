@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Error Handling"
+  short_description: "Review Planora API and Web failure behavior"
+  default_prompt: "Use $review-error-handling to review Planora error handling across API and Web."

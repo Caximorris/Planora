@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Release"
+  short_description: "Gate Planora release readiness with evidence"
+  default_prompt: "Use $review-release to assess Planora release readiness and blockers."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review EF Core"
+  short_description: "Review Planora EF Core models queries and transactions"
+  default_prompt: "Use $review-ef-core to review Planora EF Core usage and query behavior."

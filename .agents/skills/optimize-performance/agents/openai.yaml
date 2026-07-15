@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimize Performance"
+  short_description: "Implement measured Planora performance improvements"
+  default_prompt: "Use $optimize-performance to optimize a measured Planora performance bottleneck safely."

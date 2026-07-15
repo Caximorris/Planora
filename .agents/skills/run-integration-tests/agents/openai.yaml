@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Integration Tests"
+  short_description: "Prepare and run Planora PostgreSQL integration tests"
+  default_prompt: "Use $run-integration-tests to run and diagnose the Planora integration test suite."

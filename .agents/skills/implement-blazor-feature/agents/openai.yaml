@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Blazor Feature"
+  short_description: "Build Planora Web features through typed services"
+  default_prompt: "Use $implement-blazor-feature to implement a Planora Blazor feature through typed services."

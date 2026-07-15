@@ -1,0 +1,98 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook session-start",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook session-start",
+            "timeout": 2,
+            "statusMessage": "Loading Planora quality policy"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook prompt-submit",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook prompt-submit",
+            "timeout": 2,
+            "statusMessage": "Classifying Planora task risk"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|shell_command|apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook pre-tool",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook pre-tool",
+            "timeout": 2,
+            "statusMessage": "Checking Planora pre-edit policy"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook post-tool",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook post-tool",
+            "timeout": 2,
+            "statusMessage": "Running Planora fast audit"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook subagent-start",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook subagent-start",
+            "timeout": 2,
+            "statusMessage": "Loading Planora subagent protocol"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook subagent-stop",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook subagent-stop",
+            "timeout": 2,
+            "statusMessage": "Checking Planora handoff evidence"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook stop",
+            "commandWindows": "python \"$(git rev-parse --show-toplevel)/.codex/hooks/planora_hooks.py\" hook stop",
+            "timeout": 2,
+            "statusMessage": "Checking Planora completion evidence"
+          }
+        ]
+      }
+    ]
+  }
+}

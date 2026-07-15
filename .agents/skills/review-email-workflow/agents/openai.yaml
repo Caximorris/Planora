@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Email Workflow"
+  short_description: "Review Planora transactional email delivery"
+  default_prompt: "Use $review-email-workflow to review a Planora transactional email workflow."

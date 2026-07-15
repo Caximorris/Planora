@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "cacheVersion": "planora-hooks-v1",
+  "categories": {
+    "documentation": ["*.md", "docs/**", "README.md", "session.md"],
+    "devex": ["AGENTS.md", "CLAUDE.md", ".agents/**", ".codex/**", ".githooks/**", "scripts/**"],
+    "backend": ["Planora.Api/**"],
+    "frontend": ["Planora.Web/**"],
+    "shared_contract": ["Planora.Shared/**"],
+    "tests": ["Planora.Tests/**"],
+    "api_contract": ["Planora.Api/Controllers/**", "Planora.Shared/DTOs/**", "Planora.Shared/Enums/**", "docs/api-endpoints.md"],
+    "authentication": ["Planora.Api/Controllers/AuthController.cs", "Planora.Api/Application/Services/TokenService.cs", "Planora.Api/Application/Services/RefreshTokenService.cs", "Planora.Api/Domain/Entities/RefreshToken.cs", "Planora.Web/Auth/**", "Planora.Web/Services/AuthService.cs", "Planora.Tests/Auth/**", "Planora.Tests/AuthFlowTests.cs"],
+    "authorization": ["Planora.Api/Application/Interfaces/IWorkspaceAccessService.cs", "Planora.Api/Application/Services/WorkspaceAccessService.cs", "Planora.Tests/Security/WorkspaceAccessTests.cs"],
+    "database": ["Planora.Api/Domain/Entities/**", "Planora.Api/Infrastructure/Data/**", "Planora.Api/Migrations/**"],
+    "migration": ["Planora.Api/Migrations/**"],
+    "dependencies": ["*.slnx", "*.csproj", "**/*.csproj", "Directory.Build.*", ".github/dependabot.yml", "Planora.Web/wwwroot/lib/**", "Planora.Api/Dockerfile", ".github/workflows/**"],
+    "configuration": ["**/appsettings*.json", "**/launchSettings.json", "Planora.Web/wwwroot/staticwebapp.config.json", "docker-compose.yml", "railway.json", ".github/workflows/**"],
+    "ui": ["Planora.Web/**/*.razor", "Planora.Web/**/*.razor.css", "Planora.Web/wwwroot/css/**", "Planora.Web/wwwroot/js/**", "Planora.Web/wwwroot/index.html"],
+    "ci": [".github/workflows/**", ".github/dependabot.yml"],
+    "container": ["Planora.Api/Dockerfile", "docker-compose.yml", "railway.json"],
+    "security": ["Planora.Api/Controllers/AuthController.cs", "Planora.Api/Application/Services/TokenService.cs", "Planora.Api/Application/Services/RefreshTokenService.cs", "Planora.Api/Application/Services/WorkspaceAccessService.cs", "Planora.Api/Infrastructure/Storage/**", "Planora.Tests/Security/**", ".github/workflows/**"]
+  },
+  "routing": {
+    "backend": {"skills": ["implement-endpoint"], "agents": ["api-engineer"]},
+    "frontend": {"skills": ["implement-blazor-feature"], "agents": ["blazor-engineer"]},
+    "shared_contract": {"skills": ["change-api-contract", "review-api-contract"], "agents": ["api-contract-reviewer"]},
+    "api_contract": {"skills": ["review-api-contract"], "agents": ["api-contract-reviewer"]},
+    "authentication": {"skills": ["review-authz", "audit-security"], "agents": ["auth-session-specialist", "security-auditor"]},
+    "authorization": {"skills": ["review-authz"], "agents": ["authorization-reviewer"]},
+    "database": {"skills": ["review-ef-core"], "agents": ["ef-core-specialist"]},
+    "migration": {"skills": ["review-migration"], "agents": ["migration-reviewer"]},
+    "dependencies": {"skills": ["review-dependencies"], "agents": ["supply-chain-reviewer"]},
+    "configuration": {"skills": ["review-observability"], "agents": ["observability-reviewer"]},
+    "ui": {"skills": ["review-blazor-ui", "audit-accessibility", "audit-responsive-ui", "review-ux-visuals"], "agents": ["blazor-ui-reviewer"]},
+    "ci": {"skills": ["investigate-ci", "review-azure-deployment"], "agents": ["ci-investigator", "azure-deployment-reviewer"]},
+    "container": {"skills": ["review-container"], "agents": ["container-reviewer"]},
+    "security": {"skills": ["audit-security"], "agents": ["security-auditor"]},
+    "tests": {"skills": ["add-tests", "run-integration-tests"], "agents": ["test-engineer", "integration-test-engineer"]}
+  },
+  "hooks": [
+    {"id": "task-intake", "event": "UserPromptSubmit", "native": true, "tier": 1, "maxSeconds": 1, "frequency": "every user prompt", "scope": "prompt text", "blocking": "only confirmed secret patterns", "reuse": "none"},
+    {"id": "session-orientation", "event": "SessionStart", "native": true, "tier": 1, "maxSeconds": 1, "frequency": "thread start/resume/clear/compact", "scope": "current changed files", "blocking": "never", "reuse": "turn baseline"},
+    {"id": "pre-tool-policy", "event": "PreToolUse", "native": true, "tier": 1, "maxSeconds": 2, "frequency": "before shell or edit tools", "scope": "tool command plus target files", "blocking": "forbidden/destructive actions and unprepared migrations/PRs", "reuse": "current validation receipt"},
+    {"id": "post-edit-audit", "event": "PostToolUse", "native": true, "tier": 1, "maxSeconds": 2, "frequency": "after file edit tools", "scope": "repository changes", "blocking": "feeds critical findings back to Codex", "reuse": "changed-file fingerprint"},
+    {"id": "subagent-start", "event": "SubagentStart", "native": true, "tier": 1, "maxSeconds": 1, "frequency": "each subagent start", "scope": "agent type", "blocking": "never", "reuse": "none"},
+    {"id": "subagent-stop", "event": "SubagentStop", "native": true, "tier": 1, "maxSeconds": 1, "frequency": "each subagent stop", "scope": "handoff envelope", "blocking": "one retry when required evidence is missing", "reuse": "stop_hook_active loop guard"},
+    {"id": "completion-evidence", "event": "Stop", "native": true, "tier": 1, "maxSeconds": 2, "frequency": "every turn stop", "scope": "changes made in the turn", "blocking": "one continuation only when completion is claimed without current evidence", "reuse": "completion receipt"},
+    {"id": "pre-commit", "event": "Git pre-commit", "native": false, "tier": 2, "maxSeconds": 30, "frequency": "each commit", "scope": "staged files", "blocking": "yes", "reuse": "per-check content fingerprints"},
+    {"id": "pre-migration", "event": "quality gate", "native": false, "tier": 2, "maxSeconds": 30, "frequency": "before dotnet ef migrations add", "scope": "API model and data files", "blocking": "yes", "reuse": "pre-migration receipt"},
+    {"id": "pre-pr", "event": "quality gate", "native": false, "tier": 3, "maxSeconds": 900, "frequency": "before PR creation", "scope": "merge-base diff plus worktree", "blocking": "yes", "reuse": "per-check content fingerprints"},
+    {"id": "task-completion", "event": "quality gate", "native": false, "tier": 3, "maxSeconds": 900, "frequency": "once before final completion", "scope": "worktree changes", "blocking": "yes", "reuse": "shared with pre-PR when fingerprints match"}
+  ]
+}

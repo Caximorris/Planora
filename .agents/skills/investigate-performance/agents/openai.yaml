@@ -1,0 +1,4 @@
+interface:
+  display_name: "Investigate Performance"
+  short_description: "Measure and locate Planora performance bottlenecks"
+  default_prompt: "Use $investigate-performance to investigate a Planora performance problem with evidence."

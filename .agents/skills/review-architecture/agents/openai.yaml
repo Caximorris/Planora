@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Architecture"
+  short_description: "Assess Planora boundaries and dependency direction"
+  default_prompt: "Use $review-architecture to review a Planora architectural change or proposal."
