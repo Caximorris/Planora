@@ -104,6 +104,10 @@ dropped per run — no Docker required).
 dotnet test Planora.slnx
 ```
 
+Repository Codex and Git quality automation is documented in
+[docs/codex-hooks.md](docs/codex-hooks.md). It uses changed-file scope and three execution tiers so
+small documentation or isolated project edits do not trigger the full solution pipeline.
+
 ## Health Checks
 
 - `GET /health/live` — liveness (process up; runs no checks)

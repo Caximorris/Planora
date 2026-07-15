@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Tests"
+  short_description: "Add focused Planora unit or integration coverage"
+  default_prompt: "Use $add-tests to add focused tests for a Planora behavior change."

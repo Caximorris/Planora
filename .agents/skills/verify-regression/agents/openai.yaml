@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Regression"
+  short_description: "Prove a Planora defect is fixed and stays fixed"
+  default_prompt: "Use $verify-regression to verify a Planora regression with a focused proof."

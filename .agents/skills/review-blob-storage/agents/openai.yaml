@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Blob Storage"
+  short_description: "Review Planora private blob and upload workflows"
+  default_prompt: "Use $review-blob-storage to review Planora Blob Storage and upload behavior."

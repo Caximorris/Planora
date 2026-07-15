@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Security"
+  short_description: "Perform a scoped Planora security audit"
+  default_prompt: "Use $audit-security to audit a Planora security surface with evidence."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Azure Deployment"
+  short_description: "Review Planora Azure configuration and rollout safety"
+  default_prompt: "Use $review-azure-deployment to review Planora Azure deployment configuration safely."

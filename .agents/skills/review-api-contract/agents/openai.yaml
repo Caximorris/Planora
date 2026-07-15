@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review API Contract"
+  short_description: "Validate Planora DTO and endpoint compatibility"
+  default_prompt: "Use $review-api-contract to review Planora API contract consistency and compatibility."

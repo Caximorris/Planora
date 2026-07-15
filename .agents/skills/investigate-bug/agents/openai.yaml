@@ -1,0 +1,4 @@
+interface:
+  display_name: "Investigate Bug"
+  short_description: "Find reproducible causes without premature fixes"
+  default_prompt: "Use $investigate-bug to investigate a Planora bug and produce a root-cause report."
