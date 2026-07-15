@@ -2,3 +2,10 @@
 max_threads = 6
 max_depth = 1
 interrupt_message = true
+
+# Public, read-only first-party documentation. These servers require no credentials.
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+
+[mcp_servers.microsoftLearn]
+url = "https://learn.microsoft.com/api/mcp"
