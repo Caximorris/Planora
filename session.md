@@ -187,6 +187,11 @@ Logout → POST /api/auth/logout → SecurityStamp rotated → all tokens invali
 
 ## Deployment
 
+Frontend deploys build a clean `artifacts/planora-web` publish directory, generate uncached
+`version.json` metadata, validate its cache policy, and upload that exact directory to Azure Static
+Web Apps. See [frontend-caching.md](docs/frontend-caching.md) for cache rules, service-worker
+migration, and production header checks.
+
 | Target | Platform | Trigger |
 |---|---|---|
 | Web | Azure Static Web Apps | Push to `main` |
