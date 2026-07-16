@@ -20,11 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The framework applies these patterns to direct index.html references. Three deliberately
-         stable URLs are restored after publish below because browsers check service workers and
-         dynamic module imports by their original URL. -->
+    <!-- Direct JavaScript references use content-addressed filenames. Stylesheets retain stable
+         paths because index.html gives each deployment a distinct version query, which browsers
+         use as the cache key. -->
     <StaticWebAssetFingerprintPattern Include="JavaScript" Pattern="*.js" Expression="#[.{fingerprint}]!" />
-    <StaticWebAssetFingerprintPattern Include="StyleSheet" Pattern="*.css" Expression="#[.{fingerprint}]!" />
   </ItemGroup>
 
   <Target Name="CopyRevalidatedStaticAssets" AfterTargets="Publish">

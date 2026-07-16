@@ -56,6 +56,12 @@ if ($index -notmatch 'src="js/deployment-version\.[a-z0-9]+\.js"') {
     throw 'Published index.html does not contain a fingerprinted deployment-version script.'
 }
 
+foreach ($stylesheet in @('css/app.css', 'lib/bootstrap/dist/css/bootstrap.min.css', 'lib/cropperjs/cropper.min.css')) {
+    if (-not (Test-Path (Join-Path $publishPath $stylesheet))) {
+        throw "Published output is missing the versioned stylesheet target: $stylesheet"
+    }
+}
+
 foreach ($asset in @('service-worker.js', 'service-worker.published.js')) {
     if (-not (Test-Path (Join-Path $publishPath $asset))) {
         throw "Published output is missing the service-worker retirement entry point: $asset"
