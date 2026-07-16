@@ -39,8 +39,8 @@ foreach ($dir in $skillDirs) {
 
     $nameMatch = [regex]::Match($frontmatter.Groups[1].Value, '(?m)^name:\s*(.+)$')
     $descriptionMatch = [regex]::Match($frontmatter.Groups[1].Value, '(?m)^description:\s*(.+)$')
-    $name = $nameMatch.Groups[1].Value.Trim(' ', '"', "'")
-    $description = $descriptionMatch.Groups[1].Value.Trim(' ', '"', "'")
+$name = $nameMatch.Groups[1].Value.Trim().Trim('"', "'")
+$description = $descriptionMatch.Groups[1].Value.Trim().Trim('"', "'")
 
     if ($name -ne $dir.Name) { $errors.Add("$($dir.Name): name '$name' does not match folder") }
     if ($name -notmatch '^[a-z0-9]+(?:-[a-z0-9]+)*$') { $errors.Add("$($dir.Name): invalid skill name") }
@@ -86,7 +86,7 @@ if ($metadataChars -gt 8000) {
 Write-Output "Validated $($skillDirs.Count) skills; discovery metadata estimate: $metadataChars characters."
 foreach ($warning in $warnings) { Write-Warning $warning }
 if ($errors.Count -gt 0) {
-    foreach ($error in $errors) { Write-Error $error }
+    foreach ($validationError in $errors) { Write-Error $validationError }
     exit 1
 }
 Write-Output 'Skill library validation passed.'
