@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Migration"
+  short_description: "Review Planora EF Core migration safety"
+  default_prompt: "Use $review-migration to review a Planora database migration for safe rollout."

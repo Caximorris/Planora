@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Technical Debt"
+  short_description: "Prioritize evidence-backed Planora technical debt"
+  default_prompt: "Use $review-tech-debt to review and rank Planora technical debt."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Auth and Authorization"
+  short_description: "Audit Planora identity roles sessions and IDOR controls"
+  default_prompt: "Use $review-authz to review Planora authentication and authorization behavior."

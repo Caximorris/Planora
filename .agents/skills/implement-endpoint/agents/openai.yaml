@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Endpoint"
+  short_description: "Build secure Planora API endpoints end to end"
+  default_prompt: "Use $implement-endpoint to implement a secure Planora API endpoint end to end."

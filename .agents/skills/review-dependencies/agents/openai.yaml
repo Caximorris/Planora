@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Dependencies"
+  short_description: "Assess Planora package and vendored dependency changes"
+  default_prompt: "Use $review-dependencies to review Planora dependencies for risk and necessity."

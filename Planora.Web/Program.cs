@@ -33,6 +33,11 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddHttpClient("PlanoraRefresh", client =>
     client.BaseAddress = new Uri(apiBaseUrl));
 
+// This client is intentionally unauthenticated. Deployment metadata is public and must never
+// include, cache, or transmit a user's tokens or API data.
+builder.Services.AddHttpClient("PlanoraDeploymentVersion", client =>
+    client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress));
+
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<WorkspaceService>();
 builder.Services.AddScoped<BoardService>();
@@ -46,5 +51,6 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<ToastService>();
+builder.Services.AddScoped<DeploymentVersionService>();
 
 await builder.Build().RunAsync();

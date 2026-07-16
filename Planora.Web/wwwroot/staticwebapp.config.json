@@ -1,6 +1,7 @@
 {
   "globalHeaders": {
     "Blazor-Environment": "Production",
+    "Cache-Control": "no-cache, must-revalidate",
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -9,44 +10,56 @@
   },
   "routes": [
     {
-      "route": "/lib/*",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" }
+      "route": "/index.html",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/version.json",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/service-worker.js",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/service-worker.published.js",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/service-worker-assets.js",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/appsettings.json",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/_framework/blazor.boot.json",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
+    },
+    {
+      "route": "/_framework/dotnet.js",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
     },
     {
       "route": "/_framework/*",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
     },
     {
       "route": "/css/*",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
+    },
+    {
+      "route": "/lib/*",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
+    },
+    {
+      "route": "/js/cover-cropper.js",
+      "headers": { "Cache-Control": "no-cache, must-revalidate" }
     },
     {
       "route": "/js/*",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/Planora.Web.styles.css",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/appsettings*.json",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/favicon.svg",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/favicon.png",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/index.html",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
-    },
-    {
-      "route": "/",
-      "headers": { "cache-control": "no-cache, must-revalidate" }
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
     }
   ],
   "navigationFallback": {

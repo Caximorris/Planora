@@ -1,0 +1,43 @@
+@implements IAsyncDisposable
+@inject DeploymentVersionService DeploymentVersion
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+@if (DeploymentVersion.IsUpdateAvailable)
+{
+    <section class="deployment-update-banner" role="status" aria-live="polite">
+        <span>A new version of Planora is available.</span>
+        <button type="button" class="btn btn-sm btn-primary" @onclick="Reload">Update now</button>
+    </section>
+}
+
+@code {
+    private DotNetObjectReference<DeploymentUpdateNotifier>? _reference;
+
+    protected override void OnInitialized() => DeploymentVersion.Changed += OnVersionChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !DeploymentVersion.IsEnabled) return;
+
+        _reference = DotNetObjectReference.Create(this);
+        await DeploymentVersion.StartAsync();
+        await JS.InvokeVoidAsync("planoraVersionMonitor.register", _reference);
+    }
+
+    [JSInvokable]
+    public Task CheckForDeploymentUpdate() => DeploymentVersion.CheckForUpdateAsync();
+
+    private void OnVersionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void Reload() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true, replace: true);
+
+    public async ValueTask DisposeAsync()
+    {
+        DeploymentVersion.Changed -= OnVersionChanged;
+        try { await JS.InvokeVoidAsync("planoraVersionMonitor.unregister"); }
+        catch (JSDisconnectedException) { }
+        _reference?.Dispose();
+        await DeploymentVersion.DisposeAsync();
+    }
+}

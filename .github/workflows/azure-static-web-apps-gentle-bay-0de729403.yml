@@ -19,11 +19,35 @@ jobs:
         with:
           submodules: true
           lfs: false
-      - name: Inject production API URL
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Prepare a clean, versioned frontend build
         env:
           API_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          sed -i "s|http://localhost:5009|${API_URL}|g" Planora.Web/wwwroot/appsettings.json
+          test -n "${API_URL}"
+          rm -rf artifacts/planora-web
+          mkdir -p artifacts/planora-web
+          jq --arg apiUrl "${API_URL}" --arg version "${GITHUB_SHA}" \
+            '.ApiBaseUrl = $apiUrl | .BuildVersion = $version' \
+            Planora.Web/wwwroot/appsettings.json > artifacts/appsettings.json
+          mv artifacts/appsettings.json Planora.Web/wwwroot/appsettings.json
+          sed -i "s/__PLANORA_BUILD_VERSION__/${GITHUB_SHA}/g" Planora.Web/wwwroot/index.html
+      - name: Restore and publish frontend
+        run: |
+          dotnet restore Planora.Web/Planora.Web.csproj
+          dotnet publish Planora.Web/Planora.Web.csproj --configuration Release --no-restore --output artifacts/planora-web
+      - name: Create deployment metadata and validate publish output
+        run: |
+          jq -n \
+            --arg version "${GITHUB_SHA}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg builtAtUtc "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            '{ version: $version, commit: $commit, builtAtUtc: $builtAtUtc }' \
+            > artifacts/planora-web/wwwroot/version.json
+          pwsh -NoProfile -File scripts/Test-FrontendCaching.ps1 \
+            -PublishDirectory artifacts/planora-web/wwwroot -RequireVersionMetadata
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -34,9 +58,10 @@ jobs:
           skip_deploy_on_missing_secrets: true
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "./Planora.Web" # App source code path
+          app_location: "artifacts/planora-web/wwwroot" # Clean publish output
           api_location: "" # Api source code path - optional
-          output_location: "wwwroot" # Built app content directory - optional
+          output_location: ""
+          skip_app_build: true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:

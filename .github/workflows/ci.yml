@@ -6,12 +6,89 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
+  scope:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      tier3: ${{ steps.plan.outputs.tier3 }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Plan affected quality gate
+        id: plan
+        shell: pwsh
+        run: |
+          $plan = python3 .codex/hooks/planora_hooks.py plan --gate pr --json | ConvertFrom-Json
+          $plan | ConvertTo-Json -Depth 4
+          $tier3 = $plan.maxTier -ge 3
+          "tier3=$($tier3.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+  scoped-quality:
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.tier3 != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run affected Tier 1 and Tier 2 checks
+        shell: pwsh
+        run: ./scripts/Invoke-PlanoraQuality.ps1 -Gate pr
+
+  tier3-quality:
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.tier3 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
 
     # Integration tests boot the real API against Postgres. The test factory connects to
     # localhost:5433 with postgres/admin1234 and creates/drops the planora_test database itself.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: admin1234
+          POSTGRES_DB: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run affected Tier 1, Tier 2, and Tier 3 checks
+        shell: pwsh
+        run: ./scripts/Invoke-PlanoraQuality.ps1 -Gate pr
+
+  main-quality:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    # Main and manual runs remain clean-environment full validation, independent of diff scope.
     services:
       postgres:
         image: postgres:16
@@ -43,3 +120,18 @@ jobs:
 
       - name: Test
         run: dotnet test Planora.slnx --configuration Release --no-build --verbosity normal
+
+  # Preserve the existing required-check identity while routing work to exactly one quality path.
+  build-and-test:
+    if: always()
+    needs: [scope, scoped-quality, tier3-quality, main-quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Propagate a failed or cancelled quality path
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+
+      - name: Confirm required quality path passed
+        run: echo "Required Planora quality path passed."

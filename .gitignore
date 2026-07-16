@@ -486,3 +486,10 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local repository knowledge-graph artifacts
+/graphify-out/
+
+# Local Codex hook validation receipts and runtime logs
+/.codex/cache/
+/.codex/run-logs/

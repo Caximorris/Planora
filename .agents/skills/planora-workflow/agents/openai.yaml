@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planora Workflow"
+  short_description: "Apply repository gates to every Planora task"
+  default_prompt: "Use $planora-workflow to apply Planora preflight and quality gates."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Change API Contract"
+  short_description: "Evolve shared API contracts across API and Web"
+  default_prompt: "Use $change-api-contract to change a Planora API contract compatibly across consumers."

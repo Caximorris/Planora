@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Blazor UI"
+  short_description: "Review Planora Blazor interaction correctness"
+  default_prompt: "Use $review-blazor-ui to review a Planora Blazor UI implementation."

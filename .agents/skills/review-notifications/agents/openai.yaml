@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Notifications"
+  short_description: "Review Planora in-app notification behavior"
+  default_prompt: "Use $review-notifications to review Planora notification creation delivery and UI."

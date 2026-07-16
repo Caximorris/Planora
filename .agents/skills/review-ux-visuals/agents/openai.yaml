@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review UX and Visuals"
+  short_description: "Check Planora design-system and UX consistency"
+  default_prompt: "Use $review-ux-visuals to review Planora UX consistency and visual polish."

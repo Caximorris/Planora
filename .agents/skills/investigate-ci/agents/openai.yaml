@@ -1,0 +1,4 @@
+interface:
+  display_name: "Investigate CI"
+  short_description: "Diagnose Planora CI and GitHub Actions failures"
+  default_prompt: "Use $investigate-ci to investigate a failing Planora CI check."

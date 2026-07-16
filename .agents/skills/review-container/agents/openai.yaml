@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Container"
+  short_description: "Review Planora container build and runtime behavior"
+  default_prompt: "Use $review-container to review the Planora API container for production readiness."

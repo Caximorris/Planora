@@ -19,4 +19,19 @@
     <ProjectReference Include="..\Planora.Shared\Planora.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The framework applies these patterns to direct index.html references. Three deliberately
+         stable URLs are restored after publish below because browsers check service workers and
+         dynamic module imports by their original URL. -->
+    <StaticWebAssetFingerprintPattern Include="JavaScript" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+    <StaticWebAssetFingerprintPattern Include="StyleSheet" Pattern="*.css" Expression="#[.{fingerprint}]!" />
+  </ItemGroup>
+
+  <Target Name="CopyRevalidatedStaticAssets" AfterTargets="Publish">
+    <Copy SourceFiles="$(ProjectDir)wwwroot\service-worker.js;$(ProjectDir)wwwroot\service-worker.published.js"
+          DestinationFolder="$(PublishDir)wwwroot\" />
+    <Copy SourceFiles="$(ProjectDir)wwwroot\js\cover-cropper.js"
+          DestinationFolder="$(PublishDir)wwwroot\js\" />
+  </Target>
+
 </Project>
