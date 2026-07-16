@@ -14,7 +14,7 @@ override that default. The policy is therefore:
 - Fingerprinted framework, stylesheet, and vendored-library assets use `Cache-Control: public, max-age=31536000, immutable`.
 - Directly loaded JavaScript uses fingerprinted immutable URLs. `cover-cropper.js` is dynamically imported with a stable URL, so its exact route uses revalidation before the immutable `/js/*` rule. Never change that route to immutable unless the import is converted to a content-addressed URL.
 
-The .NET static-asset fingerprint pattern and `#[.{fingerprint}]` references in `index.html` give directly loaded JavaScript a content-addressed URL. Standalone Blazor's supported placeholder flow doesn't rewrite stylesheet references, so the workflow appends the current commit SHA as a build-generated query parameter to local stylesheets. Do not add a stable local asset to an immutable route unless its URL changes whenever its content changes.
+The .NET static-asset fingerprint pattern and `#[.{fingerprint}]` references in `index.html` give directly loaded JavaScript a content-addressed filename. Stylesheets intentionally retain their publish paths because Blazor does not rewrite their `href` values; the workflow appends the current commit SHA as a build-generated query parameter instead. Do not add a stable local asset to an immutable route unless its URL changes whenever its content changes.
 
 ## PWA migration
 
