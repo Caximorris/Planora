@@ -35,6 +35,7 @@ public class PlanorAuthStateProvider : AuthenticationStateProvider
             {
                 await _localStorage.RemoveItemAsync("authToken");
                 await _localStorage.RemoveItemAsync("refreshToken");
+                NotifyLoggedOut();
                 return Anonymous;
             }
         }
