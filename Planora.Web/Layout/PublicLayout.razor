@@ -1,0 +1,12 @@
+@inherits LayoutComponentBase
+
+<main class="main-content">
+    <ErrorBoundary>
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent>
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:50vh;gap:1rem;">
+                <p style="color:var(--text-secondary)">Something went wrong. Please try again.</p>
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
+</main>
