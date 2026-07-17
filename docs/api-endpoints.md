@@ -16,7 +16,7 @@ Validation: both `Create*` and `Update*` request bodies are validated with Fluen
 | POST | /auth/login/2fa | Completes login for a 2FA account: re-verifies password (same lockout) + TOTP or recovery code |
 | POST | /auth/refresh | Rotates pair; reuse of revoked token revokes ALL user tokens |
 | POST | /auth/logout | AllowAnonymous; accepts optional refreshToken body |
-| POST | /auth/demo | Creates a guest account + seeds a demo workspace; returns AuthResponse |
+| POST | /auth/demo | Creates a guest account + seeds three showcase workspaces with boards, members and sample content; returns AuthResponse |
 | POST | /auth/forgot-password | Rate-limited; no account enumeration |
 | POST | /auth/reset-password | Single-use Identity token; revokes refresh tokens |
 | POST | /auth/confirm-email | Optional verification; login does not require confirmed email |

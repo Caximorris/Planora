@@ -388,7 +388,7 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return StatusCode(500, result.Errors.First().Description);
 
-        await _demoSeeder.SeedAsync(user.Id);
+        await _demoSeeder.SeedAsync(user.Id, fullShowcase: true);
 
         _logger.LogInformation("AUTH_DEMO UserId={UserId} CorrelationId={CorrelationId}",
             user.Id, HttpContext.Items["CorrelationId"]);
@@ -586,9 +586,9 @@ public class AuthController : ControllerBase
             var duration = failCount switch
             {
                 >= 10 => TimeSpan.FromHours(24),
-                >= 8  => TimeSpan.FromHours(1),
-                >= 5  => TimeSpan.FromMinutes(15),
-                _     => TimeSpan.FromMinutes(5)
+                >= 8 => TimeSpan.FromHours(1),
+                >= 5 => TimeSpan.FromMinutes(15),
+                _ => TimeSpan.FromMinutes(5)
             };
             // Re-fetch to avoid EF tracking conflicts after AccessFailedAsync
             var freshUser = await _userManager.FindByIdAsync(user.Id);
