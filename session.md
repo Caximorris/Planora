@@ -86,7 +86,7 @@ Planora.slnx
 ### Discovery & UX
 - Expired authenticated sessions show a branded, accessible wake-up state while the API cold-starts and rotates the refresh token; failed refreshes keep the existing safe redirect to sign-in.
 - **Public landing page** — minimal hero with instant demo CTA
-- **Instant demo** — `POST /api/auth/demo` creates guest account + seeds demo workspace; shown after 4 s as "Server is waking up…" (cold start on scale-to-zero)
+- **Instant demo** — `POST /api/auth/demo` creates a guest account with three realistic showcase workspaces, archived content, fictional members, labels, checklists, comments, notifications and invitations; shown after 4 s as "Server is waking up…" (cold start on scale-to-zero). Normal registration keeps the smaller welcome seed.
 - **Global search (Ctrl+K)** — full-text ILIKE search across cards and boards in all user workspaces; debounced 300 ms; keyboard navigation (↑↓ Enter Esc)
 - **Notifications** — in-app bell, 30 s polling, unread badge, mark-all-read, dismiss
 - **Dark mode** — `data-theme="dark"` on `<html>`, persisted in localStorage; kanban canvas excluded (pastel card colors need light text)
