@@ -84,6 +84,7 @@ Planora.slnx
 - **Notification preferences** — profile toggles for assignment/comment/workspace-invite emails
 
 ### Discovery & UX
+- Expired authenticated sessions show a branded, accessible wake-up state while the API cold-starts and rotates the refresh token; failed refreshes keep the existing safe redirect to sign-in.
 - **Public landing page** — minimal hero with instant demo CTA
 - **Instant demo** — `POST /api/auth/demo` creates guest account + seeds demo workspace; shown after 4 s as "Server is waking up…" (cold start on scale-to-zero)
 - **Global search (Ctrl+K)** — full-text ILIKE search across cards and boards in all user workspaces; debounced 300 ms; keyboard navigation (↑↓ Enter Esc)
