@@ -11,7 +11,7 @@
   <ItemGroup>
     <!-- ASP.NET Core & EF Core -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
     <!-- Pin patched Microsoft.OpenApi: AspNetCore.OpenApi 10.0.9 pulls in 2.0.0 (GHSA-v5pm-xwqc-g5wc / NU1903, High) transitively -->
     <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
